@@ -78,3 +78,24 @@ test('60 seeded versus matches finish and conserve cards with either first playe
     }
   }
 });
+
+test('toJSON/fromJSON restores a match mid-turn and continues identically', () => {
+  const g = new Game('blue', seeded(9), {mode: 'versus', first: 1});
+  for (let i = 0; i < 120 && g.winner === null; i++) { const p = g.actor(); perform(g, p, choose(g, p)); }
+  g.stack.push({card: g.card(CARDS.find(c => c.type === 'Operation').id), p: g.active, target: {kind: 'player', p: 1 - g.active}});
+  const json = JSON.parse(JSON.stringify(g.toJSON()));
+  const r = Game.fromJSON(json);
+  assert.ok(r instanceof Game);
+  assert.deepEqual(r.toJSON(), g.toJSON());
+  assert.equal(r.mulligans, g.mulligans);
+  for (let i = 0; i < 300 && g.winner === null; i++) { const p = g.actor(), a = choose(g, p); perform(g, p, a); perform(r, p, a); }
+  assert.deepEqual(r.toJSON(), g.toJSON());
+  r.players[0].life = -5;
+  assert.notEqual(json.players[0].life, -5, 'a restored game must not share objects with its source');
+});
+
+test('solo games save without RNG state and restore with Math.random', () => {
+  const json = new Game('red').toJSON();
+  assert.equal(json.rng, null);
+  assert.equal(Game.fromJSON(json).random, Math.random);
+});
