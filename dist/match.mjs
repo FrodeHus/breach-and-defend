@@ -12,7 +12,7 @@ export class Match {
   }
   static fromJSON(json, options) { return new Match(json, options); }
 
-  constructor(state, {now = Date.now, schedule = setTimeout, cancel = clearTimeout} = {}) {
+  constructor(state, {now = Date.now, schedule = (fn, ms) => setTimeout(fn, ms), cancel = h => clearTimeout(h)} = {}) {
     const {hostFaction, hostSecret, guestSecret, seedCommit} = state;
     Object.assign(this, {hostFaction, hostSecret, guestSecret, seedCommit, now, schedule, cancel});
     this.game = Game.fromJSON(state.game);
