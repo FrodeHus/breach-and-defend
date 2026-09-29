@@ -11,7 +11,7 @@ const $=s=>document.querySelector(s),app=$('#app'),modal=$('#modal');
 let game=null,view='arena',inspect='b3',selected=new Set(),blocks={},blocker=null,stepKey='',timer=null,pauseAll=false,tutorial=false,resultShown=false,filter={q:'',faction:'all',type:'all'};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const label=f=>f==='blue'?'Blue team':'Red team';
-const art=d=>`art/${d.art}.png`;
+const art=d=>`art/${d.art}.webp`;
 const cardPreview=installCardPreview({root:app,renderCard:hoverCard,canShow:()=>!animating&&!modal.open&&!cardDrag.busy});
 const cardDrag=installCardDrag({
   root:app,
