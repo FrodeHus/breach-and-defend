@@ -28,11 +28,24 @@ class Session {
   onStatus = () => {};
   final = false; // Set once a session has stepped aside for good; later status changes are ignored.
   set(status, extra = {}) { if (this.final) return; Object.assign(this, extra, {status}); this.onStatus(this); }
+
+  // Messages are handled (and, on the host, sent) through ordered promise chains. `pending` counts the jobs
+  // queued on them that have not finished, so callers can tell when a session has nothing left in flight.
+  pending = 0;
+  enqueue(chain, job, onError) {
+    this.pending++;
+    this[chain] = this[chain].then(job).catch(onError).finally(() => { this.pending--; });
+  }
+  // Resolves once every queued job has finished, including jobs queued by those jobs.
+  async settled() {
+    while (this.pending > 0) await Promise.all(this.chains.map(c => this[c]));
+  }
 }
 
 // The host owns the Match. Its own moves go straight to the referee; the guest's arrive over the network.
 export class HostSession extends Session {
   role = 'host';
+  chains = ['queue', 'outbox'];
 
   // `random` exists so tests can fix the secrets (and with them the shuffles); the app never passes it.
   static async create({net, store, hostFaction, matchId = newMatchId(), clock, random = randomHex}) {
@@ -84,7 +97,7 @@ export class HostSession extends Session {
   }
 
   connection(conn) {
-    conn.onmessage = msg => { this.queue = this.queue.then(() => this.fromGuest(conn, msg)).catch(() => {}); };
+    conn.onmessage = msg => this.enqueue('queue', () => this.fromGuest(conn, msg), () => {});
     conn.onclose = () => {
       if (this.closed || this.conn !== conn) return;
       this.conn = null;
@@ -101,13 +114,16 @@ export class HostSession extends Session {
   post(msg, conn = this.conn) {
     if (!conn) return;
     const {entry, log} = msg;
-    this.outbox = this.outbox.then(async () => {
+    this.afterSent(async () => {
       const out = {...msg};
       if (entry !== undefined) out.entry = await this.redact(entry);
       if (log !== undefined) out.log = await Promise.all(log.map(e => this.redact(e)));
       conn.send(out);
-    }).catch(e => console.error('Breach & Defend: could not send to the guest', e));
+    });
   }
+
+  // Runs `job` once every message queued before it has gone out, so a last word or a close never overtakes them.
+  afterSent(job) { this.enqueue('outbox', job, e => console.error('Breach & Defend: could not send to the guest', e)); }
 
   async redact(entry) {
     const out = redactEntry(entry);
@@ -117,10 +133,8 @@ export class HostSession extends Session {
     return {...out, bottomCommit: commits[entry.n]};
   }
 
-  settled() { return this.outbox; }
-
   async fromGuest(conn, msg) {
-    if (!msg || typeof msg !== 'object') return;
+    if (this.closed || !msg || typeof msg !== 'object') return; // A disposed host only finishes sending.
     if (msg.type === 'hello') return this.hello(conn, msg);
     if (conn !== this.conn) return;
     switch (msg.type) {
@@ -199,7 +213,7 @@ export class HostSession extends Session {
     if (this.match?.started && !this.match.ended) return this.seat.game.concede(0);
     const ended = !!this.match?.ended;
     const conn = this.conn;
-    if (!ended && conn) { this.conn = null; retire(conn, {type: 'leave'}); }
+    if (!ended && conn) { this.conn = null; this.afterSent(() => retire(conn, {type: 'leave'})); }
     this.dispose();
     if (!ended) this.set('cancelled');
   }
@@ -210,7 +224,10 @@ export class HostSession extends Session {
     if (removeRecord) this.store.remove(`host:${this.matchId}`); else this.save();
     this.closed = true;
     this.listener?.close();
-    this.conn?.close();
+    // Let queued views (and the final reveal) reach the guest before the connection closes.
+    const conn = this.conn;
+    this.conn = null;
+    if (conn) this.afterSent(() => conn.close());
   }
 
   save() {
@@ -223,6 +240,7 @@ export class HostSession extends Session {
 // The guest never holds hidden state. It records what it saw so it can audit the host at the end.
 export class GuestSession extends Session {
   role = 'guest';
+  chains = ['queue'];
 
   static async join({net, store, matchId, retry = backoff, random = randomHex}) {
     const s = new GuestSession({net, store, matchId, retry, random});
@@ -262,8 +280,9 @@ export class GuestSession extends Session {
     if (this.closed) return conn.close();
     this.conn = conn;
     this.attempts = 0;
-    conn.onmessage = msg => { this.queue = this.queue.then(() => this.fromHost(msg, conn)).catch(e => this.failed(e)); };
-    conn.onclose = () => this.lost(conn);
+    conn.onmessage = msg => this.enqueue('queue', () => this.fromHost(msg, conn), e => this.failed(e));
+    // A close is handled in turn with the messages that arrived before it, never ahead of them.
+    conn.onclose = () => this.enqueue('queue', () => this.lost(conn), e => this.failed(e));
     conn.send({type: 'hello', guestToken: this.record.guestToken, have: this.record.log.length});
   }
 
@@ -271,6 +290,7 @@ export class GuestSession extends Session {
     if (this.closed || this.conn !== conn) return;
     this.conn = null;
     conn.onmessage = () => {}; // Late messages on a dead connection must not act on the session.
+    if (this.status === 'ended') return; // Revealed and audited: nothing is left to reconnect for.
     if (!this.record.guestToken) { this.dispose(); return this.set('error', {error: 'no-connection'}); }
     this.seat.dropPending('Connection lost. Reconnecting…');
     this.set('reconnecting');
@@ -418,6 +438,4 @@ export class GuestSession extends Session {
     if (this.superseded()) return this.stepAside();
     this.store.set(`guest:${this.matchId}`, this.record);
   }
-
-  settled() { return this.queue; }
 }
