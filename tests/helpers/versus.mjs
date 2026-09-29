@@ -40,3 +40,15 @@ export async function openedMatch(time) {
   act(m, 0, {type: 'keep'}); act(m, 1, {type: 'keep'});
   return m;
 }
+
+export function memoryBackend() {
+  const map = new Map();
+  return {
+    map,
+    getItem: k => (map.has(k) ? map.get(k) : null),
+    setItem: (k, v) => void map.set(k, String(v)),
+    removeItem: k => void map.delete(k),
+    key: i => [...map.keys()][i] ?? null,
+    get length() { return map.size; },
+  };
+}
