@@ -60,8 +60,8 @@ export class Tutorial {
     if (g.phase === 'attack') {
       const ready = g.players[0].field.filter(c => g.canAttack(0, c));
       return step('attack', 'Choose your attackers.', ready.length
-        ? `${selected.size ? `${selected.size} selected. Confirm with Attack with ${selected.size}, or select a unit again to remove it.` : 'Select a highlighted unit, then confirm your attack.'} Attacking usually taps a unit, leaving it unable to block. New units wait a turn unless they have haste.`
-        : 'No units can attack yet. New units wait until your next turn unless they have haste; tapped units and defenders cannot attack. Choose Skip attack and keep building.', [...ready.map(fieldTarget), '#advance']);
+        ? `${selected.size ? `${selected.size} selected. Confirm with Attack with ${selected.size}, or select a unit again to remove it.` : 'Select a highlighted unit, then confirm your attack.'} Attacking usually taps a unit, leaving it unable to block. New units wait a turn unless they have Rapid deploy.`
+        : 'No units can attack yet. New units wait until your next turn unless they have Rapid deploy; tapped units and Firewall units cannot attack. Choose Skip attack and keep building.', [...ready.map(fieldTarget), '#advance']);
     }
     if (g.phase === 'block') {
       const attackers = g.attacks.map(uid => g.find(uid)?.card).filter(Boolean);
@@ -70,9 +70,9 @@ export class Tutorial {
       const assigned = Object.values(blocks).flat().length;
       return step('block', 'Choose your defense.', !attackers.length
         ? 'There are no attackers this combat. Continue; the defense lesson will be available when an opponent attacks.'
-        : chosen ? 'Now select a highlighted opposing attacker. Your blocker deals its power and receives damage in return. Flying attackers need flying or reach to block.'
+        : chosen ? 'Now select a highlighted opposing attacker. Your blocker deals its power and receives damage in return. Stealth attackers need Stealth or Detection to block.'
         : ready.length ? `${assigned ? `${assigned} blocker${assigned === 1 ? '' : 's'} assigned. Confirm blocks, or assign more. ` : 'Select a highlighted unit of yours, then an opposing attacker. '}Blocking does not tap units. Unblocked attackers damage your capacity; you can also choose to take damage.`
-        : 'You have no legal blockers. Choose Take unblocked damage to continue. Keep an untapped unit ready next time; flying attackers need flying or reach to block.', [...(chosen ? attackers.filter(a => g.canBlock(chosen, a)) : ready).map(fieldTarget), '#advance']);
+        : 'You have no legal blockers. Choose Take unblocked damage to continue. Keep an untapped unit ready next time; Stealth attackers need Stealth or Detection to block.', [...(chosen ? attackers.filter(a => g.canBlock(chosen, a)) : ready).map(fieldTarget), '#advance']);
     }
     if (g.phase === 'cleanup') return step('cleanup', 'Make room for your next draw.', `Select ${g.players[0].hand.length - 7} cards to discard, then choose Discard selected. Your hand must have at most seven cards at the end of your turn.`, ['.hand', '#advance']);
     if (g.active === 0 && ['main1', 'main2'].includes(g.phase)) {

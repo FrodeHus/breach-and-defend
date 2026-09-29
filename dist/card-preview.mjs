@@ -25,7 +25,7 @@ export function installCardPreview({root, renderCard, canShow}) {
   const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
   const eligible = node => {
     const el = node instanceof Element ? node.closest('[data-card]') : null;
-    return el && root.contains(el) && el.matches('.hand [data-card], .opening-hand [data-card], #libraryGrid [data-card]') ? el : null;
+    return el && root.contains(el) && el.matches('.hand [data-card], .opening-hand [data-card], #libraryGrid [data-card], .battle-lane [data-card]') ? el : null;
   };
   function unlink() {
     if (!source) return;

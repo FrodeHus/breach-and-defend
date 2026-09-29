@@ -15,7 +15,7 @@ export const errorMessage = code => ERRORS[code] ?? ERRORS['no-connection'];
 const RETRY = ['server', 'no-connection', 'id-taken', 'host-offline'];
 
 export function lobby(session, {url = '', canShare = false, storageOk = true} = {}) {
-  const page = (title, body, actions) => `<section class="versus-lobby" aria-live="polite"><div class="eyebrow">FOUNDATIONS / PLAY A FRIEND</div><h1>${title}</h1>${body}<div class="toolbar">${actions}</div></section>`;
+  const page = (title, body, actions) => `<section class="versus-lobby" aria-live="polite"><div class="eyebrow">FIRST BREACH / PLAY A FRIEND</div><h1>${title}</h1>${body}<div class="toolbar">${actions}</div></section>`;
   const home = '<button id="versusHome">Back to arena</button>';
   switch (session.status) {
     case 'waiting':
