@@ -39,6 +39,8 @@ The guide pauses your first pending-effect priority window so you can read befor
 
 Hover a visible card in your hand, opening hand, or card library to lift out an enlarged preview with its full rules, cost, stats, and keyword explanations. Tab focus also opens previews; Escape dismisses them. Previews stay within the screen edges and respect reduced-motion preferences. Clicking still opens the card details and play options; touch players can continue to tap cards.
 
+Drag a card from your hand (or its enlarged preview) onto **Your battlefield** to play it. The battlefield highlights while dragging; blocked cards explain their unmet requirements. Cards needing a target open the target picker before payment. Release elsewhere or press Escape to cancel. Horizontal touch swipes still scroll the hand; tap-to-play and keyboard controls remain available.
+
 Hand previews and card details show every unmet play requirement, including required versus ready compute, main-phase timing, priority, pending effects, and the specific kind of missing target. These explanations use the same checks that validate playing the card and update with the current match state.
 
 ## Deliberate simplifications
@@ -59,6 +61,7 @@ The computer uses a local heuristic. It knows its own hand and the public battle
 - `dist/tutorial.mjs`: lesson progress and contextual guidance, independent of rendering.
 - `dist/tutorial.css`: opt-in panel, lesson checklist, and action highlights.
 - `dist/card-preview.mjs` and `dist/card-preview.css`: hover/focus preview interactions and positioning.
+- `dist/card-drag.mjs` and `dist/card-drag.css`: hand-to-battlefield dragging and drop feedback.
 - `dist/style.css`: layout and visual design.
 - `dist/art/`: generated artwork used by the cards.
 - `art-prompts.json`: exact final prompts used with the built-in image generation tool.
