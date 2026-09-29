@@ -1,0 +1,11 @@
+{
+  "name": "breach-and-defend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A red-versus-blue cybersecurity card game",
+  "scripts": {
+    "start": "node serve.cjs",
+    "test": "node --test tests/engine.test.mjs"
+  },
+  "engines": { "node": ">=22" }
+}

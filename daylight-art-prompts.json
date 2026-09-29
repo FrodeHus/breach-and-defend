@@ -1,0 +1,32 @@
+[
+  {
+    "asset": "daylight-battlefield.png",
+    "tool": "image_gen.imagegen",
+    "transparent_background": false,
+    "prompt": "Use case: stylized-concept. High-quality futuristic cyber strategy game asset, consistent bright premium visual style, soft daylight, porcelain white, brushed silver and frosted glass, pale blue-grey, sophisticated layered technological detailing. No lettering, text, numbers, logos, watermark or interface. Landscape 3:2 composition. Perfectly top-down orthographic futuristic battlefield board environment. Keep central 75% of the image very quiet, almost flat pale bluegrey playing surface with only extremely subtle fine seams. Intricate raised technological architecture and silver rails confined to the outer perimeter. Small restrained teal and crimson power details on opposite perimeter sides. No cards, figures, units, UI, or central objects. Full bleed."
+  },
+  {
+    "asset": "blue-emblem.png",
+    "tool": "image_gen.imagegen",
+    "transparent_background": true,
+    "prompt": "Use case: stylized-concept. High-quality futuristic cyber strategy game asset, consistent bright premium visual style, soft daylight, porcelain white, brushed silver and frosted glass, pale blue-grey, sophisticated layered technological detailing. No lettering, text, numbers, logos, watermark or interface. Square asset on genuinely transparent alpha background. Single centered angular silver shield emblem with a luminous teal-blue geometric core, polished beveled porcelain silver armor and precise industrial seams. Isolated cutout, ample transparent space around the emblem, no floor, no backdrop, no shadow outside object. Crisp high contrast silhouette."
+  },
+  {
+    "asset": "red-emblem.png",
+    "tool": "image_gen.imagegen",
+    "transparent_background": true,
+    "prompt": "Use case: stylized-concept. High-quality futuristic cyber strategy game asset, consistent bright premium visual style, soft daylight, porcelain white, brushed silver and frosted glass, pale blue-grey, sophisticated layered technological detailing. No lettering, text, numbers, logos, watermark or interface. Square asset on genuinely transparent alpha background. Single centered fractured angular silver aperture emblem with a luminous crimson-red core, polished beveled porcelain silver armor and precise industrial seams. Isolated cutout, ample transparent space around the emblem, no floor, no backdrop, no shadow outside object. Crisp high contrast silhouette."
+  },
+  {
+    "asset": "blue-card-back.png",
+    "tool": "image_gen.imagegen",
+    "transparent_background": false,
+    "prompt": "Use case: stylized-concept. High-quality futuristic cyber strategy game asset, consistent bright premium visual style, soft daylight, porcelain white, brushed silver and frosted glass, pale blue-grey, sophisticated layered technological detailing. No lettering, text, numbers, logos, watermark or interface. Portrait exact 2:3 aspect ratio card-back artwork. Full-bleed artwork extends to all four canvas edges, no exterior margin, no product mockup or surrounding background. Symmetrical layered pale technological panels and fine silver bevels framing a centered angular silver shield with luminous teal-blue core. Elegant restrained teal light traces around the layered panels, frosted glass insets, ornate but legible from thumbnail size. Entire rectangular image is the card artwork."
+  },
+  {
+    "asset": "red-card-back.png",
+    "tool": "image_gen.imagegen",
+    "transparent_background": false,
+    "prompt": "Use case: stylized-concept. High-quality futuristic cyber strategy game asset, consistent bright premium visual style, soft daylight, porcelain white, brushed silver and frosted glass, pale blue-grey, sophisticated layered technological detailing. No lettering, text, numbers, logos, watermark or interface. Portrait exact 2:3 aspect ratio card-back artwork. Full-bleed artwork extends to all four canvas edges, no exterior margin, no product mockup or surrounding background. Symmetrical layered pale technological panels and fine silver bevels framing a centered fractured angular silver aperture with luminous crimson-red core. Elegant restrained crimson light traces around the layered panels, frosted glass insets, ornate but legible from thumbnail size. Entire rectangular image is the card artwork."
+  }
+]

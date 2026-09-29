@@ -1,0 +1,27 @@
+/* Silver armor and restrained faction accents frame the original logo. */
+body>header{position:relative;z-index:30;height:88px;min-height:0;padding:0 28px;gap:28px;background:linear-gradient(115deg,#f8fafc,#dce5ed 48%,#fafcfd);border-bottom:1px solid #8fa6b7;box-shadow:0 3px 12px #17354424;isolation:isolate}
+body>header:after{content:'';position:absolute;bottom:-2px;left:0;right:0;height:3px;background:linear-gradient(90deg,#c53d48,transparent 36%,transparent 57%,#169fb8);pointer-events:none;z-index:-1}
+body>header .brand{position:relative;display:block;flex:0 0 210px;align-self:flex-start;width:210px;height:88px;z-index:2}
+.brand-logo{display:block;width:210px;height:105px;object-fit:contain;filter:drop-shadow(0 4px 3px #16334340)}
+body>header nav{align-self:stretch;align-items:center;gap:6px}
+body>header .nav{color:#314b5b;border-radius:5px;background:transparent;font-weight:600;padding:12px 16px;box-shadow:none;border:1px solid transparent}
+body>header .nav:hover{background:#fff9;border-color:#a6bac7}
+body>header .nav.active{background:#fff;border-color:#8faebd;color:#075f70;box-shadow:inset 0 -3px #158fa5,0 2px 5px #18364512}
+body>header .nav span{background:#dce7ed;color:#314b5b;border-radius:3px}
+body>header .edition{color:#415a6a;font-size:.6875rem;white-space:nowrap}
+body>header .brand:focus-visible{outline:3px solid #96610b;outline-offset:3px;border-radius:6px}
+@media(min-width:900px) and (min-height:560px){
+ body.match-playing>header{height:50px;min-height:0;padding:0 20px;gap:20px}
+ body.match-playing>header .brand{width:132px;height:50px;flex-basis:132px}
+ .match-playing .brand-logo{width:132px;height:66px}
+ body.match-playing>header .nav{padding:8px 14px;font-size:.8125rem}
+ .match-playing .match-top{padding-left:145px}
+}
+@media(max-width:1000px){body>header .edition{display:none}}
+@media(max-width:760px){
+ body>header{height:auto;min-height:126px;padding:0 12px 9px;gap:0;flex-direction:column;flex-wrap:nowrap;align-items:center}
+ body>header .brand{align-self:center;flex:0 0 79px;width:154px;height:79px}
+ .brand-logo{width:154px;height:77px;filter:drop-shadow(0 2px 2px #16334333)}
+ body>header nav{width:100%;justify-content:center;gap:4px;align-self:center}
+ body>header .nav{padding:9px 12px;font-size:.8125rem}
+}
