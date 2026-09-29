@@ -2543,7 +2543,7 @@ git commit -m "feat: add play-a-friend lobby, honor dialog, clock and audit mark
 
 ### Task 13: Landing page with splash hero and game-mode selector
 
-This implements the approved mockup (https://claude.ai/artifact/B5S6tR4GagucDmcd5wkwae):
+This implements the approved mockup, version 3 with angled shapes (https://claude.ai/artifact/B5S6tR4GagucDmcd5wkwae):
 
 - **Header:** a text wordmark replaces the logo image.
 - **Hero:** the full-width splash art, with a one-line tagline where it fades into the page.
@@ -2623,8 +2623,11 @@ test('the hero serves responsive splash images that exist, with text alternative
   assert.equal(fs.existsSync(new URL('../dist/art/breach-and-defend-splash.png', import.meta.url)), false, 'the 2.4 MB original must not ship');
 });
 
-test('both modes are real buttons with headings for each step', () => {
+test('both modes are real buttons with headings for each step, in focusable slots', () => {
   const html = landing();
+  assert.equal((html.match(/<div class="mode-slot"><button type="button" class="mode-card"/g) || []).length, 2);
+  assert.equal((html.match(/<div class="side-frame"><article class="side /g) || []).length, 2);
+  assert.match(html, /<button class="primary slant" data-start="blue">/);
   assert.deepEqual(MODES.map(m => m.id), ['solo', 'friend']);
   assert.equal((html.match(/<button type="button" class="mode-card"/g) || []).length, 2);
   assert.match(html, /<h2 id="modeTitle">Choose a mode<\/h2>/);
@@ -2657,8 +2660,9 @@ const ICONS = {
 
 export function landing({mode = 'solo', guide = false} = {}) {
   const friend = mode === 'friend';
-  const modeCard = m => `<button type="button" class="mode-card" data-mode="${m.id}" aria-pressed="${m.id === mode}"><span class="mode-head"><span class="mode-icon">${ICONS[m.id]}</span><span class="mode-name"><span class="eyebrow">${m.eyebrow}</span><strong>${m.title}</strong></span><span class="mode-radio" aria-hidden="true"></span></span><span class="mode-body">${m.body}</span><span class="tags">${m.tags.map(t => `<span class="tag">${t}</span>`).join('')}</span></button>`;
-  const side = s => `<article class="side ${s.id}"><img src="art/${s.id}-emblem.png" alt="" width="96" height="96"><div class="side-copy"><div class="eyebrow">${s.eyebrow}</div><h3>${s.name}</h3><p>${s.text}</p></div><button class="primary" ${friend ? 'data-invite' : 'data-start'}="${s.id}">${friend ? 'Invite as' : 'Play'} ${s.name} →</button></article>`;
+  // Clipped shapes can't show an outline, so each card sits in a slot that glows on keyboard focus.
+  const modeCard = m => `<div class="mode-slot"><button type="button" class="mode-card" data-mode="${m.id}" aria-pressed="${m.id === mode}"><span class="mode-inner"><span class="mode-head"><span class="mode-icon">${ICONS[m.id]}</span><span class="mode-name"><span class="eyebrow">${m.eyebrow}</span><strong>${m.title}</strong></span><span class="mode-radio" aria-hidden="true"></span></span><span class="mode-body">${m.body}</span><span class="tags">${m.tags.map(t => `<span class="tag">${t}</span>`).join('')}</span></span></button></div>`;
+  const side = s => `<div class="side-frame"><article class="side ${s.id}"><img src="art/${s.id}-emblem.png" alt="" width="96" height="96"><div class="side-copy"><div class="eyebrow">${s.eyebrow}</div><h3>${s.name}</h3><p>${s.text}</p></div><button class="primary slant" ${friend ? 'data-invite' : 'data-start'}="${s.id}">${friend ? 'Invite as' : 'Play'} ${s.name} →</button></article></div>`;
   const extra = friend
     ? '<p class="side-note">Your friend gets the other side. You’ll get a link to send them.</p>'
     : `<label class="tutorial-opt-in"><input id="guideFirstGame" type="checkbox" ${guide ? 'checked' : ''} aria-describedby="tutorialOffer"><span><strong>Guide my first game</strong><small id="tutorialOffer">Six hands-on lessons as you play either faction. Exit anytime.</small></span></label>`;
@@ -2711,30 +2715,42 @@ body.landing-view main{padding:0;max-width:none}
 .landing .tutorial-opt-in input{accent-color:var(--blue)}
 .side-note{color:var(--muted)}
 .mode-grid,.side-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
-.mode-card{display:flex;flex-direction:column;gap:16px;align-items:flex-start;text-align:left;padding:26px 28px;border-radius:8px;background:var(--panel);border:2px solid var(--line);color:var(--text);font:inherit;cursor:pointer}
-.mode-card[aria-pressed="true"]{background:#17242c;border-color:var(--gold)}
-.mode-card:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+/* Angled shapes (approved mockup v3): notched mode cards, blade-cut faction panels, slanted buttons, diamond selector. */
+.mode-card,.mode-inner{clip-path:polygon(26px 0,100% 0,100% calc(100% - 26px),calc(100% - 26px) 100%,0 100%,0 26px)}
+.side-frame,.side{clip-path:polygon(0 0,calc(100% - 34px) 0,100% 34px,100% 100%,34px 100%,0 calc(100% - 34px))}
+.slant{clip-path:polygon(14px 0,100% 0,calc(100% - 14px) 100%,0 100%)}
+.mode-slot{display:flex}
+.mode-slot:focus-within{filter:drop-shadow(0 0 2px var(--gold)) drop-shadow(0 0 6px color-mix(in srgb,var(--gold) 50%,transparent))}
+.mode-card{display:block;width:100%;padding:2px;border:0;background:var(--line);color:var(--text);font:inherit;text-align:left;cursor:pointer}
+.mode-card:focus-visible{outline:none}
+.mode-card[aria-pressed="true"]{background:var(--gold)}
+.mode-inner{position:relative;display:flex;flex-direction:column;gap:16px;align-items:flex-start;height:100%;box-sizing:border-box;padding:28px 34px;background:var(--panel)}
+.mode-inner:before{content:'';position:absolute;top:0;right:44px;width:64px;height:3px;background:var(--line)}
+.mode-card[aria-pressed="true"] .mode-inner{background:#17242c}
+.mode-card[aria-pressed="true"] .mode-inner:before{background:var(--gold)}
 .mode-head{display:flex;align-items:center;gap:14px;width:100%}
-.mode-icon{width:52px;height:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--bg);border:1px solid var(--line);color:var(--muted)}
-.mode-card[aria-pressed="true"] .mode-icon{color:var(--gold)}
+.mode-icon{width:52px;height:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--bg);border:1px solid var(--line);color:var(--muted);clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
+.mode-card[aria-pressed="true"] .mode-icon{color:var(--gold);border-color:var(--gold)}
 .mode-icon svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .mode-name{display:flex;flex-direction:column;gap:2px;flex-grow:1}
 .mode-name strong{font-size:1.625rem}
-.mode-radio{width:24px;height:24px;flex-shrink:0;box-sizing:border-box;border-radius:50%;border:2px solid #51646f}
-.mode-card[aria-pressed="true"] .mode-radio{border-color:var(--gold);background:radial-gradient(circle,var(--gold) 0 5px,transparent 6px)}
+.mode-radio{width:18px;height:18px;margin-right:4px;flex-shrink:0;box-sizing:border-box;transform:rotate(45deg);border:2px solid #51646f}
+.mode-card[aria-pressed="true"] .mode-radio{border-color:var(--gold);background:radial-gradient(var(--gold) 0 3px,transparent 4px)}
 .mode-body{font-size:1rem;line-height:1.55;color:#c9d4db}
-.side{display:flex;gap:22px;align-items:center;padding:26px 28px;background:var(--panel);border:1px solid var(--line);border-radius:8px}
-.side.blue{border-top:3px solid var(--blue)}
-.side.red{border-top:3px solid var(--red)}
+.side-frame{padding:2px;background:var(--line)}
+.side{display:flex;gap:22px;align-items:center;height:100%;box-sizing:border-box;padding:26px 42px 26px 30px;background:var(--panel)}
+.side.blue{border-top:4px solid var(--blue)}
+.side.red{border-top:4px solid var(--red)}
 .side img{width:96px;height:96px;flex-shrink:0}
 .side-copy{flex-grow:1}
 .side h3{margin:4px 0 8px;font-size:1.75rem}
 .side p{margin:0;color:#c9d4db;line-height:1.5}
 .side.blue .eyebrow{color:var(--blue)}
 .side.red .eyebrow{color:var(--red)}
-.side .primary{flex-shrink:0;min-height:48px;padding:13px 20px;font-weight:700}
-.side.blue .primary{background:var(--blue);border-color:var(--blue);color:#0b1c20}
-.side.red .primary{background:var(--red);border-color:var(--red);color:#2a0d0b}
+.side .primary{flex-shrink:0;min-height:48px;padding:13px 32px;border:0;border-radius:0;font-weight:700}
+.side .primary:focus-visible{outline:none;filter:drop-shadow(0 0 3px var(--gold))}
+.side.blue .primary{background:var(--blue);color:#0b1c20}
+.side.red .primary{background:var(--red);color:#2a0d0b}
 .landing-foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px 24px;padding-top:22px;border-top:1px solid var(--line);font-size:.8125rem;color:var(--muted)}
 @media(max-width:760px){
   .mode-grid,.side-grid{grid-template-columns:minmax(0,1fr)}
@@ -2744,7 +2760,9 @@ body.landing-view main{padding:0;max-width:none}
   .landing{gap:32px}
   .step-head h2{font-size:1.5rem}
   .step-head .tutorial-opt-in,.step-head .side-note{margin:0;flex-basis:100%}
-  .mode-card,.side{padding:18px}
+  .mode-card,.mode-inner{clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px)}
+  .side-frame,.side{clip-path:polygon(0 0,calc(100% - 24px) 0,100% 24px,100% 100%,24px 100%,0 calc(100% - 24px))}
+  .mode-inner,.side{padding:18px 22px}
   .side{flex-wrap:wrap}
   .side img{width:64px;height:64px}
   .side .primary{flex-basis:100%;justify-content:center}
