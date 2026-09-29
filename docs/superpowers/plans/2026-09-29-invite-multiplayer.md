@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let two people play Breach & Defend in separate browsers through an invite link, on a static GitHub Pages site, with clocks, reconnects, an honor pledge, and a post-match fairness audit.
+**Goal:** Give the arena a landing page with a game-mode selector (approved mockup: https://claude.ai/artifact/B5S6tR4GagucDmcd5wkwae), and let two people play Breach & Defend in separate browsers through an invite link, on a static GitHub Pages site, with clocks, reconnects, an honor pledge, and a post-match fairness audit.
 
 **Architecture:** The host browser runs the only real `Game` inside a `Match` referee; the guest sends intents over a PeerJS WebRTC data channel and receives redacted, perspective-flipped views. Both browsers drive the unchanged arena UI through a `Seat`, a `Game` rebuilt from the latest view whose mutating methods send intents. A jointly generated seed (commit–reveal) plus an action log lets the guest replay and verify the whole match when it ends.
 
@@ -14,7 +14,7 @@
 
 - No npm dependencies, no build step. Everything the site serves lives in `dist/`. GitHub Pages publishes `dist/` only.
 - Tests run with `npm test` (`node --test tests/*.test.mjs`). Helpers live in `tests/helpers/` so the glob doesn't pick them up.
-- Only external script: `https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js`, integrity `sha384-x0YgkOr/3UOZP2CRDxGW9e0Q+2Qjyr3uJrm4xU32Y7ZCNAo7Cc7bjhrZMi/dwczu`, loaded only when a versus match starts.
+- Only external stylesheet: Google Fonts (Chakra Petch 500/600/700, DM Sans 400/500/700). Only external script: `https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js`, integrity `sha384-x0YgkOr/3UOZP2CRDxGW9e0Q+2Qjyr3uJrm4xU32Y7ZCNAo7Cc7bjhrZMi/dwczu`, loaded only when a versus match starts.
 - Solo mode behavior, log text and all existing tests stay unchanged.
 - Clocks are fixed: opening 60 s, turn 90 s (active player, per turn), response 20 s (non-active player, per decision).
 - Invite link `…/#join=<matchId>`; host URL `…/#host=<matchId>`; `matchId` is 16 characters from `a–z2–7`; PeerJS host id `bnd-<matchId>`.
@@ -46,9 +46,11 @@
 | `dist/storage.mjs` (new) | Safe `localStorage` wrapper with memory fallback and pruning |
 | `dist/net.mjs` (new) | PeerJS transport (`listen`, `dial`) |
 | `dist/session.mjs` (new) | Host/guest handshake, tokens, reconnect, reveal, audit exchange |
-| `dist/versus-ui.mjs` (new) | HTML strings for offer, lobby, honor dialog, clock, audit line |
+| `dist/versus-ui.mjs` (new) | HTML strings for lobby, honor dialog, clock, audit line |
 | `dist/versus.css` (new) | Styles for the above |
-| `dist/app.mjs`, `dist/index.html` (modify) | Wire versus sessions into the arena |
+| `dist/landing.mjs`, `dist/landing.css` (new) | Start screen: splash hero, game-mode selector, side picker (approved mockup) |
+| `art-source/`, `dist/art/splash-*` (new) | Original splash art (not shipped) and its web sizes |
+| `dist/app.mjs`, `dist/index.html` (modify) | Header wordmark; wire the landing page and versus sessions into the arena |
 | `tests/helpers/policy.mjs`, `tests/helpers/versus.mjs`, `tests/helpers/fake-net.mjs` (new) | Deterministic player, fake clock/storage, in-memory transport |
 | `README.md` (modify) | Document the feature |
 
@@ -2363,11 +2365,11 @@ git commit -m "feat: add host and guest sessions with tokens, reconnect, reveal 
     - `clockText(clock, now)`
     - `auditLine(audit)`
   - **Markup**
-    - `offer()`, which uses `data-invite="blue|red"`
     - `honorDialog({team})`, which uses `#pledge` and `#pledgeLeave`
     - `matchStatus(session, now)`, which uses `#versusClock`
     - `lobby(session, {url, canShare, storageOk})`
   - **Element ids** used by `lobby()`: `#inviteLink`, `#copyInvite`, `#shareInvite`, `#cancelVersus`, `#showPledge`, `#versusHome` and `#versusRetry`.
+  - The start-screen mode selector is Task 13's job, not this module's.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2376,11 +2378,6 @@ git commit -m "feat: add host and guest sessions with tokens, reconnect, reveal 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as ui from '../dist/versus-ui.mjs';
-
-test('the offer has one invite button per faction', () => {
-  assert.match(ui.offer(), /data-invite="blue"/);
-  assert.match(ui.offer(), /data-invite="red"/);
-});
 
 test('the invite lobby escapes the link, offers share only when supported, and warns without storage', () => {
   const html = ui.lobby({status: 'waiting'}, {url: 'https://x.test/#join=a"b', canShare: false, storageOk: false});
@@ -2459,10 +2456,6 @@ export const ERRORS = {
 export const errorMessage = code => ERRORS[code] ?? ERRORS['no-connection'];
 const RETRY = ['server', 'no-connection', 'id-taken', 'host-offline'];
 
-export function offer() {
-  return `<section class="versus-offer" aria-labelledby="versusOfferTitle"><div><div class="eyebrow">PLAY A FRIEND</div><h2 id="versusOfferTitle">Challenge someone with an invite link.</h2><p class="muted">Pick your side; your friend gets the other one. No account needed.</p></div><div class="toolbar"><button data-invite="blue">Invite as Blue team</button><button data-invite="red">Invite as Red team</button></div></section>`;
-}
-
 export function lobby(session, {url = '', canShare = false, storageOk = true} = {}) {
   const page = (title, body, actions) => `<section class="versus-lobby" aria-live="polite"><div class="eyebrow">FOUNDATIONS / PLAY A FRIEND</div><h1>${title}</h1>${body}<div class="toolbar">${actions}</div></section>`;
   const home = '<button id="versusHome">Back to arena</button>';
@@ -2519,8 +2512,6 @@ export function auditLine(audit) {
 - [ ] **Step 4: Write `dist/versus.css`**
 
 ```css
-.versus-offer{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;border:1px solid var(--line);border-radius:6px;padding:18px 20px;margin:22px 0;background:var(--panel)}
-.versus-offer h2{margin:4px 0}
 .versus-lobby{max-width:640px;margin:48px auto;padding:0 16px}
 .invite-link{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}
 .invite-link input{flex:1 1 260px;min-width:0;font:inherit;padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:4px}
@@ -2539,28 +2530,275 @@ export function auditLine(audit) {
 - [ ] **Step 5: Run the tests**
 
 Run: `node --test tests/versus-ui.test.mjs`
-Expected: PASS (7 tests).
+Expected: PASS (6 tests).
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add dist/versus-ui.mjs dist/versus.css tests/versus-ui.test.mjs
-git commit -m "feat: add play-a-friend markup, honor dialog and styles"
+git commit -m "feat: add play-a-friend lobby, honor dialog, clock and audit markup"
 ```
 
 ---
 
-### Task 13: Wire versus sessions into the arena
+### Task 13: Landing page with splash hero and game-mode selector
+
+This implements the approved mockup (https://claude.ai/artifact/B5S6tR4GagucDmcd5wkwae):
+
+- **Header:** a text wordmark replaces the logo image.
+- **Hero:** the full-width splash art, with a one-line tagline where it fades into the page.
+- **Step 01, Choose a mode:** two selectable cards, **Vs. computer** and **Play a friend**.
+- **Step 02, Choose your side:** Blue and Red cards with their emblems. The buttons read "Play … →" in computer mode and "Invite as … →" in friend mode.
+- **Mode-specific detail:** computer mode shows the "Guide my first game" checkbox; friend mode shows a note that the friend gets the other side.
+- **Colours:** the landing view is dark, including the header, to match the splash art. The arena and other views keep their current light theme.
+- **Fonts:** Chakra Petch for headings, DM Sans for body text.
+
+**Files:**
+- Create: `art-source/breach-and-defend-splash.png` (moved out of `dist/` so Pages doesn't ship the 2.4 MB original)
+- Create: `dist/art/splash-960.webp`, `dist/art/splash-1732.webp`, `dist/art/splash-1280.jpg`
+- Create: `dist/landing.mjs`, `dist/landing.css`
+- Modify: `dist/index.html` (header wordmark, stylesheet and font links, drop the logo preload)
+- Test: `tests/landing.test.mjs`
+
+**Interfaces:**
+- Produces:
+  - `landing({mode = 'solo' | 'friend', guide = false}) → html`. The markup keeps the ids and data attributes `app.mjs` already binds, and adds new ones for the mode switch:
+    - Mode cards: `button[data-mode][aria-pressed]`
+    - Solo mode: the `#guideFirstGame` checkbox, with its description `#tutorialOffer`, and faction buttons `button[data-start="blue"|"red"]`
+    - Friend mode: faction buttons `button[data-invite="blue"|"red"]`
+  - `MODES`, the mode list, exported for tests.
+  - CSS classes: `body.landing-view` (set by `app.mjs` in Task 14) turns on the dark landing theme for the header and page.
+
+- [ ] **Step 1: Produce the web images**
+
+The original splash is at `dist/art/breach-and-defend-splash.png` (1732 × 908, untracked). `cwebp` is at `/opt/homebrew/bin/cwebp`.
+
+```bash
+mkdir -p art-source
+mv dist/art/breach-and-defend-splash.png art-source/breach-and-defend-splash.png
+cwebp -quiet -q 80 art-source/breach-and-defend-splash.png -o dist/art/splash-1732.webp
+cwebp -quiet -q 78 -resize 960 0 art-source/breach-and-defend-splash.png -o dist/art/splash-960.webp
+sips -s format jpeg -s formatOptions 78 -Z 1280 art-source/breach-and-defend-splash.png --out dist/art/splash-1280.jpg
+ls -la dist/art/splash-*
+```
+
+Expected: three files. Each WebP should be well under 400 KB and the JPEG under 300 KB. If one is larger, lower `-q` or `formatOptions` by 5 and rerun.
+
+- [ ] **Step 2: Write the failing tests**
+
+```js
+// tests/landing.test.mjs
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {landing, MODES} from '../dist/landing.mjs';
+
+test('computer mode: mode pressed, tutorial opt-in, and Play buttons wired to data-start', () => {
+  const html = landing({mode: 'solo'});
+  assert.match(html, /data-mode="solo" aria-pressed="true"/);
+  assert.match(html, /data-mode="friend" aria-pressed="false"/);
+  assert.match(html, /id="guideFirstGame" type="checkbox"  aria-describedby="tutorialOffer"/);
+  assert.match(html, /data-start="blue">Play Blue team →/);
+  assert.match(html, /data-start="red">Play Red team →/);
+  assert.doesNotMatch(html, /data-invite/);
+  assert.match(landing({mode: 'solo', guide: true}), /id="guideFirstGame" type="checkbox" checked/);
+});
+
+test('friend mode: Invite buttons wired to data-invite and no tutorial opt-in', () => {
+  const html = landing({mode: 'friend'});
+  assert.match(html, /data-mode="friend" aria-pressed="true"/);
+  assert.match(html, /data-invite="blue">Invite as Blue team →/);
+  assert.match(html, /data-invite="red">Invite as Red team →/);
+  assert.doesNotMatch(html, /guideFirstGame|data-start/);
+  assert.match(html, /Your friend gets the other side/);
+});
+
+test('the hero serves responsive splash images that exist, with text alternatives', () => {
+  const html = landing();
+  assert.match(html, /srcset="art\/splash-960\.webp 960w, art\/splash-1732\.webp 1732w"/);
+  assert.match(html, /<img src="art\/splash-1280\.jpg" alt="Breach &amp; Defend: [^"]+" width="1732" height="908"/);
+  for (const file of ['splash-960.webp', 'splash-1732.webp', 'splash-1280.jpg']) {
+    assert.ok(fs.existsSync(new URL(`../dist/art/${file}`, import.meta.url)), file);
+  }
+  assert.equal(fs.existsSync(new URL('../dist/art/breach-and-defend-splash.png', import.meta.url)), false, 'the 2.4 MB original must not ship');
+});
+
+test('both modes are real buttons with headings for each step', () => {
+  const html = landing();
+  assert.deepEqual(MODES.map(m => m.id), ['solo', 'friend']);
+  assert.equal((html.match(/<button type="button" class="mode-card"/g) || []).length, 2);
+  assert.match(html, /<h2 id="modeTitle">Choose a mode<\/h2>/);
+  assert.match(html, /<h2 id="sideTitle">Choose your side<\/h2>/);
+});
+```
+
+- [ ] **Step 3: Run the tests to verify they fail**
+
+Run: `node --test tests/landing.test.mjs`
+Expected: FAIL. `Cannot find module '.../dist/landing.mjs'`.
+
+- [ ] **Step 4: Write `dist/landing.mjs`**
+
+```js
+// dist/landing.mjs
+// Arena start screen: splash hero, then mode and side. Pure strings, so it can be tested without a browser.
+export const MODES = [
+  {id: 'solo', eyebrow: 'TRAINING', title: 'Vs. computer', body: 'Learn the rules against a local opponent that only sees the public board. Turn on the guided first game if you are new.', tags: ['1 player', '15–25 min', 'Works offline']},
+  {id: 'friend', eyebrow: 'NEW · INVITE LINK', title: 'Play a friend', body: 'Send a link and play in two browsers, no account needed. Both players take an honor pledge, and every match is audited for tampering when it ends.', tags: ['2 players', '90 s turns', 'Reconnects if you reload']},
+];
+const SIDES = [
+  {id: 'blue', eyebrow: 'DEFEND &amp; DISRUPT', name: 'Blue team', text: 'Build resilient defenses. Investigate threats. Take back control.'},
+  {id: 'red', eyebrow: 'INFILTRATE &amp; PRESSURE', name: 'Red team', text: 'Find the opening. Build your foothold. Push the advantage.'},
+];
+const ICONS = {
+  solo: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="12" rx="2"/><path d="M8 20h8M12 16v4M9 9h.01M15 9h.01M9 12h6"/></svg>',
+  friend: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 19c.8-3 2.8-5 5-5s4.2 2 5 5M14 18.5c.5-2 1.7-3.5 3-3.5s2.6 1.5 3 3.5"/></svg>',
+};
+
+export function landing({mode = 'solo', guide = false} = {}) {
+  const friend = mode === 'friend';
+  const modeCard = m => `<button type="button" class="mode-card" data-mode="${m.id}" aria-pressed="${m.id === mode}"><span class="mode-head"><span class="mode-icon">${ICONS[m.id]}</span><span class="mode-name"><span class="eyebrow">${m.eyebrow}</span><strong>${m.title}</strong></span><span class="mode-radio" aria-hidden="true"></span></span><span class="mode-body">${m.body}</span><span class="tags">${m.tags.map(t => `<span class="tag">${t}</span>`).join('')}</span></button>`;
+  const side = s => `<article class="side ${s.id}"><img src="art/${s.id}-emblem.png" alt="" width="96" height="96"><div class="side-copy"><div class="eyebrow">${s.eyebrow}</div><h3>${s.name}</h3><p>${s.text}</p></div><button class="primary" ${friend ? 'data-invite' : 'data-start'}="${s.id}">${friend ? 'Invite as' : 'Play'} ${s.name} →</button></article>`;
+  const extra = friend
+    ? '<p class="side-note">Your friend gets the other side. You’ll get a link to send them.</p>'
+    : `<label class="tutorial-opt-in"><input id="guideFirstGame" type="checkbox" ${guide ? 'checked' : ''} aria-describedby="tutorialOffer"><span><strong>Guide my first game</strong><small id="tutorialOffer">Six hands-on lessons as you play either faction. Exit anytime.</small></span></label>`;
+  return `<div class="landing"><section class="hero" aria-label="Breach &amp; Defend"><picture><source type="image/webp" srcset="art/splash-960.webp 960w, art/splash-1732.webp 1732w" sizes="100vw"><img src="art/splash-1280.jpg" alt="Breach &amp; Defend: the red team and the blue team face off across a card table" width="1732" height="908" fetchpriority="high"></picture><div class="hero-copy"><p class="hero-lead">A red-versus-blue card game for learning how attacks unfold — and how good defenses change the outcome.</p><p class="hero-sub">50 cards · every card teaches a real security concept</p></div></section><section class="landing-step" aria-labelledby="modeTitle"><div class="step-head"><span class="step-num">01</span><h2 id="modeTitle">Choose a mode</h2></div><div class="mode-grid">${MODES.map(modeCard).join('')}</div></section><section class="landing-step" aria-labelledby="sideTitle"><div class="step-head"><span class="step-num">02</span><h2 id="sideTitle">Choose your side</h2>${extra}</div><div class="side-grid">${SIDES.map(side).join('')}</div></section><footer class="landing-foot"><span>01 Play infrastructure / 02 Deploy units / 03 Attack &amp; respond</span><span>Original learning game · each card includes a security lesson</span></footer></div>`;
+}
+```
+
+- [ ] **Step 5: Run the tests**
+
+Run: `node --test tests/landing.test.mjs`
+Expected: PASS (4 tests).
+
+- [ ] **Step 6: Write `dist/landing.css`**
+
+The landing view is dark and self-contained. `body.landing-view` is toggled by `app.mjs` (Task 14). The selectors beat `header.css`'s `body>header` rules.
+
+```css
+/* Header wordmark: every view. */
+body>header .brand.wordmark{flex:0 0 auto;width:auto;height:auto;align-self:center;font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:1.125rem;letter-spacing:.06em;color:#12303d;text-decoration:none;white-space:nowrap}
+body>header .brand.wordmark span{color:#96610b}
+
+/* Dark landing theme (matches the splash art). */
+body.landing-view{--bg:#0c1115;--panel:#131c23;--line:#2b3942;--muted:#a0b0bb;--text:#edf3f4;--blue:#71dfd2;--red:#fb827b;--gold:#eed7a1;background:var(--bg);color:var(--text)}
+body.landing-view>header{background:var(--bg);border-bottom-color:var(--line);box-shadow:none}
+body.landing-view>header:after{display:none}
+body.landing-view>header .brand.wordmark{color:var(--text)}
+body.landing-view>header .brand.wordmark span{color:var(--gold)}
+body.landing-view>header .nav{color:var(--muted)}
+body.landing-view>header .nav:hover{background:var(--panel);border-color:var(--line)}
+body.landing-view>header .nav.active{background:var(--panel);border-color:var(--line);color:var(--text);box-shadow:none}
+body.landing-view>header .nav span{background:transparent;border:1px solid var(--line);color:var(--muted)}
+body.landing-view>header .edition{color:var(--muted)}
+body.landing-view main{padding:0;max-width:none}
+
+.landing{display:flex;flex-direction:column;gap:44px;padding-bottom:48px;font-family:'DM Sans',sans-serif}
+.landing h2,.landing h3,.mode-name strong{font-family:'Chakra Petch',sans-serif;font-weight:600;letter-spacing:0}
+.hero{position:relative;overflow:hidden;height:clamp(260px,43vw,620px)}
+.hero img{display:block;width:100%;height:100%;object-fit:cover;object-position:center 18%}
+.hero:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,color-mix(in srgb,var(--bg) 85%,transparent) 85%,var(--bg))}
+.hero-copy{position:absolute;left:16px;right:16px;bottom:36px;z-index:1;text-align:center}
+.hero-lead{margin:0 auto;max-width:720px;font-size:1.375rem;font-weight:500;line-height:1.4}
+.hero-sub{margin:10px 0 0;font-size:.875rem;color:var(--muted)}
+.landing-step,.landing-foot{width:min(1200px,100% - 32px);margin:0 auto;box-sizing:border-box}
+.step-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:14px;margin-bottom:18px}
+.step-head h2{margin:0;font-size:1.875rem}
+.step-num{font-family:'Chakra Petch',sans-serif;font-size:.875rem;font-weight:600;color:var(--gold);letter-spacing:.12em}
+.step-head .tutorial-opt-in,.step-head .side-note{margin:0 0 0 auto}
+.landing .tutorial-opt-in{padding:10px 14px;background:var(--panel);border-color:var(--line);color:var(--text)}
+.landing .tutorial-opt-in small{color:var(--muted)}
+.landing .tutorial-opt-in input{accent-color:var(--blue)}
+.side-note{color:var(--muted)}
+.mode-grid,.side-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.mode-card{display:flex;flex-direction:column;gap:16px;align-items:flex-start;text-align:left;padding:26px 28px;border-radius:8px;background:var(--panel);border:2px solid var(--line);color:var(--text);font:inherit;cursor:pointer}
+.mode-card[aria-pressed="true"]{background:#17242c;border-color:var(--gold)}
+.mode-card:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+.mode-head{display:flex;align-items:center;gap:14px;width:100%}
+.mode-icon{width:52px;height:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--bg);border:1px solid var(--line);color:var(--muted)}
+.mode-card[aria-pressed="true"] .mode-icon{color:var(--gold)}
+.mode-icon svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mode-name{display:flex;flex-direction:column;gap:2px;flex-grow:1}
+.mode-name strong{font-size:1.625rem}
+.mode-radio{width:24px;height:24px;flex-shrink:0;box-sizing:border-box;border-radius:50%;border:2px solid #51646f}
+.mode-card[aria-pressed="true"] .mode-radio{border-color:var(--gold);background:radial-gradient(circle,var(--gold) 0 5px,transparent 6px)}
+.mode-body{font-size:1rem;line-height:1.55;color:#c9d4db}
+.side{display:flex;gap:22px;align-items:center;padding:26px 28px;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+.side.blue{border-top:3px solid var(--blue)}
+.side.red{border-top:3px solid var(--red)}
+.side img{width:96px;height:96px;flex-shrink:0}
+.side-copy{flex-grow:1}
+.side h3{margin:4px 0 8px;font-size:1.75rem}
+.side p{margin:0;color:#c9d4db;line-height:1.5}
+.side.blue .eyebrow{color:var(--blue)}
+.side.red .eyebrow{color:var(--red)}
+.side .primary{flex-shrink:0;min-height:48px;padding:13px 20px;font-weight:700}
+.side.blue .primary{background:var(--blue);border-color:var(--blue);color:#0b1c20}
+.side.red .primary{background:var(--red);border-color:var(--red);color:#2a0d0b}
+.landing-foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px 24px;padding-top:22px;border-top:1px solid var(--line);font-size:.8125rem;color:var(--muted)}
+@media(max-width:760px){
+  .mode-grid,.side-grid{grid-template-columns:minmax(0,1fr)}
+  .hero-copy{position:static;padding:4px 16px 0}
+  .hero-lead{font-size:1.0625rem}
+  .hero-sub{display:none}
+  .landing{gap:32px}
+  .step-head h2{font-size:1.5rem}
+  .step-head .tutorial-opt-in,.step-head .side-note{margin:0;flex-basis:100%}
+  .mode-card,.side{padding:18px}
+  .side{flex-wrap:wrap}
+  .side img{width:64px;height:64px}
+  .side .primary{flex-basis:100%;justify-content:center}
+}
+```
+
+Note on the small-screen layout: `.hero-copy` becomes static, so the tagline sits under the image as in the mobile mockup. For that, the hero's `overflow:hidden` and fixed height must not clip it. Also add:
+
+```css
+@media(max-width:760px){.hero{height:auto;overflow:visible}.hero img{height:300px}.hero:after{height:300px;inset:0 0 auto}}
+```
+
+- [ ] **Step 7: Update `dist/index.html`**
+
+1. Replace
+```html
+<a class="brand" href="./" aria-label="Breach & Defend home"><img class="brand-logo" src="art/breach-and-defend-logo.png" alt="Breach & Defend" width="210" height="105" fetchpriority="high"></a>
+```
+with
+```html
+<a class="brand wordmark" href="./" aria-label="Breach & Defend home">BREACH <span>&amp;</span> DEFEND</a>
+```
+2. Remove `<link rel="preload" as="image" href="art/breach-and-defend-logo.png">`.
+3. Replace `<link rel="stylesheet" href="card-drag.css">` with `<link rel="stylesheet" href="card-drag.css"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap"><link rel="stylesheet" href="landing.css">`.
+
+- [ ] **Step 8: Run the full suite and commit**
+
+Run: `npm test`
+Expected: all PASS.
+
+```bash
+git add art-source/breach-and-defend-splash.png dist/art/splash-960.webp dist/art/splash-1732.webp dist/art/splash-1280.jpg dist/landing.mjs dist/landing.css dist/index.html tests/landing.test.mjs
+git commit -m "feat: landing page with splash hero and game-mode selector"
+```
+
+---
+
+### Task 14: Wire the landing page and versus sessions into the arena
 
 **Files:**
 - Modify: `dist/app.mjs`, `dist/index.html`
 
 **Interfaces:**
-- Consumes: `HostSession`, `GuestSession` (Task 11); `net.mjs` (Task 10); `createStore` (Task 9); `versus-ui.mjs` (Task 12); `Seat.onUpdate(game, {mine})` and seat-game mutators returning promises (Task 8).
+- Consumes:
+  - `HostSession` and `GuestSession` (Task 11)
+  - `net.mjs` (Task 10)
+  - `createStore` (Task 9)
+  - `versus-ui.mjs` (Task 12)
+  - `landing` (Task 13)
+  - `Seat.onUpdate(game, {mine})` and seat-game mutators that return promises (Task 8)
 - Produces: No new exports. In the browser:
+  - The landing page's mode selector switches between Play and Invite buttons.
   - "Invite as …" creates a match and shows the link.
-  - `#join=` joins a match.
-  - `#host=` resumes a match.
+  - `#join=` joins a match and `#host=` resumes one.
   - The arena plays against a person, with clocks and an audit recap.
 
 Apply each replacement to `dist/app.mjs` exactly. Every "old" string occurs once in the file.
@@ -2569,12 +2807,12 @@ Apply each replacement to `dist/app.mjs` exactly. Every "old" string occurs once
 
 1. After `import {snapshot,combat,transitions,arrows} from './motion.mjs';` add the line:
 ```js
-import {HostSession,GuestSession} from './session.mjs';import * as net from './net.mjs';import {createStore} from './storage.mjs';import * as versusUi from './versus-ui.mjs';
+import {HostSession,GuestSession} from './session.mjs';import * as net from './net.mjs';import {createStore} from './storage.mjs';import * as versusUi from './versus-ui.mjs';import {landing} from './landing.mjs';
 ```
 2. Replace `filter={q:'',faction:'all',type:'all'};` with:
 ```js
 filter={q:'',faction:'all',type:'all'};
-let versus=null,remoteQueue=[];const store=createStore();store.prune();
+let versus=null,remoteQueue=[],startMode='solo';const store=createStore();store.prune();
 ```
 
 - [ ] **Step 2: Let `action()` await intents and apply remote updates in order**
@@ -2587,11 +2825,14 @@ function remoteUpdate(g,{mine}){if(mine&&animating){game=g;return;}remoteQueue.p
 async function drainRemote(){if(animating||!remoteQueue.length)return;const next=remoteQueue.shift();const before=game&&view==='arena'&&document.querySelector('.table')?snapshot(game):null;game=next;animating=true;document.body.classList.add('animating');try{if(before)await combat(before,game);if(view==='arena')render();if(before)await transitions(before,game);}finally{animating=false;document.body.classList.remove('animating');if(game?.winner!==null&&game&&!resultShown){resultShown=true;recap();}cardPreview.refresh();schedule();drainRemote();}}
 ```
 
-- [ ] **Step 3: Starting solo leaves any versus match; the start screen offers play-a-friend**
+- [ ] **Step 3: The landing page replaces the old start screen**
 
 1. Replace `function start(f,optIn=false){cardPreview.dismiss(true);` with `function start(f,optIn=false){if(versus)leaveVersus();cardPreview.dismiss(true);`
-2. Replace `</div><div class="start-foot">` with `</div>${versusUi.offer()}<div class="start-foot">`
-3. Replace `<span>Vs. computer · 15–25 min target</span>` with `<span>Vs. computer or a friend · 15–25 min target</span>`
+2. Replace the entire line that begins `function startScreen(){return ` (it ends with `</div>`;}`) with:
+```js
+function startScreen(){return landing({mode:startMode,guide:guideChoice});}
+```
+3. In `render()`, replace `document.body.classList.toggle("match-playing",view==="arena"&&!!game&&game.phase!=="opening");` with `document.body.classList.toggle("match-playing",view==="arena"&&!!game&&game.phase!=="opening");document.body.classList.toggle("landing-view",view==="arena"&&!game&&!versus);`
 
 - [ ] **Step 4: Opening hand in versus**
 
@@ -2615,10 +2856,10 @@ with
 7. Replace `<button class="primary" id="rematch">Play again</button> <button id="chooseSide">Change faction</button></div>` with ``${versus?`<div id="auditResult">${versusUi.auditLine(versus.audit)}</div><button class="primary" id="versusDone">Back to arena</button>`:'<button class="primary" id="rematch">Play again</button> <button id="chooseSide">Change faction</button>'}</div>``.
 8. Replace `$('#rematch').onclick=()=>start(game.players[0].faction);$('#chooseSide').onclick=()=>{modal.close();game=null;render();};}` with `if($('#rematch'))$('#rematch').onclick=()=>start(game.players[0].faction);if($('#chooseSide'))$('#chooseSide').onclick=()=>{modal.close();game=null;render();};if($('#versusDone'))$('#versusDone').onclick=leaveVersus;}`.
 
-- [ ] **Step 6: Render the lobby, bind its buttons, and make leaving concede**
+- [ ] **Step 6: Render the lobby, bind the landing and lobby buttons, and make leaving concede**
 
 1. Replace `app.innerHTML=view==='library'?library():view==='guide'?guide():!game?startScreen():` with `app.innerHTML=view==='library'?library():view==='guide'?guide():versus&&!versusReady()?versusUi.lobby(versus,{url:inviteUrl(),canShare:!!navigator.share,storageOk:store.available}):!game?startScreen():`.
-2. Replace `document.querySelectorAll('[data-start]').forEach(b=>b.onclick=()=>start(b.dataset.start,guideChoice));` with `document.querySelectorAll('[data-start]').forEach(b=>b.onclick=()=>start(b.dataset.start,guideChoice));document.querySelectorAll('[data-invite]').forEach(b=>b.onclick=()=>hostMatch(b.dataset.invite));bindLobby();`.
+2. Replace `document.querySelectorAll('[data-start]').forEach(b=>b.onclick=()=>start(b.dataset.start,guideChoice));` with `document.querySelectorAll('[data-start]').forEach(b=>b.onclick=()=>start(b.dataset.start,guideChoice));document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{startMode=b.dataset.mode;render();document.querySelector(`[data-mode="${startMode}"]`)?.focus({preventScroll:true});});document.querySelectorAll('[data-invite]').forEach(b=>b.onclick=()=>hostMatch(b.dataset.invite));bindLobby();`.
 3. Replace `$('#mulligan').onclick=()=>action(()=>{game.mulligan();selected.clear();});` with `$('#mulligan').onclick=()=>action(()=>{selected.clear();return game.mulligan();});`.
 4. Replace `$('#quit').onclick=()=>{if(game.phase==='opening'){game=null;render();return;}dialog('<h2>Leave this match?</h2><p>Your current match will end. You can start a new match as either faction.</p><div class="toolbar"><button id="leave" class="primary">Leave match</button><button id="stay">Keep playing</button></div>');$('#leave').onclick=()=>{game=null;modal.close();render();};$('#stay').onclick=close;};` with:
 ```js
@@ -2640,7 +2881,7 @@ function bindVersus(s){versus=s;guidance=new Tutorial(false);resultShown=false;s
 function versusStatus(){if(!versus)return;if(['cancelled','error'].includes(versus.status))game=null;if(versus.status!=='pledge'&&$('#pledge'))modal.close();if(versus.status==='pledge'&&!modal.open)honor();if($('#auditResult'))$('#auditResult').innerHTML=versusUi.auditLine(versus.audit);render();schedule();}
 function honor(){dialog(versusUi.honorDialog({team:label(versus.faction)}));$('#pledge').onclick=()=>{modal.close();versus.pledge();};$('#pledgeLeave').onclick=leaveVersus;}
 function bindLobby(){if($('#copyInvite'))$('#copyInvite').onclick=async()=>{try{await navigator.clipboard.writeText(inviteUrl());toast('Invite link copied.');}catch{$('#inviteLink').select();toast('Press Ctrl+C or ⌘C to copy the link.');}};if($('#shareInvite'))$('#shareInvite').onclick=()=>navigator.share({title:'Breach & Defend',text:'Play me in Breach & Defend',url:inviteUrl()}).catch(()=>{});if($('#showPledge'))$('#showPledge').onclick=honor;for(const id of ['cancelVersus','versusHome'])if($('#'+id))$('#'+id).onclick=leaveVersus;if($('#versusRetry'))$('#versusRetry').onclick=()=>location.reload();}
-function leaveVersus(){const s=versus;versus=null;game=null;remoteQueue=[];s?.leave?.();history.replaceState(null,'',location.pathname+location.search);if(modal.open)modal.close();render();}
+function leaveVersus(){const s=versus;versus=null;game=null;remoteQueue=[];startMode=s?'friend':startMode;s?.leave?.();history.replaceState(null,'',location.pathname+location.search);if(modal.open)modal.close();render();}
 function schedule(){clearTimeout(timer);if(versus&&versus.status!=='playing')return;if(animating||
 ```
 
@@ -2661,10 +2902,10 @@ setInterval(()=>{const el=$('#versusClock');if(el&&versus?.seat?.clock)el.textCo
 if(!routeVersus())render();
 ```
 
-- [ ] **Step 9: Load the stylesheet**
+- [ ] **Step 9: Load the versus stylesheet**
 
 In `dist/index.html`:
-- Replace `<link rel="stylesheet" href="card-drag.css">` with `<link rel="stylesheet" href="card-drag.css"><link rel="stylesheet" href="versus.css">`.
+- Replace `<link rel="stylesheet" href="landing.css">` with `<link rel="stylesheet" href="landing.css"><link rel="stylesheet" href="versus.css">`.
 - Replace `Play either faction against a computer opponent.` with `Play either faction against a computer opponent or a friend.`
 
 - [ ] **Step 10: Syntax check and tests**
@@ -2674,24 +2915,30 @@ Expected: no syntax errors, and all tests PASS.
 
 - [ ] **Step 11: Smoke-test in the browser**
 
-1. Start the server with `node serve.cjs`.
-2. Open `http://127.0.0.1:4173/` in the Browser pane.
-3. Check that the solo game still works: pick Blue, keep, play a card, and let the computer take a turn.
-4. Click **Invite as Blue team** and confirm the invite link appears.
-5. Open that link in a second tab and confirm both tabs show the honor dialog.
-6. Pledge in both tabs, keep both hands, and play one full turn each.
-7. Read the console with `read_console_messages` and confirm it shows no errors.
+1. Run `node serve.cjs` and open `http://127.0.0.1:4173/` in the Browser pane.
+2. **Landing page.** Check it against the mockup at desktop width and at `resize_window` preset `mobile`:
+   - dark header with the wordmark
+   - the splash hero
+   - the mode cards switch, and the Play and Invite buttons follow
+   - the guide checkbox appears only in computer mode
+   - no horizontal scroll
+3. **Solo still works.** Pick Vs. computer and then Blue. The arena switches back to the light theme. Keep, play a card, and let the computer take a turn.
+4. **Guided first game.** Check "Guide my first game" and start. The tutorial panel appears.
+5. **Friend mode.** Choose Play a friend, then Invite as Blue team. The invite link appears.
+6. **Two tabs.** Open the link in a second tab. Both tabs show the honor dialog. Pledge in both, keep both hands, and play one full turn each.
+7. **Console.** Confirm `read_console_messages` shows no errors.
+8. **Reset.** Set `resize_window` back to the `desktop` preset.
 
 - [ ] **Step 12: Commit**
 
 ```bash
 git add dist/app.mjs dist/index.html
-git commit -m "feat: play a friend via invite link in the arena"
+git commit -m "feat: wire the landing page and play-a-friend into the arena"
 ```
 
 ---
 
-### Task 14: Documentation and end-to-end verification
+### Task 15: Documentation and end-to-end verification
 
 **Files:**
 - Modify: `README.md`, `dist/app.mjs` (field guide text only)
@@ -2705,12 +2952,13 @@ Also replace `<li><strong>Keep seven cards.</strong> Mulligans redraw seven; whe
 - [ ] **Step 2: Update `README.md`**
 
 - In **Deliberate simplifications**, replace `No colored mana, planeswalkers, first strike, tokens, exile, sideboards, deck editor, multiplayer, or saved matches are included. Reloading resets the current match.` with `No colored mana, planeswalkers, first strike, tokens, exile, sideboards, deck editor, or saved computer matches are included. Reloading resets a computer match.`
+- Replace the intro sentence `Play red or blue against a local computer opponent.` with `Play red or blue against a local computer opponent, or against a friend through an invite link.`
 - Add this section after **Browse and play cards**:
 
 ```markdown
 ## Play a friend
 
-Choose **Invite as Blue team** or **Invite as Red team** on the arena start screen and send the link to your opponent. They play the other faction. Both players accept a short honor pledge, then a fair coin flip, made from secrets both browsers contribute, decides who goes first.
+On the arena start screen, choose **Play a friend**, pick your side and send the link to your opponent. They play the other faction. Both players accept a short honor pledge, then a fair coin flip, made from secrets both browsers contribute, decides who goes first.
 
 - **Connection:** Browsers connect directly with WebRTC through the free public PeerJS signaling server. No accounts, keys or backend are required, so this works on GitHub Pages. Some corporate or mobile networks block direct connections; there is no relay server.
 - **Clocks:** 60 seconds to keep an opening hand, 90 seconds per turn, and 20 seconds per response. When time runs out the game passes, skips attacks or blocks, or discards the costliest cards for you.
@@ -2718,8 +2966,10 @@ Choose **Invite as Blue team** or **Invite as Red team** on the arena start scre
 - **Fair play:** The host's browser runs the rules. The guest never receives hidden cards, so the guest cannot cheat. When the match ends, the guest's browser replays every move from the revealed seed and the recap shows **Verified**, **Tampering detected**, or **Unverified**. Tampering with decks, hands or capacity is caught. Peeking at the other hand is not, which is what the honor pledge is for.
 ```
 
-- In **Validation**, append: `Versus tests cover the seeded RNG, save/restore, redaction and perspective flipping, the referee, clocks, the replay audit (including five tampering kinds), storage fallbacks, and complete host/guest matches over an in-memory transport with reloads, dropped connections, impostor hosts and a third player.`
-- In **Source layout**, add a line: `` - `dist/protocol.mjs`, `match.mjs`, `audit.mjs`, `remote.mjs`, `session.mjs`, `net.mjs`, `storage.mjs`, `versus-ui.mjs`: play-a-friend (shared rules, host referee, audit, guest seat, sessions, PeerJS transport, storage, markup). ``
+- In **Validation**, append: `Versus tests cover the seeded RNG, save/restore, redaction and perspective flipping, the referee, clocks, the replay audit (including five tampering kinds), storage fallbacks, and complete host/guest matches over an in-memory transport with reloads, dropped connections, impostor hosts and a third player. Landing-page tests check both modes' controls and that the web-sized splash images exist.`
+- In **Source layout**, add these two lines:
+  - `` - `dist/landing.mjs`: start screen with the splash hero and the game-mode selector. The original splash art lives in `art-source/`; `dist/art/splash-*` are the web sizes. ``
+  - `` - `dist/protocol.mjs`, `match.mjs`, `audit.mjs`, `remote.mjs`, `session.mjs`, `net.mjs`, `storage.mjs`, `versus-ui.mjs`: play-a-friend (shared rules, host referee, audit, guest seat, sessions, PeerJS transport, storage, markup). ``
 
 - [ ] **Step 3: Run the full suite**
 
@@ -2730,7 +2980,7 @@ Expected: all PASS.
 
 Run `node serve.cjs`. Use two Browser pane tabs, or a second browser profile to also test separate storage. Check each item and record the results:
 
-1. **Invite.** Host clicks **Invite as Red team**. The link appears and **Copy link** copies it.
+1. **Invite.** Host chooses **Play a friend**, then **Invite as Red team**. The link appears and **Copy link** copies it.
 2. **Join.** The guest opens the link. Both see the honor dialog. The guest's dialog says "YOU ARE BLUE TEAM".
 3. **Pledge.** One player pledges and sees "Waiting for your opponent to take the pledge". When the second pledges, both reach the opening hand.
 4. **Mulligan.** The guest mulligans once and keeps with one card on the bottom. The host keeps. The first player matches on both screens.
@@ -2741,15 +2991,15 @@ Run `node serve.cjs`. Use two Browser pane tabs, or a second browser profile to 
 9. **Third tab.** Opening the link in a third tab or profile gives "This match already has two players."
 10. **Timeout.** Let a response clock run out and confirm the game passes automatically.
 11. **Concede.** One player uses **Leave match** to concede. Both see the recap. The guest's recap shows **Verified** first, then the host's.
-12. **Tampering.** Start another match. In the host tab's console, run `document.querySelector` to confirm nothing breaks. Then edit the host's own capacity through the page devtools by setting a breakpoint or finding the session object. Finish the match and confirm the guest's recap shows **Tampering detected**. If editing state from devtools is impractical, note it; the audit tests in Task 7 already cover this case.
-13. **Mobile.** Resize to mobile width and confirm the invite lobby and honor dialog fit without horizontal scrolling.
+12. **Back to the landing page.** After **Back to arena**, the landing page returns with **Play a friend** still selected.
+13. **Mobile.** Resize to mobile width and confirm the landing page, invite lobby and honor dialog fit without horizontal scrolling.
 14. **Console.** Confirm `read_console_messages` shows no errors in either tab.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add README.md dist/app.mjs
-git commit -m "docs: document play-a-friend mode"
+git commit -m "docs: document play-a-friend mode and the new landing page"
 ```
 
 ---
