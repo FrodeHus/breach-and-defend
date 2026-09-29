@@ -75,6 +75,12 @@ test('a view rebuilds into a Game that answers the interface queries', () => {
   }
 });
 
+test('viewFor sets uid to 0 (sentinel for minting new cards)', () => {
+  const g = opened(), v = viewFor(g, 1);
+  assert.equal(v.uid, 0);
+  assert.equal(Game.fromJSON(v).uid, 0);
+});
+
 test('guest targets translate back to host indices', () => {
   assert.deepEqual(unflipAction({type: 'play', uid: 4, target: {kind: 'player', p: 1}}), {type: 'play', uid: 4, target: {kind: 'player', p: 0}});
   assert.deepEqual(unflipAction({type: 'pass'}), {type: 'pass'});
