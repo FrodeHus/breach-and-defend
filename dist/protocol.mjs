@@ -37,6 +37,7 @@ export function flip(state) {
 const hidden = () => ({hidden: true});
 export function viewFor(game, p) {
   const {rng, uid, ...state} = game.toJSON();
+  state.uid = 0; // Sentinel: cards start at 1, never a card uid; allows Game.fromJSON to mint new cards.
   state.players = state.players.map((q, i) => ({...q, deck: q.deck.map(hidden), hand: i === p ? q.hand : q.hand.map(hidden)}));
   return p === 0 ? state : flip(state);
 }
