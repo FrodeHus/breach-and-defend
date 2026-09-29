@@ -10,9 +10,11 @@ export const ERRORS = {
   full: 'This match already has two players.',
   'id-taken': 'This match is still open in another tab, or is closing. Wait a few seconds and try again.',
   impostor: 'Couldn’t confirm this is the same opponent as before, so the match was stopped.',
+  replaced: 'This match is open in another tab or window.',
+  internal: 'Something went wrong on this page, so the match was stopped. Reloading usually picks it up again.',
 };
 export const errorMessage = code => ERRORS[code] ?? ERRORS['no-connection'];
-const RETRY = ['server', 'no-connection', 'id-taken', 'host-offline'];
+const RETRY = ['server', 'no-connection', 'id-taken', 'host-offline', 'internal'];
 
 export function lobby(session, {url = '', canShare = false, storageOk = true} = {}) {
   const page = (title, body, actions) => `<section class="versus-lobby" aria-live="polite"><div class="eyebrow">FIRST BREACH / PLAY A FRIEND</div><h1>${title}</h1>${body}<div class="toolbar">${actions}</div></section>`;

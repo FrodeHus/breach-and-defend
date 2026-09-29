@@ -1,16 +1,20 @@
 // dist/audit.mjs
-import {actionFields, applyAction, canonical, digest, seedHex, sha256Hex, timeoutAction, unflipAction, versusGame, viewFor} from './protocol.mjs';
+import {actionFields, applyAction, canonical, digest, restoreBottoms, seedHex, sha256Hex, timeoutAction, unflipAction, versusGame, viewFor} from './protocol.mjs';
 
 const PARTS = {you: 'Your cards or capacity', foe: 'Your opponent’s cards or capacity', table: 'The turn, stack or combat state'};
 const same = (a, b) => canonical(actionFields(a)) === canonical(actionFields(b));
 
 // Replays a finished match from the revealed seed and compares it with what this player actually saw.
-export async function audit({seedCommit, hostSecret, guestSecret, hostFaction, log = [], digests = [], sent = {}}) {
+// `log` is what the guest received, with the host's mulligan bottoms redacted to a count; `bottoms` is what the
+// host revealed for them at the end. Only those fields are filled in, and each must match its count.
+export async function audit({seedCommit, hostSecret, guestSecret, hostFaction, log: received = [], bottoms = null, digests = [], sent = {}}) {
   const unverified = reason => ({result: 'unverified', reason});
   const tampered = (turn, reason) => ({result: 'tampered', turn, reason});
   if (!hostSecret) return unverified('Your opponent left before revealing the match seed.');
   if (await sha256Hex(hostSecret) !== seedCommit) return tampered(1, 'The revealed seed does not match the one your opponent committed to.');
-  if (!guestSecret || !digests[0] || !digests[log.length]) return unverified('Your saved record of this match is incomplete.');
+  if (!guestSecret || !digests[0] || !digests[received.length]) return unverified('Your saved record of this match is incomplete.');
+  const log = restoreBottoms(received, bottoms);
+  if (!log) return tampered(1, 'The revealed opening-hand choices do not match what your opponent did during the match.');
 
   const game = versusGame(await seedHex(hostSecret, guestSecret), hostFaction);
   const compare = async (i, turn) => {
