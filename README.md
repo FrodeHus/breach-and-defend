@@ -37,7 +37,7 @@ The guide pauses your first pending-effect priority window so you can read befor
 
 ## Browse and play cards
 
-Hover a visible card in your hand, opening hand, or card library to lift out an enlarged preview with its full rules, cost, stats, and keyword explanations. Tab focus also opens previews; Escape dismisses them. Previews stay within the screen edges and respect reduced-motion preferences. Clicking still opens the card details and play options; touch players can continue to tap cards.
+Hover a visible card in your hand, opening hand, either battlefield, or card library to lift out an enlarged preview with its full rules, cost, stats, and keyword explanations. Tab focus also opens previews; Escape dismisses them. Previews stay within the screen edges and respect reduced-motion preferences. Clicking still opens the card details and play options; touch players can continue to tap cards.
 
 Drag a card from your hand (or its enlarged preview) onto **Your battlefield** to play it. The battlefield highlights while dragging; blocked cards explain their unmet requirements. Cards needing a target open the target picker before payment. Release elsewhere or press Escape to cancel. Horizontal touch swipes still scroll the hand; tap-to-play and keyboard controls remain available.
 
