@@ -6,3 +6,9 @@ node_modules/
 .DS_Store
 Thumbs.db
 repo-history.bundle
+
+# Local tooling
+.claude/settings.local.json
+.superpowers/
+.vscode/
+.idea/
