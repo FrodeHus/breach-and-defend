@@ -12,7 +12,18 @@ import {audit} from '../dist/audit.mjs';
 const flush = async (n = 5) => { for (let i = 0; i < n; i++) await new Promise(r => setImmediate(r)); };
 const retry = () => new Promise(r => setImmediate(r));
 const store = () => createStore(memoryBackend());
-const settle = async ({guest, host}) => { for (let i = 0; i < 2; i++) { await flush(); await host?.settled(); await flush(); await guest.settled(); } await flush(); };
+// Runs both sides until they are quiet: no frame in flight on the fake net and nothing queued on either session
+// (the host's inbound queue and ordered outbox, the guest's queue). Hashing and seeding are real async crypto
+// work whose timing varies by machine, so this waits for the work itself rather than a fixed number of ticks.
+const settle = async ({guest, host, net}) => {
+  for (let i = 0; i < 1000; i++) {
+    await flush();
+    await Promise.all([host?.settled(), guest?.settled()]);
+    await flush();
+    if ((net?.idle() ?? true) && !host?.pending && !guest?.pending) return;
+  }
+  throw Error('the sessions never went quiet');
+};
 
 // Fixed secrets make every shuffle, and so every test game, the same on every run.
 const secrets = seed => { let i = 0; return () => (seed * 1_000_000 + ++i).toString(16).padStart(32, '0'); };
@@ -77,7 +88,7 @@ test('guest moves reach the host', async () => {
 test('a third browser opening the link is turned away', async () => {
   const ctx = await pair();
   const intruder = await GuestSession.join({net: ctx.net, store: store(), matchId: ctx.host.matchId, retry});
-  await settle({guest: intruder});
+  await settle({...ctx, guest: intruder});
   assert.equal(intruder.status, 'error');
   assert.equal(intruder.error, 'full');
   assert.equal(ctx.host.status, 'pledge');
@@ -161,7 +172,7 @@ test('a match that ends while the guest is away is revealed and audited on retur
   await ctx.host.seat.game.concede(0);
   assert.equal(ctx.host.status, 'ended');
   const guest = await GuestSession.join({net: ctx.net, store: ctx.guestStore, matchId: ctx.host.matchId, retry});
-  await settle({guest});
+  await settle({...ctx, guest});
   assert.equal(guest.seat.game.winner, 0);
   assert.equal(guest.status, 'ended');
   assert.deepEqual(guest.audit, {result: 'verified'});
@@ -216,7 +227,7 @@ test('a first-time guest whose connection drops before welcome errors and does n
   assert.equal(guest.status, 'error');
   assert.equal(guest.error, 'no-connection');
   const again = await GuestSession.join({net, store: guestStore, matchId: host.matchId, retry});
-  await settle({guest: again});
+  await settle({guest: again, host, net});
   assert.equal(again.status, 'pledge');
   assert.equal(host.status, 'pledge');
 });
@@ -466,8 +477,8 @@ test('a second tab joining the same match displaces the first, which stops for g
   await keepBoth(ctx);
   const first = ctx.guest;
   const second = await GuestSession.join({net, store: ctx.guestStore, matchId: ctx.host.matchId, retry});
-  await settle({guest: second});
-  await settle({guest: first});
+  await settle({...ctx, guest: second});
+  await settle({...ctx, guest: first});
   assert.equal(first.status, 'error');
   assert.equal(first.error, 'replaced');
   assert.equal(second.status, 'playing');
@@ -560,7 +571,7 @@ test('a stale guest tab that reconnects after a newer tab took over steps aside'
   await drive(ctx, () => [ctx.host.seat, b.seat], 40);
   const dialsBefore = dials;
   release(); // A's backoff ends while B is playing
-  await settle(ctx); await settle({guest: a});
+  await settle(ctx); await settle({...ctx, guest: a});
   assert.equal(a.status, 'error');
   assert.equal(a.error, 'replaced');
   assert.equal(dials, dialsBefore, 'tab A did not dial');
@@ -581,4 +592,45 @@ test('a guest tab whose saved record is ahead of it steps aside instead of overw
   assert.equal(ctx.guest.status, 'error');
   assert.equal(ctx.guest.error, 'replaced');
   assert.equal(ctx.guestStore.get(key).seq, r.seq + 5);
+});
+
+// crypto.subtle work finishes on the thread pool, so on a busy machine (a CI runner) it can land after any fixed
+// number of event-loop ticks. Delaying every digest by a real timer makes that the normal case here.
+test('sessions stay in step when hashing finishes late, as on a busy machine', async () => {
+  const digest = crypto.subtle.digest;
+  crypto.subtle.digest = async function (...a) {
+    const out = await digest.apply(this, a);
+    await new Promise(r => setTimeout(r, 2));
+    return out;
+  };
+  try {
+    const ctx = await pair({seed: 3});
+    assert.equal(ctx.host.status, 'pledge');
+    assert.equal(ctx.guest.status, 'pledge');
+    await start(ctx);
+    assert.equal(ctx.host.status, 'playing');
+    assert.equal(ctx.guest.status, 'playing');
+    await ctx.host.seat.game.mulligan(0);
+    await settle(ctx);
+    await ctx.host.seat.game.keep([ctx.host.seat.game.players[0].hand[0].uid]); // redacting it hashes a commitment
+    await settle(ctx);
+    assert.equal(ctx.guestStore.get(`guest:${ctx.host.matchId}`).log.length, ctx.host.match.log.length);
+    await finish(ctx);
+    assert.equal(ctx.guest.status, 'ended');
+    assert.deepEqual(ctx.guest.audit, {result: 'verified'});
+    assert.deepEqual(ctx.host.audit, {result: 'verified'});
+  } finally {
+    crypto.subtle.digest = digest;
+  }
+});
+
+test('a host that leaves the moment the match ends still gets the final view and reveal to the guest', async () => {
+  const ctx = await start(await pair());
+  await keepBoth(ctx);
+  const conceded = ctx.host.seat.game.concede(0);
+  ctx.host.leave(); // before the outbox has sent the last view and the reveal
+  await conceded;
+  await settle(ctx);
+  assert.equal(ctx.guest.status, 'ended');
+  assert.deepEqual(ctx.guest.audit, {result: 'verified'});
 });
