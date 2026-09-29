@@ -44,3 +44,10 @@ test('both modes are real buttons with headings for each step, in focusable slot
   assert.match(html, /<h2 id="modeTitle">Choose a mode<\/h2>/);
   assert.match(html, /<h2 id="sideTitle">Choose your side<\/h2>/);
 });
+
+test('each side button sits in an unclipped cta-slot so its focus glow is visible', () => {
+  for (const mode of ['solo', 'friend']) {
+    const html = landing({mode});
+    assert.equal((html.match(/<span class="cta-slot"><button class="primary slant" data-(start|invite)="(blue|red)">[^<]*<\/button><\/span>/g) || []).length, 2, mode);
+  }
+});
