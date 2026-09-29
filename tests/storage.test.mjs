@@ -50,3 +50,20 @@ test('prune removes records older than seven days and unreadable ones only', () 
   assert.equal(backend.getItem('bnd:junk'), null);
   assert.equal(backend.getItem('other'), 'x');
 });
+
+test('blocked site data (SecurityError on reading globalThis.localStorage) does not throw; falls back to memory', () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  try {
+    Object.defineProperty(globalThis, 'localStorage', {
+      get: () => { throw new Error('SecurityError'); },
+      configurable: true,
+    });
+    const s = createStore();
+    assert.equal(s.available, false);
+    s.set('host:x', {a: 1});
+    assert.deepEqual(s.get('host:x'), {a: 1});
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'localStorage', descriptor);
+    else delete globalThis.localStorage;
+  }
+});

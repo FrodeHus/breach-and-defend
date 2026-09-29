@@ -2,7 +2,8 @@ const PREFIX = 'bnd:', WEEK = 7 * 24 * 60 * 60 * 1000;
 const safe = fn => { try { return fn(); } catch { return undefined; } };
 
 // localStorage that never throws: private mode, blocked storage or a full quota fall back to memory.
-export function createStore(backend = globalThis.localStorage, now = Date.now) {
+export function createStore(backend, now = Date.now) {
+  if (backend === undefined) backend = safe(() => globalThis.localStorage);
   const available = !!safe(() => { backend.setItem(PREFIX + 'probe', '1'); backend.removeItem(PREFIX + 'probe'); return true; });
   const memory = new Map();
   const parse = raw => { try { return raw ? JSON.parse(raw).value : null; } catch { return null; } };
