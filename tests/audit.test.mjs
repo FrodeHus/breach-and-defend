@@ -8,8 +8,10 @@ import {choose} from './helpers/policy.mjs';
 import {fakeTime} from './helpers/versus.mjs';
 
 // Plays a full match the way the guest would record it. `tamper` simulates a cheating host.
-async function record(tamper = () => {}) {
-  const hostSecret = randomHex(), guestSecret = randomHex();
+// Fixed secrets per seed, so every run plays the same games.
+const secret = (seed, who) => (seed * 2 + who).toString(16).padStart(32, '0');
+async function record(tamper = () => {}, seed = 1) {
+  const hostSecret = secret(seed, 0), guestSecret = secret(seed, 1);
   const m = await Match.create({hostFaction: 'blue', hostSecret, guestSecret, seedCommit: await sha256Hex(hostSecret)}, fakeTime());
   const views = [], sent = {};
   let seq = 0;
@@ -69,7 +71,7 @@ test('an edited host capacity is caught', async () => {
 
 test('an opening hand that is not the fair shuffle is caught', async () => {
   const rec = await record();
-  const other = await record();
+  const other = await record(() => {}, 2);
   const r = await audit({...rec, digests: [other.digests[0], ...rec.digests.slice(1)]});
   assert.equal(r.result, 'tampered');
   assert.match(r.reason, /opening hand/);
