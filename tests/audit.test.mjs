@@ -17,6 +17,7 @@ async function record(tamper = () => {}) {
   m.connect(true); m.pledge(0); m.pledge(1);
   for (let i = 0; i < 1500 && !m.ended; i++) {
     tamper(m, i);
+    if (m.ended) break; // a tamper step may itself end the match
     const p = m.game.actor(), a = choose(m.game, p);
     if (p === 1) { sent[++seq] = unflipAction(a); assert.equal(m.submit(1, sent[seq], seq).ok, true); }
     else assert.equal(m.submit(0, a).ok, true);
@@ -84,4 +85,36 @@ test('an illegal host move and a forged guest move are caught', async () => {
   const f = forged.findIndex(e => e.by === 1 && !e.timeout && e.type === 'pass');
   forged[f] = {...forged[f], type: 'concede'};
   assert.match((await audit({...rec, log: forged})).reason, /never made/);
+});
+
+test('a guest move logged as a forged timeout is caught', async () => {
+  const rec = await record((m, i) => { if (i === 25 && !m.ended) m.apply(1, {type: 'concede'}, null, true); });
+  const r = await audit(rec);
+  assert.equal(r.result, 'tampered');
+  assert.match(r.reason, /timeout/);
+});
+
+test('a reused guest sequence number is caught', async () => {
+  const rec = await record();
+  const idx = rec.log.map((e, k) => (e.by === 1 && !e.timeout) ? k : -1).filter(k => k >= 0);
+  assert.ok(idx.length >= 2);
+  const log = structuredClone(rec.log);
+  log[idx[1]].seq = log[idx[0]].seq;
+  const r = await audit({...rec, log});
+  assert.equal(r.result, 'tampered');
+  assert.match(r.reason, /never made/);
+});
+
+test('a truncated log is unverified', async () => {
+  const rec = await record();
+  const r = await audit({...rec, log: rec.log.slice(0, 10)});
+  assert.equal(r.result, 'unverified');
+  assert.match(r.reason, /incomplete/);
+});
+
+test('the commitment is checked before completeness', async () => {
+  const rec = await record();
+  const r = await audit({...rec, hostSecret: randomHex(), digests: rec.digests.slice(0, 5)});
+  assert.equal(r.result, 'tampered');
+  assert.match(r.reason, /committed/);
 });
