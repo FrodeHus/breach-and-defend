@@ -9,8 +9,15 @@ export const newMatchId = () => [...crypto.getRandomValues(new Uint8Array(16))].
 export const validMatchId = id => /^[a-z2-7]{16}$/.test(id ?? '');
 const failure = code => Object.assign(Error(code), {code});
 const other = faction => (faction === 'blue' ? 'red' : 'blue');
-// Closing right after send can drop the queued message; give it a moment to flush.
-const closeSoon = conn => { setTimeout(() => conn.close(), 100); };
+// Sends a last message and stops using the connection. The receiver closes it; the timer is only a fallback.
+function retire(conn, msg) {
+  const prev = conn.onclose;
+  const timer = setTimeout(() => conn.close(), 3000);
+  timer.unref?.();
+  conn.onmessage = () => {};
+  conn.onclose = (...a) => { clearTimeout(timer); prev?.(...a); };
+  conn.send(msg);
+}
 const backoff = n => new Promise(r => setTimeout(r, Math.min(10_000, 1000 * 2 ** n)));
 
 class Session {
@@ -94,18 +101,19 @@ export class HostSession extends Session {
       case 'pledge': this.match?.pledge(1); this.save(); return this.refresh();
       case 'intent': return this.intent(msg);
       case 'audit': this.record.audit = this.audit = msg.result ?? null; this.save(); return this.refresh();
-      case 'leave': this.dispose(); return this.set('cancelled');
+      case 'leave':
+        if (this.match?.started && !this.match.ended) { this.match.submit(1, {type: 'concede'}); return; }
+        this.dispose();
+        return this.set('cancelled');
     }
   }
 
   hello(conn, {guestToken}) {
     const r = this.record;
-    if (r.joined && guestToken !== r.guestToken) { conn.send({type: 'error', code: 'full'}); closeSoon(conn); return; }
+    if (r.joined && guestToken !== r.guestToken) { retire(conn, {type: 'error', code: 'full'}); return; }
     if (this.conn && this.conn !== conn) this.conn.close();
     this.conn = conn;
     if (!this.match) {
-      r.joined = true;
-      this.save();
       conn.send({type: 'welcome', guestToken: r.guestToken, hostToken: r.hostToken, seedCommit: r.seedCommit, hostFaction: r.hostFaction});
       return;
     }
@@ -120,6 +128,7 @@ export class HostSession extends Session {
   async seeded(guestSecret) {
     if (this.match || !/^[0-9a-f]{32}$/.test(guestSecret ?? '')) return;
     const r = this.record;
+    r.joined = true;
     this.attach(await Match.create({hostFaction: r.hostFaction, hostSecret: r.hostSecret, guestSecret, seedCommit: r.seedCommit}, this.clockOptions));
     this.match.connect(!!this.conn);
     this.save();
@@ -150,18 +159,19 @@ export class HostSession extends Session {
   leave() {
     if (this.match?.started && !this.match.ended) return this.seat.game.concede(0);
     const ended = !!this.match?.ended;
-    if (!ended) this.send({type: 'leave'});
-    this.dispose(true, !ended);
+    const conn = this.conn;
+    if (!ended && conn) { this.conn = null; retire(conn, {type: 'leave'}); }
+    this.dispose();
     if (!ended) this.set('cancelled');
   }
 
-  dispose(removeRecord = true, flush = false) {
+  dispose(removeRecord = true) {
     if (this.closed) return;
     this.match?.stop();
     if (removeRecord) this.store.remove(`host:${this.matchId}`); else this.save();
     this.closed = true;
     this.listener?.close();
-    if (flush && this.conn) closeSoon(this.conn); else this.conn?.close();
+    this.conn?.close();
   }
 
   save() {
@@ -214,6 +224,7 @@ export class GuestSession extends Session {
   lost(conn) {
     if (this.closed || this.conn !== conn) return;
     this.conn = null;
+    if (!this.record.guestToken) { this.dispose(); return this.set('error', {error: 'no-connection'}); }
     this.seat.dropPending('Connection lost. Reconnecting…');
     this.set('reconnecting');
     this.reconnect();
@@ -227,6 +238,7 @@ export class GuestSession extends Session {
   }
 
   async fromHost(msg) {
+    if (this.closed) return;
     const r = this.record;
     switch (msg?.type) {
       case 'error':
@@ -245,6 +257,7 @@ export class GuestSession extends Session {
         if (msg.hostToken !== r.hostToken) return this.impostor();
         if (r.pledged && !msg.pledged && !msg.started) this.conn.send({type: 'pledge'});
         if (msg.started) {
+          r.started = true;
           for (const entry of msg.log.slice(r.log.length)) r.log.push(entry);
           r.digests[r.log.length] ??= await digest(msg.view);
         }
@@ -254,6 +267,7 @@ export class GuestSession extends Session {
         return this.set(!msg.started ? (r.pledged ? 'pledged' : 'pledge') : 'playing');
       case 'view': {
         const {entry} = msg;
+        r.started = true;
         if (entry) {
           // A missing message means the channel broke; reconnecting resends the whole log.
           if (entry.n !== r.log.length + 1) { this.conn?.close(); return; }
@@ -293,18 +307,20 @@ export class GuestSession extends Session {
   }
 
   leave() {
-    if (this.status === 'playing' && this.seat.game?.winner === null) return this.seat.game.concede(0);
+    const started = this.record.started && this.status !== 'ended';
+    if (started && this.conn && this.seat.game?.winner === null) return this.seat.game.concede(0);
     const ended = this.status === 'ended';
-    if (!ended) this.conn?.send({type: 'leave'});
-    this.dispose(true, !ended);
+    const conn = this.conn;
+    if (!ended && !started && conn) { this.conn = null; retire(conn, {type: 'leave'}); }
+    this.dispose();
     if (!ended) this.set('cancelled');
   }
 
-  dispose(removeRecord = true, flush = false) {
+  dispose(removeRecord = true) {
     if (this.closed) return;
     if (removeRecord) this.store.remove(`guest:${this.matchId}`); else this.save();
     this.closed = true;
-    if (flush && this.conn) closeSoon(this.conn); else this.conn?.close();
+    this.conn?.close();
   }
 
   save() { if (!this.closed) this.store.set(`guest:${this.matchId}`, this.record); }

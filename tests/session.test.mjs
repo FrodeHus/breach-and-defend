@@ -162,3 +162,57 @@ test('a match that ends while the guest is away is revealed and audited on retur
   assert.equal(guest.status, 'ended');
   assert.deepEqual(guest.audit, {result: 'verified'});
 });
+
+test('a guest leave message during a started match is a concede on the host', async () => {
+  const ctx = await start(await pair());
+  await keepBoth(ctx);
+  ctx.guest.conn.send({type: 'leave'});
+  await settle(ctx);
+  assert.equal(ctx.host.status, 'ended');
+  assert.equal(ctx.host.seat.game.winner, 0);
+});
+
+test('guest.leave() mid-match while connected concedes', async () => {
+  const ctx = await start(await pair());
+  await keepBoth(ctx);
+  await ctx.guest.leave();
+  await settle(ctx);
+  assert.equal(ctx.host.status, 'ended');
+  assert.equal(ctx.host.seat.game.winner, 0);
+  assert.equal(ctx.guest.seat.game.winner, 1);
+});
+
+test('guest.leave() mid-match while disconnected cancels the guest and pauses the host', async () => {
+  const ctx = await start(await pair());
+  await keepBoth(ctx);
+  ctx.guest.conn.close();
+  ctx.guest.conn = null;
+  ctx.guest.leave();
+  await flush();
+  assert.equal(ctx.guest.status, 'cancelled');
+  assert.equal(ctx.guestStore.get(`guest:${ctx.host.matchId}`), null);
+});
+
+const dropWelcome = net => ({
+  ...net,
+  async dial(id) {
+    const c = await net.dial(id);
+    let handler = () => {};
+    Object.defineProperty(c, 'onmessage', {get: () => m => (m.type === 'welcome' ? c.close() : handler(m)), set: f => { handler = f; }});
+    return c;
+  },
+});
+
+test('a first-time guest whose connection drops before welcome errors and does not loop; a rejoin works', async () => {
+  const net = fakeNet();
+  const host = await HostSession.create({net, store: store(), hostFaction: 'blue', clock: fakeTime()});
+  const guestStore = store();
+  const guest = await GuestSession.join({net: dropWelcome(net), store: guestStore, matchId: host.matchId, retry});
+  await flush();
+  assert.equal(guest.status, 'error');
+  assert.equal(guest.error, 'no-connection');
+  const again = await GuestSession.join({net, store: guestStore, matchId: host.matchId, retry});
+  await settle({guest: again});
+  assert.equal(again.status, 'pledge');
+  assert.equal(host.status, 'pledge');
+});
