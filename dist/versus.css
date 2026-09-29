@@ -1,0 +1,13 @@
+.versus-lobby{max-width:640px;margin:48px auto;padding:0 16px}
+.invite-link{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}
+.invite-link input{flex:1 1 260px;min-width:0;font:inherit;padding:10px 12px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:4px}
+.versus-status{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.versus-clock{font-variant-numeric:tabular-nums;border:1px solid var(--line);border-radius:20px;padding:5px 12px;font-size:.8rem}
+.versus-clock:empty{display:none}
+.versus-banner{color:var(--gold);font-size:.85rem}
+.honor h2{margin-top:0}
+.honor .toolbar{margin-top:18px}
+.audit{margin:14px 0;font-weight:600}
+.audit.verified{color:var(--blue)}
+.audit.tampered{color:var(--red)}
+.audit.unverified{color:var(--gold)}
