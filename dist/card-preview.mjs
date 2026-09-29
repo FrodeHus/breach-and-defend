@@ -106,6 +106,7 @@ export function installCardPreview({root, renderCard, canShow}) {
   window.addEventListener('blur', () => { pointer = null; dismiss(true); });
   return {
     dismiss,
+    sourceFor(node) { return panel.contains(node) ? source : null; },
     refresh() {
       const focused = eligible(document.activeElement);
       const hovered = pointer ? eligible(document.elementFromPoint(pointer.x, pointer.y)) : null;
