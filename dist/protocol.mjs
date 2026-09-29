@@ -89,13 +89,15 @@ export const redactEntry = e => {
   const {bottom, ...rest} = e;
   return {...rest, bottomCount: Array.isArray(bottom) ? bottom.length : 0};
 };
+// Commits the host to a bottom set before the guest learns it, salted with the still-secret host seed.
+export const bottomCommit = (hostSecret, n, bottom) => sha256Hex(`${hostSecret}:${n}:${canonical(bottom ?? [])}`);
 export const hostBottoms = log => Object.fromEntries(log.filter(e => e.by === 0 && e.type === 'keep').map(e => [e.n, e.bottom ?? []]));
 // Returns the full log, or null when a revealed bottom does not fit the count the guest saw live.
 export function restoreBottoms(log, bottoms) {
   const out = [];
   for (const e of log) {
     if (!e || typeof e !== 'object' || !Object.hasOwn(e, 'bottomCount')) { out.push(e); continue; }
-    const {bottomCount, ...rest} = e;
+    const {bottomCount, bottomCommit: _, ...rest} = e;
     const bottom = bottoms && Object.hasOwn(bottoms, e.n) ? bottoms[e.n] : bottomCount === 0 ? [] : null;
     if (!Array.isArray(bottom) || bottom.length !== bottomCount || !bottom.every(Number.isInteger)) return null;
     out.push({...rest, bottom});

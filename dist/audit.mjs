@@ -1,5 +1,5 @@
 // dist/audit.mjs
-import {actionFields, applyAction, canonical, digest, restoreBottoms, seedHex, sha256Hex, timeoutAction, unflipAction, versusGame, viewFor} from './protocol.mjs';
+import {actionFields, applyAction, bottomCommit, canonical, digest, restoreBottoms, seedHex, sha256Hex, timeoutAction, unflipAction, versusGame, viewFor} from './protocol.mjs';
 
 const PARTS = {you: 'Your cards or capacity', foe: 'Your opponent’s cards or capacity', table: 'The turn, stack or combat state'};
 const same = (a, b) => canonical(actionFields(a)) === canonical(actionFields(b));
@@ -15,6 +15,13 @@ export async function audit({seedCommit, hostSecret, guestSecret, hostFaction, l
   if (!guestSecret || !digests[0] || !digests[received.length]) return unverified('Your saved record of this match is incomplete.');
   const log = restoreBottoms(received, bottoms);
   if (!log) return tampered(1, 'The revealed opening-hand choices do not match what your opponent did during the match.');
+  // Each redacted bottom was committed to when it happened; the revealed one must be that same set.
+  for (const [i, e] of received.entries()) {
+    if (!(e?.bottomCount > 0)) continue;
+    if (typeof e.bottomCommit !== 'string' || e.bottomCommit !== await bottomCommit(hostSecret, e.n, log[i].bottom)) {
+      return tampered(1, 'Your opponent changed which cards they put on the bottom after a mulligan.');
+    }
+  }
 
   const game = versusGame(await seedHex(hostSecret, guestSecret), hostFaction);
   const compare = async (i, turn) => {

@@ -2,7 +2,7 @@
 import {Match} from './match.mjs';
 import {Seat} from './remote.mjs';
 import {audit} from './audit.mjs';
-import {canonical, digest, hostBottoms, randomHex, redactEntry, safeKeys, sanitizeView, sha256Hex} from './protocol.mjs';
+import {bottomCommit, canonical, digest, hostBottoms, randomHex, redactEntry, safeKeys, sanitizeView, sha256Hex} from './protocol.mjs';
 
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567';
 export const newMatchId = () => [...crypto.getRandomValues(new Uint8Array(16))].map(b => ALPHABET[b & 31]).join('');
@@ -26,7 +26,8 @@ class Session {
   audit = null;
   closed = false;
   onStatus = () => {};
-  set(status, extra = {}) { Object.assign(this, extra, {status}); this.onStatus(this); }
+  final = false; // Set once a session has stepped aside for good; later status changes are ignored.
+  set(status, extra = {}) { if (this.final) return; Object.assign(this, extra, {status}); this.onStatus(this); }
 }
 
 // The host owns the Match. Its own moves go straight to the referee; the guest's arrive over the network.
@@ -48,7 +49,8 @@ export class HostSession extends Session {
 
   constructor({net, store, matchId, record, clock}) {
     super();
-    Object.assign(this, {net, store, matchId, record, clockOptions: clock, conn: null, match: null, queue: Promise.resolve()});
+    Object.assign(this, {net, store, matchId, record, clockOptions: clock, conn: null, match: null, queue: Promise.resolve(), outbox: Promise.resolve()});
+    record.bottomCommits ??= {};
     this.faction = record.hostFaction;
     this.audit = record.audit;
     this.seat = new Seat((action, seq) => {
@@ -91,7 +93,31 @@ export class HostSession extends Session {
     };
   }
 
-  send(msg) { this.conn?.send(msg); }
+  send(msg) { this.post(msg); }
+
+  // Every message to the guest goes through one ordered queue: a host keep entry is redacted to a count plus a
+  // hash commitment, and hashing is asynchronous. The message (its view in particular) is captured now; only
+  // the redaction waits. Commitments are kept in the record, so a reloaded host sends the same ones.
+  post(msg, conn = this.conn) {
+    if (!conn) return;
+    const {entry, log} = msg;
+    this.outbox = this.outbox.then(async () => {
+      const out = {...msg};
+      if (entry !== undefined) out.entry = await this.redact(entry);
+      if (log !== undefined) out.log = await Promise.all(log.map(e => this.redact(e)));
+      conn.send(out);
+    }).catch(e => console.error('Breach & Defend: could not send to the guest', e));
+  }
+
+  async redact(entry) {
+    const out = redactEntry(entry);
+    if (!out?.bottomCount) return out;
+    const commits = this.record.bottomCommits;
+    commits[entry.n] ??= await bottomCommit(this.record.hostSecret, entry.n, entry.bottom);
+    return {...out, bottomCommit: commits[entry.n]};
+  }
+
+  settled() { return this.outbox; }
 
   async fromGuest(conn, msg) {
     if (!msg || typeof msg !== 'object') return;
@@ -130,7 +156,7 @@ export class HostSession extends Session {
     // Send only the log entries the guest lacks. A guest claiming more than the host has gets none and
     // decides for itself (see GuestSession 'resume'); a guest that sent no count gets the whole log.
     const from = Number.isInteger(have) && have > 0 ? Math.min(have, m.log.length) : 0;
-    conn.send({...this.viewMessage(), type: 'resume', hostToken: r.hostToken, from, log: m.log.slice(from).map(redactEntry), started: m.started, pledged: m.pledged[1], reveal: m.ended ? this.reveal() : null});
+    this.post({...this.viewMessage(), type: 'resume', hostToken: r.hostToken, from, log: m.log.slice(from), started: m.started, pledged: m.pledged[1], reveal: m.ended ? this.reveal() : null}, conn);
     this.save();
     this.refresh();
   }
@@ -161,7 +187,7 @@ export class HostSession extends Session {
   }
 
   viewMessage(entry = null, ackSeq = null) {
-    return {type: 'view', entry: redactEntry(entry), ackSeq, view: this.match.view(1), clock: this.match.clockFor(1)};
+    return {type: 'view', entry, ackSeq, view: this.match.view(1), clock: this.match.clockFor(1)};
   }
 
   // What the guest needs to audit: the seed, and the host's mulligan bottoms it was only told the count of.
@@ -212,7 +238,13 @@ export class GuestSession extends Session {
   constructor({net, store, matchId, retry, random = randomHex}) {
     super();
     Object.assign(this, {net, store, matchId, retry, random, conn: null, queue: Promise.resolve(), attempts: 0});
-    this.record = store.get(`guest:${matchId}`) ?? {guestToken: null, hostToken: null, seedCommit: null, hostFaction: null, guestSecret: null, pledged: false, seq: 0, sent: {}, log: [], digests: [], hostSecret: null, bottoms: null, audit: null};
+    const saved = store.get(`guest:${matchId}`);
+    this.record = saved ?? {guestToken: null, hostToken: null, seedCommit: null, hostFaction: null, guestSecret: null, pledged: false, seq: 0, sent: {}, log: [], digests: [], hostSecret: null, bottoms: null, audit: null};
+    // Each tab has its own owner id. The newest tab to open the match claims the shared record; an older tab
+    // that finds someone else's id there (or a record ahead of its own) steps aside instead of playing on.
+    this.owner = randomHex(8);
+    this.record.owner = this.owner;
+    if (saved) store.set(`guest:${matchId}`, this.record);
     this.faction = this.record.hostFaction && other(this.record.hostFaction);
     this.audit = this.record.audit;
     this.seat = new Seat((action, seq) => {
@@ -225,6 +257,7 @@ export class GuestSession extends Session {
   }
 
   async connect() {
+    if (this.superseded()) return this.stepAside();
     const conn = await this.net.dial(this.matchId);
     if (this.closed) return conn.close();
     this.conn = conn;
@@ -270,7 +303,7 @@ export class GuestSession extends Session {
     switch (msg?.type) {
       case 'error':
         // Another tab of this browser now owns the match and its saved record: stop without touching either.
-        if (msg.code === 'replaced') { this.abandon(); return this.set('error', {error: 'replaced'}); }
+        if (msg.code === 'replaced') return this.stepAside();
         this.dispose(msg.code === 'full');
         return this.set('error', {error: msg.code});
       case 'welcome':
@@ -356,19 +389,35 @@ export class GuestSession extends Session {
 
   dispose(removeRecord = true) {
     if (this.closed) return;
+    if (this.superseded()) return this.stepAside();
     if (removeRecord) this.store.remove(`guest:${this.matchId}`); else this.save();
     this.closed = true;
     this.conn?.close();
   }
 
-  abandon() {
-    if (this.closed) return;
+  // True when another tab now owns this match's saved record.
+  superseded() {
+    const stored = this.store.get(`guest:${this.matchId}`);
+    if (!stored) return false;
+    const r = this.record;
+    return stored.owner !== this.owner || (stored.log?.length ?? 0) > r.log.length || (stored.seq ?? 0) > r.seq;
+  }
+
+  // Terminal: the other tab has the match and its record, so this one neither saves, removes nor reconnects.
+  stepAside() {
+    if (this.final) return;
+    this.set('error', {error: 'replaced'});
+    this.final = true;
     this.closed = true;
     this.seat.dropPending('This match is open in another tab or window.');
     this.conn?.close();
   }
 
-  save() { if (!this.closed) this.store.set(`guest:${this.matchId}`, this.record); }
+  save() {
+    if (this.closed) return;
+    if (this.superseded()) return this.stepAside();
+    this.store.set(`guest:${this.matchId}`, this.record);
+  }
 
   settled() { return this.queue; }
 }
