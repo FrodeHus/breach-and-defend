@@ -36,6 +36,18 @@ test('a full backend keeps the latest value in memory', () => {
   assert.deepEqual(s.get('host:x'), {big: true});
 });
 
+test('a failed write removes the stored copy so a reload never resumes a stale record', () => {
+  const backend = memoryBackend(), setItem = backend.setItem, s = createStore(backend);
+  s.set('guest:x', {log: [1]});
+  assert.ok(backend.map.has('bnd:guest:x'));
+  backend.setItem = () => { throw Error('QuotaExceededError'); };
+  s.set('guest:x', {log: [1, 2]});
+  assert.equal(backend.map.has('bnd:guest:x'), false);
+  assert.deepEqual(s.get('guest:x'), {log: [1, 2]});
+  backend.setItem = setItem;
+  assert.equal(createStore(backend).get('guest:x'), null, 'a reload finds nothing rather than the old record');
+});
+
 test('prune removes records older than seven days and unreadable ones only', () => {
   let now = 0;
   const backend = memoryBackend(), s = createStore(backend, () => now);

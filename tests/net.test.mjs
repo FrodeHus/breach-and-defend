@@ -100,6 +100,22 @@ test('wrap() frames sends and reassembles receives over a PeerJS-like connection
   assert.equal(closed, 1);
 });
 
+test('wrap() closes the connection on an error so the peer hears it too', () => {
+  const handlers = {};
+  let closes = 0, notified = 0;
+  const conn = {open: true, on: (e, f) => { handlers[e] = f; }, send() {}, close() { closes++; }};
+  const c = wrap(conn);
+  c.onclose = () => notified++;
+  handlers.error(Error('negotiation failed'));
+  assert.equal(closes, 1);
+  assert.equal(notified, 1);
+});
+
+test('toFrames refuses a frame size that could never make progress', () => {
+  for (const size of [1, 0, -1, NaN]) assert.throws(() => toFrames({s: 'x'.repeat(50)}, 1, size), RangeError);
+  assert.equal(toFrames({s: '🛡'.repeat(20)}, 1, 2).length > 1, true);
+});
+
 test('the fake transport enforces the PeerJS message limit when framing is off', async () => {
   const net = fakeNet({framing: false}), got = [];
   let hostConn, hostClosed = 0;
