@@ -6,7 +6,7 @@ The following are licensed under the
 [Creative Commons Attribution-NonCommercial 4.0 International License](https://creativecommons.org/licenses/by-nc/4.0/)
 (CC BY-NC 4.0):
 
-- Everything in `dist/art/` — card illustrations, battlefield art, emblems, card backs and the Breach & Defend logo
+- Everything in `dist/art/` and `art-source/` — card illustrations, battlefield art, emblems, card backs and the Breach & Defend logo
 - Card names, rules text, flavour text and lore (`dist/cards.mjs`, `dist/lore.mjs`)
 - The generation prompts in `docs/art-prompts/`
 

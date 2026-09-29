@@ -12,7 +12,7 @@
 
 # Breach & Defend — First Breach
 
-A red-versus-blue card game for learning cybersecurity, inspired by classic trading-card game structure. Play red or blue against a local computer opponent. Every card teaches a real security concept, from phishing and lateral movement to backups and MFA.
+A red-versus-blue card game for learning cybersecurity, inspired by classic trading-card game mechanics. Play red or blue against a local computer opponent, or against a friend through an invite link. Every card teaches a real security concept, from phishing and lateral movement to backups and MFA.
 
 No install, account, or build step: it's plain HTML, CSS and JavaScript modules.
 
@@ -57,21 +57,32 @@ Drag a card from your hand (or its enlarged preview) onto **Your battlefield** t
 
 Hand previews and card details show every unmet play requirement, including required versus ready compute, main-phase timing, priority, pending effects, and the specific kind of missing target. These explanations use the same checks that validate playing the card and update with the current match state.
 
+## Play a friend
+
+On the arena start screen, choose **Play a friend**, pick your side and send the link to your opponent. They play the other faction. Both players accept a short honor pledge, then a fair coin flip, made from secrets both browsers contribute, decides who goes first.
+
+- **Connection:** Browsers connect directly with WebRTC through the free public PeerJS signaling server. No accounts, keys or backend are required, so this works on GitHub Pages. Some corporate or mobile networks block direct connections; there is no relay server.
+- **Clocks:** 60 seconds to keep an opening hand, 90 seconds per turn, and 20 seconds per response. When time runs out the game passes, skips attacks or blocks, or discards the costliest cards for you.
+- **Reconnecting:** Either player can reload or lose connection and continue. The match pauses, including the clocks, until both are back. Leaving the match concedes.
+- **Fair play:** The host's browser runs the rules. The guest never receives hidden cards, so the guest cannot cheat. When the match ends, the guest's browser replays every move from the revealed seed and the recap shows **Verified**, **Tampering detected**, or **Unverified**. Tampering with decks, hands or capacity is caught. Peeking at the other hand is not, which is what the honor pledge is for.
+
 ## Deliberate simplifications
 
-This is not a full Magic rules implementation. Compute is one generic resource and is paid automatically. Start-of-turn gains resolve automatically without triggered-ability responses. Combat damage is assigned automatically in the order blockers were assigned, lethal damage first. No colored mana, planeswalkers, first strike, tokens, exile, sideboards, deck editor, multiplayer, or saved matches are included. Reloading resets the current match.
+This is not a full implementation of any existing card game’s rules. Compute is one generic resource and is paid automatically. Start-of-turn gains resolve automatically without triggered-ability responses. Combat damage is assigned automatically in the order blockers were assigned, lethal damage first. No multiple resource types, tokens, exile, sideboards, deck editor, or saved computer matches are included. Reloading resets a computer match.
 
 The computer uses a local heuristic. It knows its own hand and the public battlefield, not the player's hidden cards. The user always takes the first turn. Starter balance and the 15–25 minute target duration need human playtesting.
 
 ## Validation
 
-`npm test` covers the rules, including 100 seeded complete matches with card-count conservation and no deadlocks, plus tutorial opt-in, exit, progression for both factions, unavailable moves, and early match endings. The simulation uses different policies for the two players and is a correctness check, not proof of competitive balance. Tutorial browser checks cover the unchecked default, both factions, mulligans, resource play, unit casting, priority, desktop/mobile layout, and exiting with mouse and keyboard.
+`npm test` covers the rules, including 100 seeded complete matches with card-count conservation and no deadlocks, plus tutorial opt-in, exit, progression for both factions, unavailable moves, and early match endings. The simulation uses different policies for the two players and is a correctness check, not proof of competitive balance. Tutorial browser checks cover the unchecked default, both factions, mulligans, resource play, unit casting, priority, desktop/mobile layout, and exiting with mouse and keyboard. Versus tests cover the seeded RNG, save/restore, redaction and perspective flipping, the referee, clocks, the replay audit (including five tampering kinds), storage fallbacks, and complete host/guest matches over an in-memory transport with reloads, dropped connections, impostor hosts and a third player. Landing-page tests check both modes' controls and that the web-sized splash images exist.
 
 ## Source layout
 
 - `dist/cards.mjs`: card definitions, lessons, deck lists, and keyword glossary.
 - `dist/engine.mjs`: rules and computer strategy, independent of the interface.
 - `dist/app.mjs`: arena, tutorial, library, guide, dialogs, and optional WebMCP tools.
+- `dist/landing.mjs`: start screen with the splash hero and the game-mode selector. The original splash art lives in `art-source/`; `dist/art/splash-*` are the web sizes.
+- `dist/protocol.mjs`, `rng.mjs`, `match.mjs`, `audit.mjs`, `remote.mjs`, `session.mjs`, `net.mjs`, `storage.mjs`, `versus-ui.mjs`: play-a-friend (shared rules, host referee, audit, guest seat, sessions, PeerJS transport, storage, markup).
 - `dist/tutorial.mjs`: lesson progress and contextual guidance, independent of rendering.
 - `dist/tutorial.css`: opt-in panel, lesson checklist, and action highlights.
 - `dist/card-preview.mjs` and `dist/card-preview.css`: hover/focus preview interactions and positioning.
@@ -90,7 +101,6 @@ Card effects are simplified game mechanics, not technical instructions or univer
 - https://www.cisa.gov/stopransomware/ransomware-guide
 - https://www.cisa.gov/sites/default/files/2023-01/fact-sheet-implementing-phishing-resistant-mfa-508c.pdf
 - https://www.cisa.gov/news-events/cybersecurity-advisories/aa23-278a
-- https://magic.wizards.com/en/rules
 
 ## Contributing
 
@@ -101,4 +111,4 @@ Bug reports, playtest feedback, card ideas and pull requests are welcome. See [C
 - **Code** is licensed under the [MIT License](LICENSE).
 - **Artwork, logo, and card content** are licensed under [CC BY-NC 4.0](LICENSE-ASSETS.md): free to share and adapt with credit, but not for commercial use.
 
-Independent educational game by [Frode Hus](https://www.frodehus.dev); not affiliated with or endorsed by Wizards of the Coast. Artwork is AI-generated. The source does not include third-party Magic card images, symbols, or frames.
+Breach & Defend is an independent educational game by [Frode Hus](https://www.frodehus.dev), inspired by classic trading-card game mechanics. Card designs are original and illustrations are AI-generated. The source does not include third-party card images, symbols, or frames.

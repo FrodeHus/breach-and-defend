@@ -1,7 +1,9 @@
 # Security policy
 
 Breach & Defend is a static browser game with no accounts or server-side
-storage. Security issues could still exist — for example cross-site scripting
+storage. Play-a-friend matches connect two browsers directly over WebRTC.
+Security issues could still exist — for example cross-site scripting, forged
+or tampered multiplayer messages, cheating that the post-match audit misses,
 or problems in the local dev server (`serve.cjs`).
 
 ## Supported versions
