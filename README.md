@@ -11,14 +11,20 @@ A playable browser prototype for cybersecurity learning, inspired by Magic-style
 - Opening-hand mulligans; one infrastructure per turn; automatic resource payment; turn phases; priority and a last-in-first-out effect stack.
 - Attacking, blocking, multiple blockers, simultaneous damage, summoning sickness, haste, vigilance, flying, reach, lifelink, trample, and defender.
 - Target validation, counterspells, temporary modifiers, discard and recovery, defeat at zero capacity, and deck-out losses.
-- Tutorial prompts, searchable card library, field guide, and match recap with security lessons.
+- Opt-in interactive first-play tutorial, quick tips, searchable card library, field guide, and match recap with security lessons.
 - Responsive layout and native keyboard-operable buttons and dialogs.
 
 ## Run locally
 
 Install Node.js, then run `node serve.cjs` from this directory. Open the printed local URL. No npm dependencies, remote AI service, or API key is required. The game uses JavaScript modules and should be served over HTTP rather than opened as a file.
 
-Run the rule checks with `node --test tests/engine.test.mjs`.
+Run the rule and tutorial checks with `npm test`.
+
+## Guided first game
+
+Check **Guide my first game** before choosing either faction. It starts unchecked and is never enabled automatically for later matches. Six lessons track keeping a hand, playing infrastructure, deploying a unit, passing or responding, attacking, and defending. Highlighted cards and controls show what to do next; lessons advance from actual game actions.
+
+The guide pauses your first pending-effect priority window so you can read before passing. It adapts to your real hand and available moves, so lessons may span several turns or occur in a different order. **Exit tutorial** is available on the board and in card dialogs and continues the same match without guidance. Existing quick tips and the field guide remain available independently.
 
 ## Deliberate simplifications
 
@@ -28,17 +34,20 @@ The computer uses a local heuristic. It knows its own hand and the public battle
 
 ## Validation
 
-15 automated rule tests passed, including 100 seeded complete matches with card-count conservation and no deadlocks. The simulation used different policies for the two players and is a correctness check, not proof of competitive balance. Browser checks cover opening hands, mulligans, resource play, phase progression, card inspection, library filtering, and the optional browser-agent start/read tools.
+`npm test` covers the rules, including 100 seeded complete matches with card-count conservation and no deadlocks, plus tutorial opt-in, exit, progression for both factions, unavailable moves, and early match endings. The simulation uses different policies for the two players and is a correctness check, not proof of competitive balance. Tutorial browser checks cover the unchecked default, both factions, mulligans, resource play, unit casting, priority, desktop/mobile layout, and exiting with mouse and keyboard.
 
 ## Source layout
 
 - `dist/cards.mjs`: card definitions, lessons, deck lists, and keyword glossary.
 - `dist/engine.mjs`: rules and computer strategy, independent of the interface.
 - `dist/app.mjs`: arena, tutorial, library, guide, dialogs, and optional WebMCP tools.
+- `dist/tutorial.mjs`: lesson progress and contextual guidance, independent of rendering.
+- `dist/tutorial.css`: opt-in panel, lesson checklist, and action highlights.
 - `dist/style.css`: layout and visual design.
 - `dist/art/`: generated artwork used by the cards.
 - `art-prompts.json`: exact final prompts used with the built-in image generation tool.
 - `tests/engine.test.mjs`: rules and match simulation checks.
+- `tests/tutorial.test.mjs`: tutorial progression against the real rules engine.
 
 ## Learning references
 

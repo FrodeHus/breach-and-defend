@@ -1,0 +1,35 @@
+.tutorial-opt-in{display:flex;align-items:center;gap:14px;padding:16px 20px;margin:0 0 24px;border:1px solid #9ebac7;border-radius:8px;background:#f1f8fa;color:#203b4c;cursor:pointer}
+.tutorial-opt-in input{width:21px;height:21px;flex-shrink:0;accent-color:#096b78}
+.tutorial-opt-in strong,.tutorial-opt-in small{display:block}
+.tutorial-opt-in small{margin-top:4px;line-height:1.5;color:#405767}
+.guided-tutorial{display:grid;grid-template-columns:minmax(0,1fr) 275px;gap:24px;align-items:center;padding:18px 24px;margin-bottom:20px;border:1px solid #91b5c1;border-left:4px solid #096b78;border-radius:8px;background:#f1f8fa;color:#203b4c}
+.guided-tutorial .eyebrow{font-size:.6875rem;letter-spacing:.12em;color:#096b78;margin:0 0 6px}
+.guided-tutorial h2{font-size:1.65rem;line-height:1.1;margin:0 0 7px}
+.guided-tutorial p{font-size:.875rem;line-height:1.5;margin:0;max-width:85ch}
+.tutorial-progress progress{display:block;width:100%;height:6px;accent-color:#096b78}
+.tutorial-progress ol{list-style:none;margin:8px 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:.75rem;color:#405767}
+.tutorial-progress li[aria-current]{font-weight:700;color:#075f70}
+.tutorial-progress li.done{color:#096b50}
+.tutorial-progress .small{font-size:.75rem;padding:6px 12px;min-height:32px}
+.tutorial-target{outline:3px solid #ad6908!important;outline-offset:3px}
+.tutorial-target:focus-visible{outline:4px solid #075f70!important;outline-offset:4px}
+.tutorial-dialog-note{display:flex;align-items:center;gap:20px;justify-content:space-between;background:#edf6f8;border:1px solid #afcdd4;border-radius:6px;padding:12px;margin:16px 0;color:#203b4c}
+.tutorial-dialog-note p{margin:0;font-size:.875rem;line-height:1.5}
+.tutorial-dialog-note button{flex-shrink:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.has-guidance>.guided-tutorial{margin:12px 20px}
+@media(min-width:900px) and (min-height:560px){
+  .match-playing .workspace.has-guidance,.match-playing .workspace.has-guidance.inspector-open{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(500px,1fr);overflow-y:auto}
+  .has-guidance>.guided-tutorial{grid-row:1;padding:12px 20px;margin:8px 20px 4px}
+  .match-playing .has-guidance>.table{grid-row:2;min-height:500px}
+}
+@media(max-width:899px){
+  .workspace.has-guidance.inspector-open{display:block}
+  .guided-tutorial{grid-template-columns:minmax(0,1fr);gap:14px;padding:16px}
+  .tutorial-progress ol{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .has-guidance>.guided-tutorial{margin:14px}
+}
+@media(max-width:450px){
+  .tutorial-progress ol{grid-template-columns:1fr 1fr}
+  .tutorial-dialog-note{align-items:flex-start;flex-direction:column;gap:10px}
+}
