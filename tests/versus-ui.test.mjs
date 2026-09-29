@@ -25,7 +25,11 @@ test('each lobby state has a way forward', () => {
 });
 
 test('every error code has a message, with a fallback', () => {
-  for (const code of ['server', 'no-connection', 'host-offline', 'unknown-match', 'full', 'id-taken', 'impostor']) assert.ok(ui.errorMessage(code).length > 20, code);
+  for (const code of ['server', 'no-connection', 'host-offline', 'unknown-match', 'full', 'id-taken', 'impostor', 'replaced', 'internal']) assert.ok(ui.errorMessage(code).length > 20, code);
+  const replaced = ui.lobby({status: 'error', error: 'replaced'});
+  assert.match(replaced, /open in another tab or window/);
+  assert.doesNotMatch(replaced, /versusRetry/, 'another tab owns the match: retrying here would displace it');
+  assert.match(ui.lobby({status: 'error', error: 'internal'}), /id="versusRetry"/);
   assert.equal(ui.errorMessage('weird'), ui.ERRORS['no-connection']);
 });
 
