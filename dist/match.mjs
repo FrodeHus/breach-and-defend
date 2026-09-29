@@ -1,5 +1,8 @@
 import {Game} from './engine.mjs';
-import {actionFields, applyAction, seedHex, unflipAction, versusGame, viewFor} from './protocol.mjs';
+import {actionFields, applyAction, seedHex, timeoutAction, unflipAction, versusGame, viewFor} from './protocol.mjs';
+
+export const TURN_MS = 90_000, RESPONSE_MS = 20_000, OPENING_MS = 60_000;
+const freshClock = () => ({turn: 1, turnLeft: TURN_MS, responseLeft: RESPONSE_MS, openingLeft: OPENING_MS, running: null});
 
 // Host-side referee: every change to a versus match, from either player, goes through here.
 export class Match {
@@ -18,6 +21,7 @@ export class Match {
     this.pledged = state.pledged ?? [false, false];
     this.guestConnected = false;
     this.timer = null;
+    this.clock = state.clock ? {...state.clock, running: null} : freshClock();
     this.onChange = () => {};
   }
 
@@ -62,13 +66,47 @@ export class Match {
 
   view(p) { return viewFor(this.game, p); }
 
-  // Clock stubs; Task 6 replaces these three methods.
-  retime() {}
-  stop() {}
-  clockFor() { return null; }
+  // Banks the time used so far, then starts whichever clock now applies.
+  retime(fresh = false) {
+    this.stop();
+    const g = this.game, c = this.clock;
+    if (!this.started || !this.guestConnected || this.ended) return;
+    let kind = 'openingLeft';
+    if (g.phase !== 'opening') {
+      if (c.turn !== g.turn) Object.assign(c, {turn: g.turn, turnLeft: TURN_MS});
+      kind = g.actor() === g.active ? 'turnLeft' : 'responseLeft';
+      if (kind === 'responseLeft' && fresh) c.responseLeft = RESPONSE_MS;
+    }
+    c.running = {kind, since: this.now()};
+    this.timer = this.schedule(() => this.expire(), c[kind]);
+  }
+
+  stop() {
+    const c = this.clock, r = c.running;
+    if (r) c[r.kind] = Math.max(0, c[r.kind] - (this.now() - r.since));
+    c.running = null;
+    this.cancel(this.timer);
+    this.timer = null;
+  }
+
+  expire() {
+    this.stop();
+    const g = this.game;
+    const late = g.phase === 'opening' ? [0, 1].filter(p => !g.kept[p]) : [g.actor()];
+    for (const p of late) if (!this.ended) this.apply(p, timeoutAction(this.game, p), null, true);
+  }
+
+  clockFor(p) {
+    const c = this.clock, r = c.running;
+    if (!r) return {kind: null, owner: null, left: null, paused: this.started && !this.ended && !this.guestConnected};
+    const actor = this.game.phase === 'opening' ? null : this.game.actor();
+    return {kind: r.kind.replace('Left', ''), owner: actor === null ? null : p === 0 ? actor : 1 - actor, left: Math.max(0, c[r.kind] - (this.now() - r.since)), paused: false};
+  }
 
   toJSON() {
     const {hostFaction, hostSecret, guestSecret, seedCommit, log, lastSeq, pledged} = this;
-    return structuredClone({v: 1, hostFaction, hostSecret, guestSecret, seedCommit, log, lastSeq, pledged, game: this.game.toJSON()});
+    const clock = {...this.clock, running: null}, r = this.clock.running;
+    if (r) clock[r.kind] = Math.max(0, clock[r.kind] - (this.now() - r.since));
+    return structuredClone({v: 1, hostFaction, hostSecret, guestSecret, seedCommit, log, lastSeq, pledged, clock, game: this.game.toJSON()});
   }
 }
