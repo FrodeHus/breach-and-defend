@@ -216,3 +216,38 @@ test('a first-time guest whose connection drops before welcome errors and does n
   assert.equal(again.status, 'pledge');
   assert.equal(host.status, 'pledge');
 });
+
+// The UI waits on each intent's promise while input is locked, so no host intent may ever be left pending.
+test('host intents settle synchronously through host reloads, guest reconnects and timeouts', async () => {
+  const time = fakeTime();
+  const net = fakeNet(), hostStore = store(), guestStore = store();
+  const ctx = await start(await pair({net, hostStore, guestStore}));
+  let host = ctx.host, mine = 0, acted = 0;
+  const watch = h => { h.seat.onUpdate = (g, {mine: m}) => { if (m) mine++; }; };
+  watch(host);
+  const hostMove = () => {
+    const g = host.seat.game;
+    if (!g || g.winner !== null || (g.phase === 'opening' ? g.kept[0] : g.actor() !== 0)) return;
+    const before = mine, p = perform(g, 0, choose(g, 0));
+    p.catch(() => {});
+    assert.equal(host.seat.pending.size, 0, 'the host intent was answered before act() returned');
+    if (host.match.log.at(-1)?.seq === host.seat.seq) { acted++; assert.equal(mine, before + 1, 'the ack reached onUpdate as mine'); }
+  };
+  for (let round = 0; round < 12; round++) {
+    await drive(ctx, () => [host.seat, ctx.guest.seat], 25);
+    hostMove();
+    if (round % 3 === 0) { // host reload: a fresh Seat whose seq restarts at 0
+      host.dispose(false); await flush();
+      host = ctx.host = await HostSession.resume({net, store: hostStore, matchId: host.matchId, clock: time});
+      watch(host);
+    } else if (round % 3 === 1) { // guest away, then back
+      ctx.guest.dispose(false); await flush();
+      hostMove();
+      ctx.guest = await GuestSession.join({net, store: guestStore, matchId: host.matchId, retry});
+    } else time.advance(100_000); // the referee plays out a turn by timeouts
+    await settle(ctx);
+    hostMove();
+    await settle(ctx);
+  }
+  assert.ok(acted > 5, `host acted ${acted} times`);
+});
