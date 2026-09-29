@@ -67,3 +67,25 @@ test('the clock stops when the match ends', async () => {
   assert.equal(m.timer, null);
   assert.deepEqual(m.clockFor(0), {kind: null, owner: null, left: null, paused: false});
 });
+
+test('default timers work where setTimeout must not be called as a method, as in browsers', async () => {
+  const {setTimeout: realSet, clearTimeout: realClear} = globalThis;
+  const strict = real => function (...args) {
+    if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation');
+    return real(...args);
+  };
+  const saved = (await Match.create({hostFaction: 'blue', hostSecret: '0'.repeat(32), guestSecret: '1'.repeat(32), seedCommit: ''})).toJSON();
+  globalThis.setTimeout = strict(realSet);
+  globalThis.clearTimeout = strict(realClear);
+  let m;
+  try {
+    m = Match.fromJSON(saved); // Default options are read now, while the strict timers are installed.
+    assert.doesNotThrow(() => { m.connect(true); m.pledge(0); m.pledge(1); });
+    assert.ok(m.clock.running, 'the opening clock is running');
+    assert.doesNotThrow(() => m.stop());
+  } finally {
+    globalThis.setTimeout = realSet;
+    globalThis.clearTimeout = realClear;
+    try { m?.stop(); } catch { realClear(m.timer); }
+  }
+});
