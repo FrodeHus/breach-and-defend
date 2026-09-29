@@ -37,7 +37,9 @@ Edit files in `dist/` and refresh the browser.
 
 ### Style
 
-- Match the surrounding code: ES modules, no frameworks, no dependencies.
+- Match the surrounding code: ES modules, no frameworks, no npm dependencies.
+  The only runtime third-party script is PeerJS (loaded from a pinned CDN URL
+  in `dist/net.mjs`) for play-a-friend; avoid adding more.
 - Respect `prefers-reduced-motion` for new animations.
 - Use native, keyboard-operable elements (`<button>`, `<dialog>`) for controls.
 
