@@ -12,7 +12,7 @@ import {audit} from '../dist/audit.mjs';
 const flush = async (n = 5) => { for (let i = 0; i < n; i++) await new Promise(r => setImmediate(r)); };
 const retry = () => new Promise(r => setImmediate(r));
 const store = () => createStore(memoryBackend());
-const settle = async ({guest}) => { await flush(); await guest.settled(); await flush(); };
+const settle = async ({guest, host}) => { for (let i = 0; i < 2; i++) { await flush(); await host?.settled(); await flush(); await guest.settled(); } await flush(); };
 
 // Fixed secrets make every shuffle, and so every test game, the same on every run.
 const secrets = seed => { let i = 0; return () => (seed * 1_000_000 + ++i).toString(16).padStart(32, '0'); };
@@ -495,4 +495,90 @@ test('an unexpected failure handling a host message stops the guest with an erro
   assert.equal(ctx.guest.error, 'internal');
   assert.equal(errors.length, 1);
   assert.ok(ctx.guestStore.get(`guest:${ctx.host.matchId}`), 'the record is kept so a reload resumes');
+});
+
+// A redacted bottom carries a commitment, so a host cannot reveal a different set of the right size.
+test('a host that reveals a different bottom card than it committed to is caught', async () => {
+  const ctx = await start(await pair({seed: 3}));
+  await ctx.host.seat.game.mulligan(0);
+  await settle(ctx);
+  const hand = ctx.host.seat.game.players[0].hand.map(c => c.uid);
+  await ctx.host.seat.game.keep([hand[2]]);
+  await settle(ctx);
+  await finish(ctx);
+  const rec = ctx.guestStore.get(`guest:${ctx.host.matchId}`);
+  assert.deepEqual(await audit(rec), {result: 'verified'});
+  const i = rec.log.findIndex(e => e.by === 0 && e.type === 'keep'), n = rec.log[i].n;
+  assert.match(rec.log[i].bottomCommit, /^[0-9a-f]{64}$/);
+  const played = new Set(ctx.host.match.log.filter(e => e.by === 0 && e.type === 'play').map(e => e.uid));
+  const swaps = hand.filter(u => u !== hand[2] && !played.has(u)); // cards a replay alone could never tell apart
+  assert.ok(swaps.length > 0);
+  for (const u of swaps) {
+    const r = await audit({...rec, bottoms: {...rec.bottoms, [n]: [u]}});
+    assert.equal(r.result, 'tampered', `claimed ${u}`);
+    assert.match(r.reason, /changed which cards they put on the bottom/);
+  }
+  const log = structuredClone(rec.log);
+  delete log[i].bottomCommit;
+  assert.equal((await audit({...rec, log})).result, 'tampered', 'a redacted bottom with no commitment');
+});
+
+test('bottom commitments survive a host reload, and the match still audits verified', async () => {
+  const ctx = await start(await pair({seed: 8}));
+  await ctx.host.seat.game.mulligan(0);
+  await settle(ctx);
+  await ctx.host.seat.game.keep([ctx.host.seat.game.players[0].hand[0].uid]);
+  await settle(ctx);
+  const commit = ctx.guestStore.get(`guest:${ctx.host.matchId}`).log.find(e => e.by === 0 && e.type === 'keep').bottomCommit;
+  ctx.host.dispose(false);
+  await flush();
+  ctx.host = await HostSession.resume({net: ctx.net, store: ctx.hostStore, matchId: ctx.host.matchId, clock: fakeTime()});
+  await settle(ctx);
+  // The guest asks for the whole log again: the resent keep must match, commitment included.
+  await rejoin(ctx, tap(ctx.net, {rewrite: m => (m.type === 'hello' ? {...m, have: 0} : m)}));
+  assert.equal(ctx.guest.status, 'playing');
+  assert.equal(ctx.guestStore.get(`guest:${ctx.host.matchId}`).log.find(e => e.by === 0 && e.type === 'keep').bottomCommit, commit);
+  await finish(ctx);
+  assert.deepEqual(ctx.guest.audit, {result: 'verified'});
+  assert.deepEqual(ctx.host.audit, {result: 'verified'});
+});
+
+// An older tab whose connection dropped must not come back and take the match from a newer tab.
+test('a stale guest tab that reconnects after a newer tab took over steps aside', {timeout: 20_000}, async () => {
+  let release, gated = false, dials = 0;
+  const gate = new Promise(r => { release = r; });
+  const base = fakeNet(), net = {...base, dial: id => { dials++; return base.dial(id); }};
+  const ctx = await start(await pair({net, seed: 5}));
+  const a = ctx.guest;
+  a.retry = async () => { if (gated) await gate; await retry(); };
+  await keepBoth(ctx);
+  gated = true;
+  net.dropAll(); // a network blip: tab A waits to reconnect
+  await flush();
+  const b = ctx.guest = await GuestSession.join({net, store: ctx.guestStore, matchId: ctx.host.matchId, retry});
+  await settle(ctx);
+  await drive(ctx, () => [ctx.host.seat, b.seat], 40);
+  const dialsBefore = dials;
+  release(); // A's backoff ends while B is playing
+  await settle(ctx); await settle({guest: a});
+  assert.equal(a.status, 'error');
+  assert.equal(a.error, 'replaced');
+  assert.equal(dials, dialsBefore, 'tab A did not dial');
+  assert.equal(b.status, 'playing');
+  await finish(ctx);
+  assert.equal(a.status, 'error');
+  assert.deepEqual(b.audit, {result: 'verified'});
+  assert.deepEqual(ctx.host.audit, {result: 'verified'});
+  assert.equal(ctx.guestStore.get(`guest:${ctx.host.matchId}`).owner, b.owner);
+});
+
+test('a guest tab whose saved record is ahead of it steps aside instead of overwriting it', async () => {
+  const ctx = await start(await pair({seed: 9}));
+  await keepBoth(ctx);
+  const key = `guest:${ctx.host.matchId}`, r = ctx.guestStore.get(key);
+  ctx.guestStore.set(key, {...r, seq: r.seq + 5}); // another tab (same owner id copied) moved on
+  ctx.guest.pledge();
+  assert.equal(ctx.guest.status, 'error');
+  assert.equal(ctx.guest.error, 'replaced');
+  assert.equal(ctx.guestStore.get(key).seq, r.seq + 5);
 });
