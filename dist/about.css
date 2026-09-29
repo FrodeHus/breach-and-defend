@@ -19,7 +19,7 @@
 .about-credit strong{color:var(--text)}
 .about-credit a{font-weight:600}
 .about-art{display:flex;justify-content:center}
-.about-art svg{display:block;width:100%;max-width:440px;height:auto}
+.about-art img{display:block;width:100%;max-width:440px;height:auto}
 .about-panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
 .about-frame,.about-panel{clip-path:polygon(0 0,calc(100% - 30px) 0,100% 30px,100% 100%,30px 100%,0 calc(100% - 30px))}
 .about-frame{padding:2px;background:var(--line)}
