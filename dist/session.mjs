@@ -108,7 +108,7 @@ export class HostSession extends Session {
     }
   }
 
-  hello(conn, {guestToken}) {
+  hello(conn, {guestToken, have}) {
     const r = this.record;
     if (r.joined && guestToken !== r.guestToken) { retire(conn, {type: 'error', code: 'full'}); return; }
     if (this.conn && this.conn !== conn) this.conn.close();
@@ -120,7 +120,10 @@ export class HostSession extends Session {
     const m = this.match;
     m.connect(true);
     this.updateSeat();
-    conn.send({...this.viewMessage(), type: 'resume', hostToken: r.hostToken, log: m.log, started: m.started, pledged: m.pledged[1], reveal: m.ended ? r.hostSecret : null});
+    // Send only the log entries the guest lacks. A guest claiming more than the host has gets none and
+    // decides for itself (see GuestSession 'resume'); a guest that sent no count gets the whole log.
+    const from = Number.isInteger(have) && have > 0 ? Math.min(have, m.log.length) : 0;
+    conn.send({...this.viewMessage(), type: 'resume', hostToken: r.hostToken, from, log: m.log.slice(from), started: m.started, pledged: m.pledged[1], reveal: m.ended ? r.hostSecret : null});
     this.save();
     this.refresh();
   }
@@ -218,7 +221,7 @@ export class GuestSession extends Session {
     this.attempts = 0;
     conn.onmessage = msg => { this.queue = this.queue.then(() => this.fromHost(msg)).catch(() => {}); };
     conn.onclose = () => this.lost(conn);
-    conn.send({type: 'hello', guestToken: this.record.guestToken});
+    conn.send({type: 'hello', guestToken: this.record.guestToken, have: this.record.log.length});
   }
 
   lost(conn) {
@@ -257,8 +260,15 @@ export class GuestSession extends Session {
         if (msg.hostToken !== r.hostToken) return this.impostor();
         if (r.pledged && !msg.pledged && !msg.started) this.conn.send({type: 'pledge'});
         if (msg.started) {
+          // The host resends the log from `from`, the count this guest reported (a count sent before an
+          // in-flight view was recorded may be lower, so overlapping entries must match). A host whose log
+          // skips entries, is shorter than what it already sent, or rewrites them has broken its own history:
+          // the audit could never pass, so it is treated like an impostor.
+          const from = msg.from ?? 0, have = r.log.length;
+          if (!Number.isInteger(from) || from < 0 || from > have || !Array.isArray(msg.log) || from + msg.log.length < have) return this.impostor();
+          if (msg.log.slice(0, have - from).some((e, i) => JSON.stringify(e) !== JSON.stringify(r.log[from + i]))) return this.impostor();
           r.started = true;
-          for (const entry of msg.log.slice(r.log.length)) r.log.push(entry);
+          for (const entry of msg.log.slice(have - from)) r.log.push(entry);
           r.digests[r.log.length] ??= await digest(msg.view);
         }
         this.save();
@@ -269,7 +279,7 @@ export class GuestSession extends Session {
         const {entry} = msg;
         r.started = true;
         if (entry) {
-          // A missing message means the channel broke; reconnecting resends the whole log.
+          // A missing message means the channel broke; reconnecting resends the entries this guest lacks.
           if (entry.n !== r.log.length + 1) { this.conn?.close(); return; }
           r.log.push(entry);
           r.digests[entry.n] = await digest(msg.view);

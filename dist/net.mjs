@@ -17,11 +17,59 @@ export function loadPeer() {
   }));
 }
 
-function wrap(conn, onClosed = () => {}) {
-  let closed = false;
-  const c = {send: msg => { if (conn.open) conn.send(msg); }, close: () => conn.close(), onmessage() {}, onclose() {}};
+// PeerJS 1.5.5's JSON channel refuses any single message of 16,300 bytes or more (it errors instead of
+// chunking), and a late-game view or resume is bigger than that. So large messages go out as frames:
+// the message's JSON cut into pieces of at most FRAME_CHARS UTF-16 units. Each unit is at most 3 bytes of
+// UTF-8, or 2 once JSON-escaped, so a frame stays near 12 KB, well under the limit.
+export const FRAME_CHARS = 4000;
+const FRAME = '__frame';
+
+export function toFrames(msg, id, size = FRAME_CHARS) {
+  const json = JSON.stringify(msg);
+  if (json.length <= size) return [msg];
+  const parts = [];
+  for (let at = 0; at < json.length;) {
+    let end = Math.min(json.length, at + size);
+    // Never split a surrogate pair across frames.
+    if (end < json.length && /[\uD800-\uDBFF]/.test(json[end - 1])) end--;
+    parts.push(json.slice(at, end));
+    at = end;
+  }
+  return parts.map((part, i) => ({type: FRAME, id, i, n: parts.length, part}));
+}
+
+// Returns a receiver: pass it each incoming message; it returns the message to deliver, or undefined while a
+// framed message is still incomplete. Frames of a message arrive in order on the reliable channel; a frame
+// out of sequence discards the partial message rather than delivering a corrupted one.
+export function fromFrames() {
+  let id = null, parts = [];
+  return msg => {
+    if (msg?.type !== FRAME) return msg;
+    if (msg.i === 0) { id = msg.id; parts = []; }
+    if (msg.id !== id || msg.i !== parts.length) { id = null; parts = []; return undefined; }
+    parts.push(msg.part);
+    if (parts.length < msg.n) return undefined;
+    const json = parts.join('');
+    id = null; parts = [];
+    return JSON.parse(json);
+  };
+}
+
+export function wrap(conn, onClosed = () => {}) {
+  let closed = false, sent = 0;
+  const receive = fromFrames();
+  const c = {
+    send: msg => { if (conn.open) for (const f of toFrames(msg, ++sent)) conn.send(f); },
+    close: () => conn.close(),
+    onmessage() {},
+    onclose() {},
+  };
   const done = () => { if (closed) return; closed = true; onClosed(); c.onclose(); };
-  conn.on('data', msg => c.onmessage(msg));
+  conn.on('data', data => {
+    let msg;
+    try { msg = receive(data); } catch { return conn.close(); }
+    if (msg !== undefined) c.onmessage(msg);
+  });
   conn.on('close', done);
   conn.on('error', done);
   return c;
