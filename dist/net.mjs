@@ -25,6 +25,7 @@ export const FRAME_CHARS = 4000;
 const FRAME = '__frame';
 
 export function toFrames(msg, id, size = FRAME_CHARS) {
+  if (!(size >= 2)) throw RangeError('Frame size must be at least 2.'); // Smaller could never advance past a surrogate pair.
   const json = JSON.stringify(msg);
   if (json.length <= size) return [msg];
   const parts = [];
@@ -71,7 +72,8 @@ export function wrap(conn, onClosed = () => {}) {
     if (msg !== undefined) c.onmessage(msg);
   });
   conn.on('close', done);
-  conn.on('error', done);
+  // Close on error too, so the other end hears about it and reconnects instead of waiting on a dead channel.
+  conn.on('error', () => { try { conn.close(); } catch {} done(); });
   return c;
 }
 

@@ -14,8 +14,10 @@ export function createStore(backend, now = Date.now) {
     },
     set(key, value) {
       const raw = JSON.stringify({savedAt: now(), value});
-      if (available && safe(() => (backend.setItem(PREFIX + key, raw), true))) memory.delete(key);
-      else memory.set(key, raw);
+      if (available && safe(() => (backend.setItem(PREFIX + key, raw), true))) { memory.delete(key); return; }
+      memory.set(key, raw);
+      // The write failed (e.g. quota), so the stored copy is now stale: drop it, or a reload would resume from it.
+      if (available) safe(() => backend.removeItem(PREFIX + key));
     },
     remove(key) {
       memory.delete(key);
