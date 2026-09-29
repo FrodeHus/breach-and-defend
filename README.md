@@ -13,6 +13,7 @@ A playable browser prototype for cybersecurity learning, inspired by Magic-style
 - Target validation, counterspells, temporary modifiers, discard and recovery, defeat at zero capacity, and deck-out losses.
 - Opt-in interactive first-play tutorial, quick tips, searchable card library, field guide, and match recap with security lessons.
 - Responsive layout and native keyboard-operable buttons and dialogs.
+- Animated hover and keyboard-focus previews for hand cards, opening hands, and the card library, with specific explanations when a card cannot be played.
 
 ## Run locally
 
@@ -20,11 +21,25 @@ Install Node.js, then run `node serve.cjs` from this directory. Open the printed
 
 Run the rule and tutorial checks with `npm test`.
 
+## Publish to GitHub Pages
+
+The workflow in `.github/workflows/pages.yml` runs all tests using Node.js 24 and publishes only `dist/`. It runs automatically on pushes to `main`, or manually from **Actions → Publish game to GitHub Pages → Run workflow**. Only runs on `main` can deploy.
+
+Before the first deployment, select **Settings → Pages → Build and deployment → Source → GitHub Actions** in the repository. Commit and push the workflow along with the game files, then use the deployment link shown in the workflow run. No custom secrets, dependency installation, or build command are required. Relative asset paths support GitHub Pages repository URLs.
+
+See [GitHub’s custom Pages workflow documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages) for repository configuration.
+
 ## Guided first game
 
 Check **Guide my first game** before choosing either faction. It starts unchecked and is never enabled automatically for later matches. Six lessons track keeping a hand, playing infrastructure, deploying a unit, passing or responding, attacking, and defending. Highlighted cards and controls show what to do next; lessons advance from actual game actions.
 
 The guide pauses your first pending-effect priority window so you can read before passing. It adapts to your real hand and available moves, so lessons may span several turns or occur in a different order. **Exit tutorial** is available on the board and in card dialogs and continues the same match without guidance. Existing quick tips and the field guide remain available independently.
+
+## Browse and play cards
+
+Hover a visible card in your hand, opening hand, or card library to lift out an enlarged preview with its full rules, cost, stats, and keyword explanations. Tab focus also opens previews; Escape dismisses them. Previews stay within the screen edges and respect reduced-motion preferences. Clicking still opens the card details and play options; touch players can continue to tap cards.
+
+Hand previews and card details show every unmet play requirement, including required versus ready compute, main-phase timing, priority, pending effects, and the specific kind of missing target. These explanations use the same checks that validate playing the card and update with the current match state.
 
 ## Deliberate simplifications
 
@@ -43,11 +58,13 @@ The computer uses a local heuristic. It knows its own hand and the public battle
 - `dist/app.mjs`: arena, tutorial, library, guide, dialogs, and optional WebMCP tools.
 - `dist/tutorial.mjs`: lesson progress and contextual guidance, independent of rendering.
 - `dist/tutorial.css`: opt-in panel, lesson checklist, and action highlights.
+- `dist/card-preview.mjs` and `dist/card-preview.css`: hover/focus preview interactions and positioning.
 - `dist/style.css`: layout and visual design.
 - `dist/art/`: generated artwork used by the cards.
 - `art-prompts.json`: exact final prompts used with the built-in image generation tool.
 - `tests/engine.test.mjs`: rules and match simulation checks.
 - `tests/tutorial.test.mjs`: tutorial progression against the real rules engine.
+- `tests/playability.test.mjs` and `tests/card-preview.test.mjs`: play-requirement explanations and preview placement.
 
 ## Learning references
 
