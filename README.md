@@ -1,4 +1,4 @@
-# Breach & Defend — Foundations
+# Breach & Defend — First Breach
 
 A playable browser prototype for cybersecurity learning, inspired by Magic-style card-game structure. Play red or blue against a local computer opponent.
 
@@ -9,7 +9,7 @@ A playable browser prototype for cybersecurity learning, inspired by Magic-style
 - Eight original AI illustrations shared by related card families, with an illustration on every card.
 - Original daylight battlefield, two transparent faction emblems, and two faction card backs used on deck piles and 3D flip animations.
 - Opening-hand mulligans; one infrastructure per turn; automatic resource payment; turn phases; priority and a last-in-first-out effect stack.
-- Attacking, blocking, multiple blockers, simultaneous damage, summoning sickness, haste, vigilance, flying, reach, lifelink, trample, and defender.
+- Attacking, blocking, multiple blockers, simultaneous damage, new-arrival delay, Rapid deploy, Always-on, Stealth, Detection, Recharge, Overflow, and Firewall.
 - Target validation, counterspells, temporary modifiers, discard and recovery, defeat at zero capacity, and deck-out losses.
 - Opt-in interactive first-play tutorial, quick tips, searchable card library, field guide, and match recap with security lessons.
 - Responsive layout and native keyboard-operable buttons and dialogs.
@@ -45,7 +45,7 @@ Hand previews and card details show every unmet play requirement, including requ
 
 ## Deliberate simplifications
 
-This is not a full Magic rules implementation. Compute is one generic resource and is paid automatically. Upkeep gains resolve automatically without triggered-ability responses. Combat damage is assigned automatically in the order blockers were assigned, lethal damage first. No colored mana, planeswalkers, first strike, tokens, exile, sideboards, deck editor, multiplayer, or saved matches are included. Reloading resets the current match.
+This is not a full Magic rules implementation. Compute is one generic resource and is paid automatically. Start-of-turn gains resolve automatically without triggered-ability responses. Combat damage is assigned automatically in the order blockers were assigned, lethal damage first. No colored mana, planeswalkers, first strike, tokens, exile, sideboards, deck editor, multiplayer, or saved matches are included. Reloading resets the current match.
 
 The computer uses a local heuristic. It knows its own hand and the public battlefield, not the player's hidden cards. The user always takes the first turn. Starter balance and the 15–25 minute target duration need human playtesting.
 
