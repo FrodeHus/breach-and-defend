@@ -16,8 +16,37 @@ export class Game{
  mulligan(){if(this.phase!=='opening'||this.mulligans>=7)throw Error('No mulligan available.');const p=this.players[0];p.deck=this.shuffle([...p.deck,...p.hand]);p.hand=[];this.draw(0,7);this.mulligans++;this.note(`Mulligan ${this.mulligans}: keep seven, then put ${this.mulligans} on the bottom.`);}
  keep(bottom=[]){if(this.phase!=='opening'||bottom.length!==this.mulligans||new Set(bottom).size!==bottom.length||bottom.some(uid=>!this.players[0].hand.some(c=>c.uid===uid)))throw Error(`Choose ${this.mulligans} cards to put on the bottom.`);const p=this.players[0];for(const uid of bottom){const i=p.hand.findIndex(c=>c.uid===uid);p.deck.unshift(...p.hand.splice(i,1));}this.phase='upkeep';this.note('You take the first turn. The starting player skips their first draw.');}
  targets(p,c){const d=this.data(c);if(d.target==='opponent')return [{kind:'player',p:1-p}];if(d.target==='spell')return this.stack.filter(s=>['Response','Operation'].includes(this.data(s.card).type)).map(s=>({kind:'spell',uid:s.card.uid}));if(d.target==='grave')return this.players[p].grave.filter(x=>this.data(x).type==='Unit').map(x=>({kind:'card',uid:x.uid}));if(d.target==='unit'||d.target==='support')return this.players.flatMap(q=>q.field.filter(x=>d.target==='unit'?this.data(x).type==='Unit':['Tool','Control'].includes(this.data(x).type)).map(x=>({kind:'card',uid:x.uid})));return [];}
- legal(p,c){if(this.winner!==null||['opening','cleanup','attack','block'].includes(this.phase)||this.priority!==p)return false;const d=this.data(c);if(!this.players[p].hand.some(x=>x.uid===c.uid))return false;const main=p===this.active&&['main1','main2'].includes(this.phase)&&!this.stack.length;if(d.type==='Infrastructure')return main&&!this.players[p].landPlayed;if(d.type!=='Response'&&!main)return false;return this.mana(p)>=d.cost&&(!d.target||this.targets(p,c).length>0);}
- play(p,uid,target=null){const q=this.players[p],c=q.hand.find(c=>c.uid===uid);if(!c||!this.legal(p,c))throw Error('That card cannot be played right now.');const d=this.data(c);if(d.target&&!this.targets(p,c).some(t=>JSON.stringify(t)===JSON.stringify(target)))throw Error('Choose a legal target.');q.hand=q.hand.filter(x=>x.uid!==uid);if(d.type==='Infrastructure'){q.field.push(c);q.landPlayed=true;this.note(`${this.label(p)} ${p===0?"play":"plays"} ${d.name}.`);return;}this.pay(p,d.cost);this.stack.push({card:c,p,target});this.events.push({name:d.name,lesson:d.lesson,faction:d.faction});this.passes=0;this.note(`${this.label(p)} ${p===0?"cast":"casts"} ${d.name}${target?` → ${this.targetName(target)}`:''}.`);}
+ playIssues(p,c){
+  if(this.winner!==null)return [{code:'finished',message:'This match has ended. Start a new match to play cards.'}];
+  if(!c||!this.players[p].hand.some(x=>x.uid===c.uid))return [{code:'not-in-hand',message:'This card is not in your hand.'}];
+  const d=this.data(c),issues=[];
+  const add=(code,message)=>issues.push({code,message});
+  const locked={opening:'Keep your opening hand before playing cards.',cleanup:'Finish discarding to seven cards before playing cards.',attack:'Confirm or skip your attackers first. Responses can be cast in the following priority window.',block:'Confirm your blocks first. Responses can be cast in the following priority window.'};
+  if(locked[this.phase])add(this.phase,locked[this.phase]);
+  else {
+   if(this.priority!==p)add('priority','Wait for your priority: the other player acts next.');
+   if(d.type!=='Response'){
+    if(p!==this.active||!['main1','main2'].includes(this.phase))add('main-phase',`${d.type} cards can only be played during your Main I or Main II phase.`);
+    if(this.stack.length)add('stack',`Wait for pending effects on the stack to resolve before playing a ${d.type} card.`);
+   }
+  }
+  if(d.type==='Infrastructure'){
+   if(this.players[p].landPlayed)add('infrastructure-limit','You have already played infrastructure this turn. Wait until your next turn.');
+  }else{
+   const ready=this.mana(p);
+   if(ready<d.cost){
+    const total=this.players[p].field.filter(x=>this.data(x).type==='Infrastructure').length;
+    add('compute',`Needs ${d.cost} compute; only ${ready} available. ${total>=d.cost?'Tapped infrastructure becomes ready on your next turn.':'Build more infrastructure during your main phases, one per turn.'}`);
+   }
+   if(d.target&&!this.targets(p,c).length){
+    const missing={unit:'There are no units on the battlefield to target.',support:'There are no Tools or Controls on the battlefield to target.',grave:'There are no unit cards in your discard to recover.',spell:'There is no Response or Operation on the stack to counter. Units, Tools and Controls are not valid targets.'};
+    add(`target-${d.target}`,missing[d.target]||'There is no valid target for this card.');
+   }
+  }
+  return issues;
+ }
+ legal(p,c){return this.playIssues(p,c).length===0;}
+ play(p,uid,target=null){const q=this.players[p],c=q.hand.find(c=>c.uid===uid),issues=this.playIssues(p,c);if(issues.length)throw Error(issues.map(issue=>issue.message).join(' '));const d=this.data(c);if(d.target&&!this.targets(p,c).some(t=>JSON.stringify(t)===JSON.stringify(target)))throw Error('Choose a legal target.');q.hand=q.hand.filter(x=>x.uid!==uid);if(d.type==='Infrastructure'){q.field.push(c);q.landPlayed=true;this.note(`${this.label(p)} ${p===0?"play":"plays"} ${d.name}.`);return;}this.pay(p,d.cost);this.stack.push({card:c,p,target});this.events.push({name:d.name,lesson:d.lesson,faction:d.faction});this.passes=0;this.note(`${this.label(p)} ${p===0?"cast":"casts"} ${d.name}${target?` → ${this.targetName(target)}`:''}.`);}
  targetName(t){if(t.kind==='player')return t.p===0?'your capacity':'computer capacity';if(t.kind==='spell'){const s=this.stack.find(s=>s.card.uid===t.uid);return s?this.data(s.card).name:'resolved spell';}const f=this.find(t.uid);return f?this.data(f.card).name:'departed card';}
  pass(p){if(this.winner!==null||this.priority!==p||['opening','attack','block','cleanup'].includes(this.phase))throw Error('Cannot pass at this step.');this.passes++;if(this.passes<2){this.priority=1-p;return;}this.passes=0;if(this.stack.length){this.resolve();this.priority=this.active;}else this.advance();}
  resolve(){const s=this.stack.pop(),{card,p,target}=s,d=this.data(card);const valid=!d.target||this.targets(p,card).some(t=>JSON.stringify(t)===JSON.stringify(target));if(!valid){this.players[p].grave.push(card);this.note(`${d.name} has no legal target and does not resolve.`);return;}
