@@ -1,6 +1,20 @@
+<p align="center"><img src="dist/art/breach-and-defend-logo.png" alt="Breach & Defend" width="360"></p>
+
+<p align="center">
+  <a href="https://breach.cards/"><strong>Play now at breach.cards</strong></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/FrodeHus/breach-and-defend/actions/workflows/pages.yml"><img alt="Deploy" src="https://github.com/FrodeHus/breach-and-defend/actions/workflows/pages.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="Code license: MIT" src="https://img.shields.io/badge/code-MIT-blue.svg"></a>
+  <a href="LICENSE-ASSETS.md"><img alt="Art license: CC BY-NC 4.0" src="https://img.shields.io/badge/art-CC%20BY--NC%204.0-lightgrey.svg"></a>
+</p>
+
 # Breach & Defend — First Breach
 
-A playable browser prototype for cybersecurity learning, inspired by classic trading-card game mechanics. Play red or blue against a local computer opponent, or against a friend through an invite link.
+A red-versus-blue card game for learning cybersecurity, inspired by classic trading-card game mechanics. Play red or blue against a local computer opponent, or against a friend through an invite link. Every card teaches a real security concept, from phishing and lateral movement to backups and MFA.
+
+No install, account, or build step: it's plain HTML, CSS and JavaScript modules.
 
 ## Included
 
@@ -17,15 +31,15 @@ A playable browser prototype for cybersecurity learning, inspired by classic tra
 
 ## Run locally
 
-Install Node.js, then run `node serve.cjs` from this directory. Open the printed local URL. No npm dependencies, remote AI service, or API key is required. The game uses JavaScript modules and should be served over HTTP rather than opened as a file.
+Install Node.js 22 or newer, then run `npm start` (or `node serve.cjs`) from this directory. Open the printed local URL. No npm dependencies, remote AI service, or API key is required. The game uses JavaScript modules and should be served over HTTP rather than opened as a file.
 
 Run the rule and tutorial checks with `npm test`.
 
-## Publish to GitHub Pages
+## Deployment
 
 The workflow in `.github/workflows/pages.yml` runs all tests using Node.js 24 and publishes only `dist/`. It runs automatically on pushes to `main`, or manually from **Actions → Publish game to GitHub Pages → Run workflow**. Only runs on `main` can deploy.
 
-Before the first deployment, select **Settings → Pages → Build and deployment → Source → GitHub Actions** in the repository. Commit and push the workflow along with the game files, then use the deployment link shown in the workflow run. No custom secrets, dependency installation, or build command are required. Relative asset paths support GitHub Pages repository URLs.
+To deploy your own fork, select **Settings → Pages → Build and deployment → Source → GitHub Actions**. No secrets, dependency installation, or build command are required. Relative asset paths support GitHub Pages repository URLs.
 
 See [GitHub’s custom Pages workflow documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages) for repository configuration.
 
@@ -75,7 +89,7 @@ The computer uses a local heuristic. It knows its own hand and the public battle
 - `dist/card-drag.mjs` and `dist/card-drag.css`: hand-to-battlefield dragging and drop feedback.
 - `dist/style.css`: layout and visual design.
 - `dist/art/`: generated artwork used by the cards.
-- `art-prompts.json`: exact final prompts used with the built-in image generation tool.
+- `docs/art-prompts/`: exact final prompts used to generate the artwork and logo.
 - `tests/engine.test.mjs`: rules and match simulation checks.
 - `tests/tutorial.test.mjs`: tutorial progression against the real rules engine.
 - `tests/playability.test.mjs` and `tests/card-preview.test.mjs`: play-requirement explanations and preview placement.
@@ -88,4 +102,13 @@ Card effects are simplified game mechanics, not technical instructions or univer
 - https://www.cisa.gov/sites/default/files/2023-01/fact-sheet-implementing-phishing-resistant-mfa-508c.pdf
 - https://www.cisa.gov/news-events/cybersecurity-advisories/aa23-278a
 
-Breach & Defend is an independent educational game. Original card designs and AI-generated illustrations. Inspired by classic trading-card game mechanics. AI artwork was generated with the built-in image tool. The source does not include third-party card images, symbols, or frames.
+## Contributing
+
+Bug reports, playtest feedback, card ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Report security issues privately as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+- **Code** is licensed under the [MIT License](LICENSE).
+- **Artwork, logo, and card content** are licensed under [CC BY-NC 4.0](LICENSE-ASSETS.md): free to share and adapt with credit, but not for commercial use.
+
+Breach & Defend is an independent educational game by [Frode Hus](https://www.frodehus.dev), inspired by classic trading-card game mechanics. Card designs are original and illustrations are AI-generated. The source does not include third-party card images, symbols, or frames.
