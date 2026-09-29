@@ -31,11 +31,11 @@ async function keepBoth(ctx) {
   await settle(ctx);
 }
 // Each seat plays the simple policy whenever it is that seat's move.
-async function drive(ctx, seats, limit = 4000) {
+async function drive(ctx, seats, limit = 4000, pick = choose) {
   for (let i = 0; i < limit; i++) {
     const s = seats().find(s => s.game && s.game.winner === null && (s.game.phase === 'opening' ? !s.game.kept[0] : s.game.actor() === 0));
     if (!s) return;
-    await Promise.resolve(perform(s.game, 0, choose(s.game, 0))).catch(() => {});
+    await Promise.resolve(perform(s.game, 0, pick(s.game, 0))).catch(() => {});
     await settle(ctx);
   }
 }
@@ -250,4 +250,104 @@ test('host intents settle synchronously through host reloads, guest reconnects a
     await settle(ctx);
   }
   assert.ok(acted > 5, `host acted ${acted} times`);
+});
+
+// Never attacks, so the match runs long and the log and views grow past one PeerJS JSON message (about 16 KB).
+const pacifist = (g, p) => { const a = choose(g, p); return a.type === 'attackers' ? {...a, uids: []} : a; };
+
+test('a guest reloading late in a long match resumes and the match ends verified', async () => {
+  const ctx = await start(await pair());
+  await drive(ctx, () => [ctx.host.seat, ctx.guest.seat], 350, pacifist);
+  assert.equal(ctx.host.seat.game.winner, null);
+  assert.ok(ctx.host.seat.game.turn >= 15, `turn ${ctx.host.seat.game.turn}`);
+  assert.ok(JSON.stringify(ctx.host.match.log).length > 20_000);
+  ctx.guest.dispose(false);
+  await flush();
+  assert.equal(ctx.host.status, 'paused');
+  ctx.guest = await GuestSession.join({net: ctx.net, store: ctx.guestStore, matchId: ctx.host.matchId, retry});
+  await settle(ctx);
+  assert.equal(ctx.guest.status, 'playing');
+  assert.equal(ctx.host.status, 'playing');
+  assert.deepEqual(ctx.guestStore.get(`guest:${ctx.host.matchId}`).log, ctx.host.match.log);
+  // Keep going until single views outgrow one message too, then reload once more and finish.
+  await drive(ctx, () => [ctx.host.seat, ctx.guest.seat], 250, pacifist);
+  assert.ok(JSON.stringify(ctx.host.match.view(1)).length > 16_000, 'late views exceed one PeerJS message');
+  ctx.guest.dispose(false);
+  await flush();
+  ctx.guest = await GuestSession.join({net: ctx.net, store: ctx.guestStore, matchId: ctx.host.matchId, retry});
+  await settle(ctx);
+  assert.equal(ctx.guest.status, 'playing');
+  await drive(ctx, () => [ctx.host.seat, ctx.guest.seat]);
+  if (ctx.host.seat.game.winner === null) await ctx.host.seat.game.concede(0);
+  await settle(ctx);
+  assert.equal(ctx.guest.status, 'ended');
+  assert.deepEqual(ctx.guest.audit, {result: 'verified'});
+  assert.deepEqual(ctx.host.audit, {result: 'verified'});
+  assert.deepEqual(ctx.net.tooBig, [], 'no message exceeded the transport limit');
+});
+
+// Lets a test watch what reaches the guest and rewrite what the guest sends.
+const tap = (net, {seen = [], rewrite = m => m} = {}) => ({
+  ...net, seen,
+  async dial(id) {
+    const c = await net.dial(id), send = c.send;
+    let handler = () => {};
+    c.send = m => send(rewrite(m));
+    Object.defineProperty(c, 'onmessage', {get: () => m => { seen.push(m); handler(m); }, set: f => { handler = f; }});
+    return c;
+  },
+});
+async function rejoin(ctx, net) {
+  ctx.guest.dispose(false);
+  await flush();
+  ctx.guest = await GuestSession.join({net, store: ctx.guestStore, matchId: ctx.host.matchId, retry});
+  await settle(ctx);
+}
+
+test('a returning guest is sent only the log entries it lacks', async () => {
+  const ctx = await start(await pair());
+  await drive(ctx, () => [ctx.host.seat, ctx.guest.seat], 40, pacifist);
+  const have = ctx.guestStore.get(`guest:${ctx.host.matchId}`).log.length;
+  ctx.guest.dispose(false);
+  await flush();
+  await drive(ctx, () => [ctx.host.seat], 3, pacifist); // the host moves on while the guest is away
+  const seen = [];
+  ctx.guest = await GuestSession.join({net: tap(ctx.net, {seen}), store: ctx.guestStore, matchId: ctx.host.matchId, retry});
+  await settle(ctx);
+  const resume = seen.find(m => m.type === 'resume');
+  assert.equal(resume.from, have);
+  assert.equal(resume.log.length, ctx.host.match.log.length - have);
+  assert.equal(ctx.guest.status, 'playing');
+  assert.deepEqual(ctx.guestStore.get(`guest:${ctx.host.matchId}`).log, ctx.host.match.log);
+});
+
+test('a resume overlapping what the guest has is accepted when it matches', async () => {
+  const ctx = await start(await pair());
+  await drive(ctx, () => [ctx.host.seat, ctx.guest.seat], 30, pacifist);
+  // An older client, or a count taken before an in-flight view was recorded.
+  await rejoin(ctx, tap(ctx.net, {rewrite: m => (m.type === 'hello' ? {...m, have: 2} : m)}));
+  assert.equal(ctx.guest.status, 'playing');
+  assert.deepEqual(ctx.guestStore.get(`guest:${ctx.host.matchId}`).log, ctx.host.match.log);
+  await rejoin(ctx, tap(ctx.net, {rewrite: m => (m.type === 'hello' ? {type: 'hello', guestToken: m.guestToken} : m)}));
+  assert.equal(ctx.guest.status, 'playing');
+});
+
+test('a host whose log is behind or differs from what the guest saw is refused', async () => {
+  for (const [tamper, have] of [
+    [r => r.log.push({...r.log.at(-1), n: r.log.length + 1}), undefined], // the host "forgot" an entry it sent
+    [r => { r.log[1] = {...r.log[1], seq: 999}; }, 0],                    // the host rewrote re-requested history
+  ]) {
+    const ctx = await start(await pair());
+    await drive(ctx, () => [ctx.host.seat, ctx.guest.seat], 20, pacifist);
+    ctx.guest.dispose(false);
+    await flush();
+    const key = `guest:${ctx.host.matchId}`, r = ctx.guestStore.get(key);
+    tamper(r);
+    ctx.guestStore.set(key, r);
+    const net = have === undefined ? ctx.net : tap(ctx.net, {rewrite: m => (m.type === 'hello' ? {...m, have} : m)});
+    ctx.guest = await GuestSession.join({net, store: ctx.guestStore, matchId: ctx.host.matchId, retry});
+    await settle(ctx);
+    assert.equal(ctx.guest.status, 'error');
+    assert.equal(ctx.guest.error, 'impostor');
+  }
 });
