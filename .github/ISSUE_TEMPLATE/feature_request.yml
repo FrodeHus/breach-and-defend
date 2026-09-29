@@ -1,0 +1,23 @@
+name: Feature or card idea
+description: Suggest a feature, a new card, or a balance change
+labels: [enhancement]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of suggestion
+      options: [Feature, New card, Balance change, Educational content, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: For cards, include faction, cost, type, rules text and the security concept it teaches.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why?
+      description: What problem does this solve, or what did you notice while playing?
