@@ -51,17 +51,13 @@ test('credits original designs without naming other games or publishers, and sho
   assert.doesNotMatch(html, /version|v\d+\.\d+/i);
 });
 
-test('the token-burning illustration is one labelled image with unique, prefixed ids', () => {
-  assert.match(html, /<div class="about-art" role="img" aria-label="Made with AI: millions of tokens were burned to make this"><svg [^>]*aria-hidden="true"/);
-  assert.match(html, /MILLIONS OF TOKENS/);
-  assert.match(html, /WERE BURNED TO MAKE THIS/);
-  const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]);
-  assert.equal(new Set(ids).size, ids.length, 'ids are unique');
-  const svgIds = [...html.matchAll(/<(?:linearGradient|filter|clipPath)\b[^>]*\bid="([^"]+)"/g)].map(m => m[1]);
-  assert.deepEqual(svgIds.sort(), ['about-fire', 'about-frame', 'about-glow', 'about-sky']);
-  for (const ref of html.matchAll(/url\(#([^)]+)\)/g)) assert.ok(svgIds.includes(ref[1]), ref[1]);
-  const landingIds = [...landing().matchAll(/\bid="([^"]+)"/g)].map(m => m[1]);
-  assert.ok(svgIds.every(id => !landingIds.includes(id)));
+test('the made-by-AI art is a sized, responsive WebP with a text alternative', () => {
+  assert.match(html, /<div class="about-art"><img src="art\/made-by-ai-440\.webp" srcset="art\/made-by-ai-440\.webp 440w, art\/made-by-ai-880\.webp 880w" sizes="\(min-width: 480px\) 440px, 100vw" alt="Made by AI: millions of tokens were burned in the token furnace to make this" width="440" height="293" loading="lazy" decoding="async"><\/div>/);
+  for (const file of ['made-by-ai-440.webp', 'made-by-ai-880.webp']) {
+    assert.ok(fs.existsSync(new URL(`../dist/art/${file}`, import.meta.url)), file);
+  }
+  assert.equal(fs.existsSync(new URL('../dist/art/made-by-ai.png', import.meta.url)), false, 'the 2.5 MB original must not ship');
+  assert.doesNotMatch(html, /<svg/, 'the old inline SVG plate is gone');
 });
 
 test('the hero uses splash images that exist', () => {
