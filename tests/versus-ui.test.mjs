@@ -1,3 +1,4 @@
+// tests/versus-ui.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as ui from '../dist/versus-ui.mjs';
@@ -7,7 +8,7 @@ test('the invite lobby escapes the link, offers share only when supported, and w
   assert.match(html, /value="https:\/\/x\.test\/#join=a&quot;b"/);
   assert.match(html, /id="copyInvite"/);
   assert.doesNotMatch(html, /shareInvite/);
-  assert.match(html, /can't survive a reload/);
+  assert.match(html, /can’t survive a reload/);
   assert.match(ui.lobby({status: 'waiting'}, {url: 'u', canShare: true, storageOk: true}), /id="shareInvite"/);
 });
 
@@ -34,12 +35,12 @@ test('the honor dialog explains the audit and asks for the pledge', () => {
   assert.match(html, /RED TEAM/);
   assert.match(html, /id="pledge"/);
   assert.match(html, /id="pledgeLeave"/);
-  assert.match(html, /Peeking doesn't/);
+  assert.match(html, /Peeking doesn’t/);
 });
 
 test('clock text counts down from when the clock arrived', () => {
   assert.equal(ui.clockText({kind: 'turn', owner: 0, left: 90000, at: 0, paused: false}, 5500), 'Your turn · 1:25');
-  assert.equal(ui.clockText({kind: 'response', owner: 1, left: 20000, at: 0, paused: false}, 0), "Opponent's response · 0:20");
+  assert.equal(ui.clockText({kind: 'response', owner: 1, left: 20000, at: 0, paused: false}, 0), 'Opponent’s response · 0:20');
   assert.equal(ui.clockText({kind: 'opening', owner: null, left: 1000, at: 0, paused: false}, 5000), 'Opening hands · 0:00');
   assert.equal(ui.clockText({kind: null, paused: true}, 0), 'Clock paused');
   assert.equal(ui.clockText(null, 0), '');
