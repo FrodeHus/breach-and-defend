@@ -66,10 +66,21 @@ body.landing-view main{padding:0;max-width:none}
 .side.blue .eyebrow{color:var(--blue)}
 .side.red .eyebrow{color:var(--red)}
 .side .primary{flex-shrink:0;min-height:48px;padding:13px 32px;border:0;border-radius:0;font-weight:700}
-.side .primary:focus-visible{outline:none;filter:drop-shadow(0 0 3px var(--gold))}
+.side .primary:focus-visible{outline:none}
+.cta-slot{display:flex;flex-shrink:0}
+.cta-slot:focus-within{filter:drop-shadow(0 0 2px var(--gold)) drop-shadow(0 0 6px color-mix(in srgb,var(--gold) 50%,transparent))}
 .side.blue .primary{background:var(--blue);color:#0b1c20}
 .side.red .primary{background:var(--red);color:#2a0d0b}
 .landing-foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px 24px;padding-top:22px;border-top:1px solid var(--line);font-size:.8125rem;color:var(--muted)}
+
+.landing .eyebrow{margin:0}
+.mode-name .eyebrow{color:var(--muted)}
+.landing .tag{background:transparent;border-color:var(--line);color:var(--muted)}
+.landing .tags{margin:0;display:flex;flex-wrap:wrap;gap:8px}
+body.landing-view .side.blue .primary:hover:not(:disabled){background:#a6efe6;color:#0b1c20}
+body.landing-view .side.red .primary:hover:not(:disabled){background:#ffa39d;color:#2a0d0b}
+body.landing-view .mode-card:hover:not(:disabled){background:var(--muted)}
+body.landing-view .mode-card[aria-pressed="true"]:hover:not(:disabled){background:var(--gold)}
 @media(max-width:760px){
   .mode-grid,.side-grid{grid-template-columns:minmax(0,1fr)}
   .hero-copy{position:static;padding:4px 16px 0}
@@ -83,6 +94,9 @@ body.landing-view main{padding:0;max-width:none}
   .mode-inner,.side{padding:18px 22px}
   .side{flex-wrap:wrap}
   .side img{width:64px;height:64px}
-  .side .primary{flex-basis:100%;justify-content:center}
+  .cta-slot{flex-basis:100%}
+  .side .primary{flex-grow:1;justify-content:center}
+  .hero{height:auto;overflow:visible}
+  .hero img{height:300px}
+  .hero:after{height:300px;inset:0 0 auto}
 }
-@media(max-width:760px){.hero{height:auto;overflow:visible}.hero img{height:300px}.hero:after{height:300px;inset:0 0 auto}}
