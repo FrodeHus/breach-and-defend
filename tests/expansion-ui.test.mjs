@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CARDS, BY_ID, MECHANICS, mechanicsOf} from '../public/cards.mjs';
+import {CARDS, BY_ID, MECHANICS, mechanicsOf, edition, releasedTokens, SETS} from '../public/cards.mjs';
+import {library, libraryGrid} from '../public/library.mjs';
+import {about} from '../public/about.mjs';
 import {guide} from '../public/guide.mjs';
 import {Tutorial} from '../public/tutorial.mjs';
 import * as arena from '../public/arena-view.mjs';
@@ -766,4 +768,41 @@ test('a pending Probe gets its own tip, ahead of the stack tip', () => {
   g.pool = EXPANSION_POOL;
   assert.match(choiceTip(g), /<strong>Probe\.<\/strong>/);
   assert.match(arena.tutorialText(state(g)), /Probe/);
+});
+
+// Mark the expansion released (or not) for one test, restoring whatever it was.
+const releaseFor = (t, released) => {
+  const was = SETS['persistent-threats'].released;
+  SETS['persistent-threats'].released = released;
+  t.after(() => (SETS['persistent-threats'].released = was));
+};
+const filter = (extra = {}) => ({filter: {q: '', faction: 'all', type: 'all', set: 'all', ...extra}});
+
+test('the header edition and library follow the released sets', t => {
+  releaseFor(t, false);
+  assert.equal(edition(), 'FIRST BREACH / 01');
+  assert.deepEqual(releasedTokens(), []);
+  assert.match(library(filter()), /Each starter contains 24 infrastructure/);
+  releaseFor(t, true);
+  assert.equal(edition(), 'PERSISTENT THREATS / 02');
+  assert.equal(releasedTokens().length, 2);
+  const html = library(filter());
+  assert.match(html, /100 cards · 4 decks/, 'tokens are not counted as cards');
+  assert.match(html, /First Breach decks have 24 infrastructure, 24 units and 12 other cards\./);
+  assert.match(html, /First Breach \+ Persistent Threats decks have 24 infrastructure, 20 units and 16 other cards\./);
+});
+
+test('the library lists tokens, and search and filters apply to them', t => {
+  releaseFor(t, true);
+  assert.match(libraryGrid(filter()), /data-card="pt-backdoor"/);
+  assert.match(libraryGrid(filter({q: 'backdoor'})), /data-card="pt-backdoor"/);
+  assert.doesNotMatch(libraryGrid(filter({faction: 'blue'})), /data-card="pt-backdoor"/);
+  assert.doesNotMatch(libraryGrid(filter({set: 'first-breach'})), /data-card="pt-indicator"/);
+});
+
+test('about counts the released cards', t => {
+  releaseFor(t, false);
+  assert.match(about(), /every one of the 50 cards/);
+  releaseFor(t, true);
+  assert.match(about(), /every one of the 100 cards/);
 });

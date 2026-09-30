@@ -21,7 +21,7 @@ const RETRY = ['server', 'no-connection', 'id-taken', 'host-offline', 'internal'
 
 export function lobby(session, {url = '', canShare = false, storageOk = true} = {}) {
   const page = (title, body, actions) =>
-    `<section class="versus-lobby" aria-live="polite"><div class="eyebrow">FIRST BREACH / PLAY A FRIEND</div><h1>${title}</h1>${body}<div class="toolbar">${actions}</div></section>`;
+    `<section class="versus-lobby" aria-live="polite"><div class="eyebrow">BREACH &amp; DEFEND / PLAY A FRIEND</div><h1>${title}</h1>${body}<div class="toolbar">${actions}</div></section>`;
   const home = '<button id="versusHome">Back to arena</button>';
   const pool =
     session.pool && session.pool !== DEFAULT_POOL

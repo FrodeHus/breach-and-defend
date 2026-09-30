@@ -1,7 +1,7 @@
 // public/app.mjs
 // Controller: owns the UI state, renders the views (card-view, arena-view, library, guide, landing, about,
 // versus-ui) into #app, and turns clicks into engine moves. All markup lives in those view modules.
-import {BY_ID, DEFAULT_POOL, POOLS, playablePool} from './cards.mjs';
+import {BY_ID, DEFAULT_POOL, POOLS, edition, playablePool, releasedCards} from './cards.mjs';
 import {Game} from './engine.mjs';
 import {Tutorial} from './tutorial.mjs';
 import {installCardPreview} from './card-preview.mjs';
@@ -933,4 +933,7 @@ setInterval(() => {
   const el = $('#versusClock');
   if (el && versus?.seat?.clock) el.textContent = versusUi.clockText(versus.seat.clock, Date.now());
 }, 250);
+// The static header defaults to First Breach; show the released sets instead.
+$('.edition').textContent = edition();
+$('#libraryNav span').textContent = String(releasedCards().length);
 if (!routeVersus()) render();

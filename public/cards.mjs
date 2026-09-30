@@ -280,6 +280,12 @@ export const poolReleased = id =>
   typeof id === 'string' && Object.hasOwn(POOLS, id) && POOLS[id].sets.every(s => SETS[s]?.released);
 export const releasedPools = () => Object.keys(POOLS).filter(poolReleased);
 export const releasedCards = () => cards.filter(c => SETS[c.set].released);
+export const releasedTokens = () => Object.values(TOKENS).filter(t => SETS[t.set].released);
+// The header's edition label: the newest released set and how many sets are out.
+export function edition() {
+  const sets = Object.keys(SETS).filter(id => SETS[id].released);
+  return `${SETS[sets.at(-1)].name.toUpperCase()} / ${String(sets.length).padStart(2, '0')}`;
+}
 // Guided games teach First Breach, and a stored choice may name a pool this version no longer offers.
 export const playablePool = (choice, {guided = false} = {}) =>
   !guided && poolReleased(choice) ? choice : DEFAULT_POOL;
