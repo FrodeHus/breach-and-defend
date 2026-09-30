@@ -4,7 +4,7 @@ import {PERSISTENT_THREATS} from './persistent-threats.mjs';
 // A set stays out of the library and the start screen until `released`: every card has lore and art by then.
 export const SETS = {
   'first-breach': {name: 'First Breach', code: 'FB1', released: true},
-  'persistent-threats': {name: 'Persistent Threats', code: 'PT1', released: false},
+  'persistent-threats': {name: 'Persistent Threats', code: 'PT1', released: true},
 };
 const cards = [];
 function add(set, faction, name, cost, type, text, extra = {}) {

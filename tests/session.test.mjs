@@ -581,8 +581,6 @@ test('a host timeout keep after a mulligan is redacted too and the match audits 
 });
 
 test('a guest choice that runs out of time is answered with its default, and the match audits verified', async t => {
-  SETS['persistent-threats'].released = true;
-  t.after(() => (SETS['persistent-threats'].released = false));
   const clock = fakeTime();
   const ctx = await start(await pair({pool: EXPANSION_POOL, clock, seed: 3}));
   const seats = () => [ctx.host.seat, ctx.guest.seat];
@@ -980,8 +978,6 @@ test('a repeated welcome that changes the seed commitment or faction is refused'
 });
 
 test('a complete expansion match between two browsers ends verified for both', async t => {
-  SETS['persistent-threats'].released = true;
-  t.after(() => (SETS['persistent-threats'].released = false));
   const ctx = await start(await pair({pool: EXPANSION_POOL}));
   await drive(ctx, () => [ctx.host.seat, ctx.guest.seat], 6000, aiIntent);
   assert.notEqual(ctx.host.seat.game.winner, null, 'the match finished');

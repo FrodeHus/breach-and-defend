@@ -12,14 +12,14 @@ const names = list => {
 };
 const twoEach = (...cards) => Object.fromEntries(cards.map(n => [n, 2]));
 
-test('the expansion pool uses both sets and is not offered while the set is unreleased', () => {
+test('the expansion pool uses both sets and is offered once released', () => {
   assert.equal(EXPANSION_POOL, 'first-breach+persistent-threats');
   assert.deepEqual(POOLS[EXPANSION_POOL].sets, ['first-breach', 'persistent-threats']);
   assert.equal(POOLS[EXPANSION_POOL].optIn, 'Persistent Threats');
-  assert.deepEqual(releasedPools(), ['first-breach']);
-  assert.ok(!releasedCards().some(c => c.set === 'persistent-threats'));
-  assert.doesNotMatch(landing({mode: 'solo'}), /includeExpansion/);
-  assert.doesNotMatch(library({filter: {q: '', faction: 'all', type: 'all', set: 'all'}}), /setFilter/);
+  assert.deepEqual(releasedPools(), ['first-breach', EXPANSION_POOL]);
+  assert.ok(releasedCards().some(c => c.set === 'persistent-threats'));
+  assert.match(landing({mode: 'solo'}), /includeExpansion/);
+  assert.match(library({filter: {q: '', faction: 'all', type: 'all', set: 'all'}}), /setFilter/);
 });
 
 test('Persistent Access is the design’s red list', () => {

@@ -4,8 +4,8 @@ import {BY_ID, CARDS, SETS, TOKENS} from '../public/cards.mjs';
 import {Game} from '../public/engine.mjs';
 import {put, table} from './helpers/rules.mjs';
 
-test('the two tokens are Tools of the unreleased Persistent Threats set, and never deck cards', () => {
-  assert.deepEqual(SETS['persistent-threats'], {name: 'Persistent Threats', code: 'PT1', released: false});
+test('the two tokens are Tools of the released Persistent Threats set, and never deck cards', () => {
+  assert.deepEqual(SETS['persistent-threats'], {name: 'Persistent Threats', code: 'PT1', released: true});
   for (const t of Object.values(TOKENS)) {
     assert.equal(BY_ID[t.id], t);
     assert.equal(t.type, 'Tool');

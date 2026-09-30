@@ -5,6 +5,7 @@ import {
   BY_ID,
   CARDS,
   DEFAULT_POOL,
+  EXPANSION_POOL,
   POOLS,
   SETS,
   deck,
@@ -59,10 +60,10 @@ test('every pool deck is legal: one faction, 60 cards, at most two of each non-b
 });
 
 test('only pools whose sets are all released are offered', t => {
-  assert.deepEqual(releasedPools(), ['first-breach']);
+  assert.deepEqual(releasedPools(), ['first-breach', EXPANSION_POOL]);
   assert.equal(poolReleased('nope'), false);
   mirror(t);
-  assert.deepEqual(releasedPools(), ['first-breach', 'mirror']);
+  assert.deepEqual(releasedPools(), ['first-breach', EXPANSION_POOL, 'mirror']);
   SETS.hidden = {name: 'Hidden', code: 'HD1', released: false};
   POOLS.later = {name: 'Later', sets: ['first-breach', 'hidden'], deck: POOLS['first-breach'].deck};
   t.after(() => {

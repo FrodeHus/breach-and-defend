@@ -4,8 +4,8 @@ import {CARDS, SETS} from '../public/cards.mjs';
 
 const set = CARDS.filter(c => c.set === 'persistent-threats');
 
-test('Persistent Threats has 50 cards with the design’s ids, in order, and stays unreleased', () => {
-  assert.equal(SETS['persistent-threats'].released, false);
+test('Persistent Threats has 50 cards with the design’s ids, in order, and is released', () => {
+  assert.equal(SETS['persistent-threats'].released, true);
   assert.deepEqual(
     set.map(c => c.id),
     [
