@@ -155,7 +155,15 @@ function toast(s) {
   toastTimer = setTimeout(() => (t.style.display = 'none'), 4000);
 }
 
+// Tells screen-reader users why Confirm is disabled. The region lives outside the dialog, so re-rendering can't drop it.
+let announced = '';
+function announce(text = '') {
+  if (text === announced) return;
+  announced = text;
+  $('#srStatus').textContent = text;
+}
 function close() {
+  announce();
   prep = null;
   closeChoice();
   modal.close();
@@ -319,10 +327,12 @@ function showPrep(keep = '') {
     $('#prepConfirm:not([disabled])') ??
     $('#modalBody button:not([disabled])')
   )?.focus();
+  announce($('#prep-issue')?.textContent ?? '');
 }
 function confirmPrep() {
   const way = prep?.ways[prep.way];
   if (!way || !ready(way, prep.picks, game)) return;
+  announce();
   const {kind, uid} = prep,
     options = toOptions(way, prep.picks);
   prep = null;
@@ -342,6 +352,7 @@ function openChoice(...keep) {
     $('#choiceConfirm:not([disabled])') ??
     $('#modalBody button:not([disabled])')
   )?.focus();
+  announce($('#choice-issue')?.textContent ?? '');
 }
 // A choice dialog left open after its choice was answered elsewhere (the versus clock) closes itself.
 function dropStaleChoice() {
@@ -351,6 +362,7 @@ function dropStaleChoice() {
   modal.close();
 }
 function submitChoice(selection) {
+  announce();
   choice = null;
   choiceShown = false;
   modal.close();

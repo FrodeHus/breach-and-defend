@@ -423,6 +423,7 @@ test('tokens group only while they look the same, so a tapped one is never hidde
 import {
   choiceCards,
   choiceReady,
+  choiceIssue,
   choiceSelection,
   moveChoice,
   pickChoiceTarget,
@@ -655,6 +656,7 @@ test('a rejected combination of targets says why, and Confirm points at the reas
   const html = prepDialog(state(g), {kind: 'cast', uid: c.uid, zone: 'hand', ways, way: 0, picks});
   assert.match(html, /<button[^>]*id="prepConfirm"[^>]*aria-describedby="prep-issue"[^>]*disabled/);
   assert.match(html, /id="prep-issue"[^>]*>Choose cards from a single player’s discard\.</);
+  assert.doesNotMatch(html, /id="prep-issue"[^>]*role="status"|role="status"[^>]*id="prep-issue"/);
 });
 
 test('identical tokens split by a tapped one still group, with the tapped one alone', () => {
@@ -704,7 +706,7 @@ test('a pending target choice is ready only when the engine would accept it', t 
   assert.equal(choiceReady(g, st), true, 'one card from one discard is fine');
   st = pickChoiceTarget(g, st, 'g', 1);
   assert.equal(choiceReady(g, st), false, 'cards from both discards are refused');
-  assert.match(choiceDialog(state(g), st), /<button class="primary" id="choiceConfirm" disabled>/);
+  assert.match(choiceDialog(state(g), st), /<button class="primary" id="choiceConfirm" disabled[ >]/);
 });
 
 test('Probe and order rows are numbered, counting only the cards that stay on top', async () => {
@@ -805,4 +807,48 @@ test('about counts the released cards', t => {
   assert.match(about(), /every one of the 50 cards/);
   releaseFor(t, true);
   assert.match(about(), /every one of the 100 cards/);
+});
+
+test('a choice that cannot be confirmed says why, and Confirm points at the reason', t => {
+  define(t, {
+    id: 'x-sweep2',
+    type: 'Tool',
+    abilities: [
+      {
+        kind: 'triggered',
+        id: 'sweep',
+        label: 'Sweep',
+        targets: [{key: 'g', zone: 'grave', side: 'any', upTo: 2, onePlayer: true}],
+        steps: [{op: 'archive', to: 'g'}],
+      },
+    ],
+  });
+  const g = table();
+  const src = put(g, 0, 'x-sweep2');
+  const mine = put(g, 0, 'r7', 'grave'),
+    theirs = put(g, 1, 'b8', 'grave');
+  g.waiting = [{id: 21, p: 0, ability: {card: 'x-sweep2', uid: src.uid, id: 'sweep'}}];
+  g.pending = {
+    id: 9,
+    actor: 0,
+    kind: 'targets',
+    private: false,
+    prompt: 'Choose.',
+    min: 1,
+    max: 1,
+    data: {trigger: 21},
+  };
+  g.pending.options = [{key: 'g', optional: false, upTo: 2, candidates: [ref(mine.uid), ref(theirs.uid)]}];
+  let st = pickChoiceTarget(g, startChoice(g.pending), 'g', 0);
+  assert.equal(choiceIssue(g, st), null, 'one card from one discard is fine');
+  assert.doesNotMatch(choiceDialog(state(g), st), /choice-issue/);
+  st = pickChoiceTarget(g, st, 'g', 1);
+  const issue = choiceIssue(g, st);
+  assert.equal(typeof issue, 'string');
+  const html = choiceDialog(state(g), st);
+  assert.match(html, /<p class="action-reason" id="choice-issue">/);
+  assert.match(
+    html,
+    /<button[^>]*id="choiceConfirm"[^>]*disabled[^>]*aria-describedby="choice-issue"|<button[^>]*id="choiceConfirm"[^>]*aria-describedby="choice-issue"[^>]*disabled/,
+  );
 });

@@ -81,16 +81,21 @@ export function choiceSelection(game, st) {
       return null;
   }
 }
+// Why a complete target selection can't be confirmed (the engine's own message), else null.
+export function choiceIssue(game, st) {
+  const c = game.pending;
+  if (c?.kind !== 'targets' || !c.options.every(o => o.optional || o.upTo || (st.picks[o.key] ?? []).length === 1))
+    return null;
+  // The pending options carry only keys and candidates, so the engine's check runs against the trigger's own specs.
+  const t = game.waiting?.find(x => x.id === c.data?.trigger);
+  const specs = t && abilityOf(t.ability)?.targets;
+  return (specs && checkTargets(game, t.p, specs, choiceSelection(game, st).targets)) || null;
+}
 export function choiceReady(game, st) {
   const c = game.pending;
   if (c.kind === 'discard') return (st.picks.discard ?? []).length === c.min;
-  if (c.kind === 'targets') {
-    if (!c.options.every(o => o.optional || o.upTo || (st.picks[o.key] ?? []).length === 1)) return false;
-    // The pending options carry only keys and candidates, so the engine's check runs against the trigger's own specs.
-    const t = game.waiting?.find(x => x.id === c.data?.trigger);
-    const specs = t && abilityOf(t.ability)?.targets;
-    return !specs || !checkTargets(game, t.p, specs, choiceSelection(game, st).targets);
-  }
+  if (c.kind === 'targets')
+    return c.options.every(o => o.optional || o.upTo || (st.picks[o.key] ?? []).length === 1) && !choiceIssue(game, st);
   return ['probe', 'order'].includes(c.kind);
 }
 export const cardName = id => BY_ID[id]?.name ?? 'Hidden card';
