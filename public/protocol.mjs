@@ -56,8 +56,22 @@ export function viewFor(game, p) {
 }
 
 export const unflipAction = a => (a.type === 'play' ? {...a, target: flipTarget(a.target ?? null)} : a);
-export const actionFields = ({type, uid, target, uids, assignments, bottom}) =>
-  Object.fromEntries(Object.entries({type, uid, target, uids, assignments, bottom}).filter(([, v]) => v !== undefined));
+export const actionFields = ({type, uid, target, uids, assignments, bottom, options, abilityId, selection}) =>
+  Object.fromEntries(
+    Object.entries({type, uid, target, uids, assignments, bottom, options, abilityId, selection}).filter(
+      ([, v]) => v !== undefined,
+    ),
+  );
+
+// From an untrusted peer: only the option fields the engine reads. The engine checks their values.
+export function playOptions(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return {};
+  const out = {};
+  if (o.overclock === true) out.overclock = true;
+  if (o.reuse === true) out.reuse = true;
+  for (const k of ['mode', 'targets', 'costUids']) if (Object.hasOwn(o, k)) out[k] = o[k];
+  return out;
+}
 
 const list = x => (Array.isArray(x) ? x : []);
 const ANY_ORDER = ['mulligan', 'keep', 'concede'];
@@ -70,7 +84,11 @@ export function applyAction(game, by, a) {
     case 'keep':
       return game.keep(list(a.bottom), by);
     case 'play':
-      return game.play(by, a.uid, a.target ?? null);
+      return game.play(by, a.uid, a.target ?? null, playOptions(a.options));
+    case 'activate':
+      return game.activate(by, a.uid, a.abilityId, playOptions(a.options));
+    case 'choose':
+      return game.choose(by, a.selection);
     case 'pass':
       return game.pass(by);
     case 'attackers':
@@ -88,6 +106,8 @@ export function applyAction(game, by, a) {
 
 const byCost = (a, b) => BY_ID[b.id].cost - BY_ID[a.id].cost;
 export function timeoutAction(game, p) {
+  // A pending choice belongs to its chooser; the clock answers with the fixed automatic move.
+  if (game.pending) return {type: 'choose', selection: game.defaultChoice()};
   const hand = game.players[p].hand;
   if (game.phase === 'opening')
     return {
