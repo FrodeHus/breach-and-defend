@@ -1,5 +1,6 @@
 // Original teaching set. Mechanics are abstractions, not operational instructions.
 import {LORE} from './lore.mjs';
+import {PERSISTENT_THREATS} from './persistent-threats.mjs';
 // A set stays out of the library and the start screen until `released`: every card has lore and art by then.
 export const SETS = {
   'first-breach': {name: 'First Breach', code: 'FB1', released: true},
@@ -139,6 +140,9 @@ B('Phishing-Resistant MFA', 3, 'Control', 'Prevent damage to you from sources wi
   effect: 'antiPhishing',
 });
 B('Configuration Audit', 2, 'Operation', 'Destroy target Tool or Control.', {effect: 'destroy', target: 'support'});
+// The Persistent Threats cards: unreleased (no lore or art yet), with their own stable ids.
+for (const {faction, name, cost, type, text, ...extra} of PERSISTENT_THREATS)
+  add('persistent-threats', faction, name, cost, type, text, extra);
 export const CARDS = cards;
 export const BY_ID = Object.fromEntries(cards.map(c => [c.id, c]));
 // Tokens are created during play: they are looked up by id like cards, but are never in CARDS or a deck.
