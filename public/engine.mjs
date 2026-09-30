@@ -134,6 +134,21 @@ export class Game {
     }
     return {power: Math.max(0, (d.power || 0) + c.bp + a), toughness: (d.toughness || 0) + c.bt + b};
   }
+  // A card's keywords right now: printed ones, those granted until end of turn, and conditional ones.
+  keywords(c) {
+    const d = this.data(c),
+      out = new Set([...(d.keywords ?? []), ...(c.kw ?? [])]);
+    const p = this.players.findIndex(q => q.field.some(x => x.uid === c.uid));
+    for (const w of d.when ?? []) if (p >= 0 && this.holds(p, w.if)) out.add(w.keyword);
+    return out;
+  }
+  has(c, keyword) {
+    return this.keywords(c).has(keyword);
+  }
+  holds(p, cond) {
+    if (cond.control) return this.players[p].field.some(x => x.id === cond.control);
+    return false;
+  }
   mana(p) {
     return this.players[p].field.filter(c => this.data(c).type === 'Infrastructure' && !c.tapped).length;
   }
@@ -431,8 +446,8 @@ export class Game {
       p === this.active &&
       d.type === 'Unit' &&
       !c.tapped &&
-      (!c.sick || d.keywords?.includes('rapid')) &&
-      !d.keywords?.includes('firewall')
+      (!c.sick || this.has(c, 'rapid')) &&
+      !this.has(c, 'firewall')
     );
   }
   attackers(p, uids) {
@@ -447,7 +462,7 @@ export class Game {
     this.blocks = {};
     for (const uid of uids) {
       const c = this.find(uid).card;
-      if (!this.data(c).keywords?.includes('alwaysOn')) c.tapped = true;
+      if (!this.has(c, 'alwaysOn')) c.tapped = true;
     }
     this.phase = uids.length ? 'afterAttack' : 'endCombat';
     this.priority = this.active;
@@ -459,12 +474,11 @@ export class Game {
     );
   }
   canBlock(blocker, attacker) {
-    const b = this.data(blocker),
-      a = this.data(attacker);
+    const b = this.data(blocker);
     return !!(
       b.type === 'Unit' &&
       !blocker.tapped &&
-      (!a.keywords?.includes('stealth') || b.keywords?.some(k => ['stealth', 'detection'].includes(k)))
+      (!this.has(attacker, 'stealth') || this.has(blocker, 'stealth') || this.has(blocker, 'detection'))
     );
   }
   blockers(p, assignments) {
@@ -512,20 +526,19 @@ export class Game {
       for (let i = 0; i < bs.length; i++) {
         const b = bs[i],
           lethal = Math.max(0, this.stats(b.card, b.p).toughness - b.card.damage);
-        const trample = this.data(a.card).keywords?.includes('overflow');
+        const trample = this.has(a.card, 'overflow');
         const n = i === bs.length - 1 && !trample ? power : Math.min(power, lethal);
         add(a.card, a.p, {kind: 'card', uid: b.card.uid}, n);
         power -= n;
         add(b.card, b.p, {kind: 'card', uid: a.card.uid}, this.stats(b.card, b.p).power);
       }
-      if (!wasBlocked || this.data(a.card).keywords?.includes('overflow'))
-        add(a.card, a.p, {kind: 'player', p: 1 - a.p}, power);
+      if (!wasBlocked || this.has(a.card, 'overflow')) add(a.card, a.p, {kind: 'player', p: 1 - a.p}, power);
     }
     for (const hit of pending) {
       let n = hit.amount;
       if (hit.target.kind === 'player') n = this.hurt(hit.target.p, n, hit.source, hit.owner);
       else this.find(hit.target.uid).card.damage += n;
-      if (this.data(hit.source).keywords?.includes('recharge')) gains[hit.owner] += n;
+      if (this.has(hit.source, 'recharge')) gains[hit.owner] += n;
     }
     gains.forEach((n, p) => (this.players[p].life += n));
     this.note('Combat damage is dealt simultaneously.');
@@ -592,6 +605,8 @@ export class Game {
         c.damage = 0;
         c.bp = 0;
         c.bt = 0;
+        delete c.kw;
+        delete c.used;
       }
     this.check();
     if (this.winner !== null) return;
@@ -605,7 +620,9 @@ export class Game {
     const p = this.players[this.active];
     p.landPlayed = false;
     for (const c of p.field) {
-      c.tapped = false;
+      // A locked-down card skips this one untap step; the lock then expires.
+      if (c.locked) delete c.locked;
+      else c.tapped = false;
       c.sick = false;
       if (this.data(c).effect === 'upkeepHeal') p.life += this.data(c).amount;
     }
@@ -671,7 +688,7 @@ export class Game {
           .filter(c => {
             const a = this.stats(c, 1);
             const threats = foe.field.filter(b => this.canBlock(b, c));
-            return !threats.length || this.data(c).keywords?.includes('alwaysOn') || a.power >= 2;
+            return !threats.length || this.has(c, 'alwaysOn') || a.power >= 2;
           })
           .map(c => c.uid),
       );
