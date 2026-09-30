@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CARDS, BY_ID} from '../public/cards.mjs';
+import {CARDS, BY_ID, MECHANICS, mechanicsOf} from '../public/cards.mjs';
+import {guide} from '../public/guide.mjs';
 import {Tutorial} from '../public/tutorial.mjs';
 import * as arena from '../public/arena-view.mjs';
 import {stackItem} from '../public/expansion-view.mjs';
@@ -711,4 +712,31 @@ test('Probe and order rows are numbered, counting only the cards that stay on to
   assert.match(rule('.choice-list'), /counter-reset:\s*choice/);
   assert.match(rule('.choice-list li:not(.to-discard)'), /counter-increment:\s*choice/);
   assert.match(rule('.choice-list li:not(.to-discard)::before'), /content:\s*counter\(choice\) '\.'/);
+});
+
+test('expansion cards explain the rules terms they use; First Breach cards are unchanged', () => {
+  assert.deepEqual(mechanicsOf(BY_ID[pt('Map Trust Relationships')]), ['probe', 'reuse']);
+  assert.deepEqual(mechanicsOf(BY_ID[pt('Burn the Channel')]), ['retire']);
+  assert.deepEqual(mechanicsOf(BY_ID[pt('Seed Access')]), ['backdoor']);
+  for (const c of CARDS.filter(c => c.set === 'first-breach')) assert.deepEqual(mechanicsOf(c), [], c.name);
+  const g = table();
+  const dialog = arena.cardDialog(state(g), pt('Map Trust Relationships'), null, '');
+  assert.match(dialog, new RegExp(`<strong>Probe</strong><br>${MECHANICS.probe[1]}`));
+  assert.match(dialog, /<strong>Reuse<\/strong>/);
+  const fb = CARDS.find(c => c.set === 'first-breach' && c.type === 'Operation');
+  assert.doesNotMatch(arena.cardDialog(state(g), fb.id, null, ''), /Probe|Reuse|Overclock|Retire|Archive/);
+});
+
+test('the Field Guide teaches Persistent Threats once it is released', () => {
+  const on = guide({expansion: true}),
+    off = guide({expansion: false});
+  assert.match(on, /FIELD GUIDE \/ ALL SETS/);
+  assert.match(on, /<h2>Persistent Threats<\/h2>/);
+  for (const [name] of Object.values(MECHANICS)) assert.match(on, new RegExp(`<strong>${name}\\.</strong>`));
+  assert.match(on, /Triggered abilities/);
+  assert.match(on, /Make your choice/);
+  assert.doesNotMatch(on, /no exile, token, or sideboard/);
+  assert.match(off, /FIELD GUIDE \/ FIRST BREACH/);
+  assert.doesNotMatch(off, /Persistent Threats/);
+  assert.match(off, /There are no exile, token, or sideboard mechanics in this set\./);
 });

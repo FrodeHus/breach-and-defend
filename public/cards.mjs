@@ -305,3 +305,39 @@ export const KEYWORD_NAMES = {
   overflow: 'Overflow',
   firewall: 'Firewall',
 };
+// Persistent Threats rules terms: shown in the Field Guide and on the expansion cards that use them.
+export const MECHANICS = {
+  probe: [
+    'Probe',
+    'Look at the top N cards of your deck. Put any of them into your discard and the rest back on top in any order. Only you see them.',
+  ],
+  overclock: [
+    'Overclock',
+    'As you cast this card you may pay N more compute for its stronger effect. The cast dialog shows both total costs.',
+  ],
+  reuse: [
+    'Reuse',
+    'Cast this card from your discard by paying N compute instead of its cost. Afterwards it is archived, even if it is countered.',
+  ],
+  retire: [
+    'Retire',
+    'Put a card you control into your discard to pay a cost or for an effect. A retired token leaves the game. Destroying a card is not retiring it.',
+  ],
+  archive: [
+    'Archive',
+    'A public zone beside the discard for cards removed from the game for good. Nothing returns archived cards.',
+  ],
+  backdoor: [
+    'Backdoor',
+    'A red Tool token. 1 compute, retire it: a unit you control gets +2/+0 until end of turn. Use it in your main phase while the stack is empty.',
+  ],
+  indicator: [
+    'Indicator',
+    'A blue Tool token. 2 compute, retire it: draw a card. Use it in your main phase while the stack is empty.',
+  ],
+};
+// The rules terms an expansion card's text uses. First Breach cards have none, so their markup never changes.
+export const mechanicsOf = d =>
+  d.set === 'persistent-threats'
+    ? Object.keys(MECHANICS).filter(k => new RegExp(`\\b${MECHANICS[k][0]}`, 'i').test(d.text))
+    : [];
