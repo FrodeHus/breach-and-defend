@@ -28,7 +28,8 @@ export const PHASE_NAMES = {
   main2: 'Main II',
   end: 'End step',
   cleanup: 'Discard to seven',
-};
+}; // Card fields that only exist while an effect has set them. Nothing survives a zone change.
+const TRANSIENT = ['kw', 'locked', 'used'];
 export class Game {
   constructor(faction = 'blue', random = Math.random, {first = 0, mode = 'solo', pool = DEFAULT_POOL} = {}) {
     this.random = random;
@@ -43,6 +44,7 @@ export class Game {
       hand: [],
       field: [],
       grave: [],
+      archive: [],
       landPlayed: false,
     }));
     this.active = first;
@@ -57,6 +59,10 @@ export class Game {
     this.kept = [false, mode === 'solo'];
     this.attacks = [];
     this.blocks = {};
+    this.pending = null; // The one open choice: {id, actor, kind, private, prompt, min, max, options, data?, frame?}
+    this.queue = []; // Events of the current action, turned into triggers by settle()
+    this.waiting = []; // Triggers not yet on the stack
+    this.casts = [0, 0]; // Cards each player has cast this turn
     this.winner = null;
     this.reason = '';
     this.players.forEach((p, i) => this.draw(i, 7));
@@ -322,9 +328,7 @@ export class Game {
           this.remove(f.p, f.card);
           break;
         case 'bounce':
-          this.players[f.p].field = this.players[f.p].field.filter(x => x.uid !== f.card.uid);
-          Object.assign(f.card, {uid: ++this.uid, tapped: false, sick: true, damage: 0, bp: 0, bt: 0});
-          this.players[f.p].hand.push(f.card);
+          this.bounce(f.p, f.card);
           break;
         case 'buff':
           f.card.bp += d.powerBoost;
@@ -350,8 +354,37 @@ export class Game {
   }
   remove(p, c) {
     this.players[p].field = this.players[p].field.filter(x => x.uid !== c.uid);
-    this.players[p].grave.push(c);
-    this.note(`${this.data(c).name} goes to discard.`);
+    const d = this.data(c);
+    // Tokens stop existing when they leave the battlefield; they never reach a discard.
+    if (d.token) this.note(`${d.name} is removed.`);
+    else {
+      this.players[p].grave.push(c);
+      this.note(`${d.name} goes to discard.`);
+    }
+  }
+  // Returning to hand makes a new object: nothing that happened on the battlefield follows the card.
+  bounce(p, c) {
+    this.players[p].field = this.players[p].field.filter(x => x.uid !== c.uid);
+    if (this.data(c).token) return this.note(`${this.data(c).name} is removed.`);
+    for (const k of TRANSIENT) delete c[k];
+    Object.assign(c, {uid: ++this.uid, tapped: false, sick: true, damage: 0, bp: 0, bt: 0});
+    this.players[p].hand.push(c);
+  }
+  createToken(p, id) {
+    const c = this.card(id);
+    this.players[p].field.push(c);
+    this.note(`${this.label(p)} ${this.verb(p, 'create', 'creates')} a ${this.data(c).name}.`);
+    return c;
+  }
+  // Retiring is not destruction: a permanent its controller gives up, as a cost or by choice.
+  retire(p, c) {
+    this.remove(p, c);
+  }
+  // The archive is public and final: nothing brings a card back from it.
+  archiveCard(p, c) {
+    this.players[p].grave = this.players[p].grave.filter(x => x.uid !== c.uid);
+    this.players[p].archive.push(c);
+    this.note(`${this.data(c).name} is archived.`);
   }
   hurt(victim, amount, source, owner) {
     if (
@@ -590,13 +623,24 @@ export class Game {
   toJSON() {
     const {random, ...state} = this;
     // First Breach matches keep the pre-expansion format, so their saves, views and audit digests don't change.
+    // Only expansion cards read cast counts, and the rest of the expansion state is saved only when not empty.
     if (state.pool === DEFAULT_POOL) delete state.pool;
+    if (state.pool === undefined || state.casts.every(n => n === 0)) delete state.casts;
+    if (state.pending === null) delete state.pending;
+    if (!state.queue.length) delete state.queue;
+    if (!state.waiting.length) delete state.waiting;
+    state.players = state.players.map(({archive, ...q}) => (archive.length ? {...q, archive} : q));
     return structuredClone({...state, rng: random.state ?? null});
   }
   static fromJSON(json) {
     const {rng, ...state} = structuredClone(json);
     const g = Object.assign(Object.create(Game.prototype), state);
     g.pool ??= DEFAULT_POOL;
+    g.pending ??= null;
+    g.queue ??= [];
+    g.waiting ??= [];
+    g.casts ??= [0, 0];
+    for (const q of g.players) q.archive ??= [];
     g.random = rng ? seededRandom(rng) : Math.random;
     return g;
   }
