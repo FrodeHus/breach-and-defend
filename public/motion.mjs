@@ -45,15 +45,52 @@ function ghost(item) {
   document.body.append(el);
   return el;
 }
-export function snapshot(game) {
-  const cards = new Map();
+// Rules-side view of the table: where every card is, how hurt each unit is, and each player's capacity.
+export function state(game) {
+  const cards = new Map(),
+    damage = new Map();
   game.players.forEach((p, owner) =>
-    ['hand', 'field', 'grave'].forEach(zone => p[zone].forEach(c => cards.set(c.uid, {zone, owner}))),
+    ['hand', 'field', 'grave'].forEach(zone =>
+      p[zone].forEach(c => {
+        cards.set(c.uid, {zone, owner});
+        if (zone === 'field') damage.set(c.uid, c.damage || 0);
+      }),
+    ),
   );
   game.stack.forEach(s => s.card && cards.set(s.card.uid, {zone: 'stack', owner: s.p}));
+  return {cards, damage, life: game.players.map(p => p.life)};
+}
+// What happened between two states, as events the animations react to. Healing and end-of-turn resets are not events.
+export function changes(before, after) {
+  const events = [];
+  for (const [uid, now] of after.cards) {
+    const old = before.cards.get(uid);
+    if (now.zone === 'grave' && old && old.zone !== 'grave')
+      events.push({
+        type: 'leave',
+        uid,
+        owner: now.owner,
+        from: old.zone,
+        fromOwner: old.owner,
+        destroyed: old.zone === 'field',
+      });
+    else if (now.zone !== 'grave' && (!old || old.zone !== now.zone))
+      events.push({type: 'enter', uid, owner: now.owner, zone: now.zone, from: old?.zone ?? null});
+  }
+  for (const [uid, hurt] of after.damage) {
+    const was = before.damage?.get(uid);
+    if (was !== undefined && hurt > was) events.push({type: 'damaged', uid, amount: hurt - was});
+  }
+  after.life.forEach((life, p) => {
+    const was = before.life?.[p];
+    if (was !== undefined && life < was) events.push({type: 'playerHit', p, amount: was - life});
+  });
+  return events;
+}
+export function snapshot(game) {
   const visual = new Map(nodes().map(el => [Number(el.dataset.motionUid), {el, r: rect(el)}]));
   return {
-    cards,
+    ...state(game),
     visual,
     phase: game.phase,
     attacks: [...game.attacks],
@@ -195,58 +232,58 @@ async function depart(item, target, destroyed) {
     g.remove();
   }
 }
+// The card leaving play, or a stand-in at the opponent's panel when it left their hidden hand.
+function departing(before, e, game) {
+  const from = before.visual.get(e.uid);
+  if (from || e.from !== 'hand' || e.fromOwner !== 1 || !before.players[1]) return from || null;
+  const el = document.createElement('div');
+  el.className = 'card hidden-card ' + game.players[e.fromOwner].faction;
+  const r = before.players[1];
+  return {el, r: {left: r.left + r.width / 2, top: r.top, width: 90, height: 125}};
+}
+function enter(before, e, item, game) {
+  const origin =
+      before.visual.get(e.uid)?.r || (e.zone === 'hand' ? before.decks?.[e.owner] : null) || before.players[e.owner],
+    a = center(item.r),
+    b = origin ? center(origin) : {x: a.x - 90, y: a.y + 80};
+  const g = ghost(item);
+  item.el.style.visibility = 'hidden';
+  g.classList.add('entry-card');
+  const back = document.createElement('div');
+  back.className = 'card-back ' + game.players[e.owner].faction;
+  g.append(back);
+  return animate(
+    g,
+    [
+      {
+        transform: `perspective(850px) translate3d(${b.x - a.x}px,${b.y - a.y}px,0) rotateY(180deg) rotateZ(-10deg) scale(.7)`,
+        opacity: 0,
+      },
+      {offset: 0.18, opacity: 1},
+      {
+        offset: 0.7,
+        transform: 'perspective(850px) translate3d(0,-12px,70px) rotateY(20deg) rotateZ(2deg) scale(1.05)',
+        opacity: 1,
+      },
+      {transform: 'perspective(850px) translate3d(0,0,0) rotateY(0) rotateZ(0) scale(1)', opacity: 1},
+    ],
+    620,
+  ).finally(() => {
+    g.remove();
+    item.el.style.visibility = '';
+  });
+}
 export async function transitions(before, game) {
   if (still()) return;
   const after = snapshot(game),
     jobs = [];
-  for (const [uid, now] of after.cards) {
-    const old = before.cards.get(uid),
-      item = after.visual.get(uid);
-    if (now.zone === 'grave' && old && old.zone !== 'grave') {
-      let from = before.visual.get(uid);
-      if (!from && old.zone === 'hand' && old.owner === 1 && before.players[1]) {
-        const el = document.createElement('div');
-        el.className = 'card hidden-card ' + game.players[old.owner].faction;
-        const r = before.players[1];
-        from = {el, r: {left: r.left + r.width / 2, top: r.top, width: 90, height: 125}};
-      }
-      if (from) jobs.push(depart(from, after.graves[now.owner], old.zone === 'field'));
-    }
-    if (item && (!old || old.zone !== now.zone) && now.zone !== 'grave') {
-      const origin =
-          before.visual.get(uid)?.r ||
-          (now.zone === 'hand' ? before.decks?.[now.owner] : null) ||
-          before.players[now.owner],
-        a = center(item.r),
-        b = origin ? center(origin) : {x: a.x - 90, y: a.y + 80};
-      const g = ghost(item);
-      item.el.style.visibility = 'hidden';
-      g.classList.add('entry-card');
-      const back = document.createElement('div');
-      back.className = 'card-back ' + game.players[now.owner].faction;
-      g.append(back);
-      jobs.push(
-        animate(
-          g,
-          [
-            {
-              transform: `perspective(850px) translate3d(${b.x - a.x}px,${b.y - a.y}px,0) rotateY(180deg) rotateZ(-10deg) scale(.7)`,
-              opacity: 0,
-            },
-            {offset: 0.18, opacity: 1},
-            {
-              offset: 0.7,
-              transform: 'perspective(850px) translate3d(0,-12px,70px) rotateY(20deg) rotateZ(2deg) scale(1.05)',
-              opacity: 1,
-            },
-            {transform: 'perspective(850px) translate3d(0,0,0) rotateY(0) rotateZ(0) scale(1)', opacity: 1},
-          ],
-          620,
-        ).finally(() => {
-          g.remove();
-          item.el.style.visibility = '';
-        }),
-      );
+  for (const e of changes(before, after)) {
+    if (e.type === 'leave') {
+      const from = departing(before, e, game);
+      if (from) jobs.push(depart(from, after.graves[e.owner], e.destroyed));
+    } else if (e.type === 'enter') {
+      const item = after.visual.get(e.uid);
+      if (item) jobs.push(enter(before, e, item, game));
     }
   }
   await Promise.all(jobs);

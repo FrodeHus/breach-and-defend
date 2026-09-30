@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {within, settle, blockTrace, busLines} from '../public/motion.mjs';
+import {within, settle, blockTrace, busLines, state, changes} from '../public/motion.mjs';
+import {Game} from '../public/engine.mjs';
+import {CARDS} from '../public/cards.mjs';
 
 const never = () => new Promise(() => {});
 function manualClock() {
@@ -73,4 +75,85 @@ test('each attacker gets its own bus line inside the gap between the rows', () =
     tight.join(),
   );
   assert.equal(new Set(tight).size, 4);
+});
+
+const cardId = name => CARDS.find(c => c.name === name).id;
+function table() {
+  const g = new Game();
+  g.players.forEach(p => Object.assign(p, {hand: [], field: [], grave: [], life: 20}));
+  g.stack = [];
+  return g;
+}
+const put = (g, p, zone, name) => {
+  const c = g.card(cardId(name));
+  g.players[p][zone].push(c);
+  return c;
+};
+const move = (g, p, c, from, to) => {
+  g.players[p][from] = g.players[p][from].filter(x => x !== c);
+  g.players[p][to].push(c);
+};
+
+test('state records zones, unit damage and player capacity', () => {
+  const g = table(),
+    u = put(g, 0, 'field', 'SOC Trainee');
+  u.damage = 2;
+  g.players[1].life = 17;
+  const s = state(g);
+  assert.deepEqual(s.cards.get(u.uid), {zone: 'field', owner: 0});
+  assert.equal(s.damage.get(u.uid), 2);
+  assert.deepEqual(s.life, [20, 17]);
+});
+
+test('changes reports cards drawn, played and bounced', () => {
+  const g = table(),
+    u = put(g, 0, 'hand', 'SOC Trainee'),
+    b = put(g, 1, 'field', 'Recon Operator');
+  const before = state(g);
+  move(g, 0, u, 'hand', 'field');
+  move(g, 1, b, 'field', 'hand');
+  const drawn = put(g, 0, 'hand', 'Threat Hunter');
+  assert.deepEqual(changes(before, state(g)), [
+    {type: 'enter', uid: drawn.uid, owner: 0, zone: 'hand', from: null},
+    {type: 'enter', uid: u.uid, owner: 0, zone: 'field', from: 'hand'},
+    {type: 'enter', uid: b.uid, owner: 1, zone: 'hand', from: 'field'},
+  ]);
+});
+
+test('changes tells destroyed units from discarded cards', () => {
+  const g = table(),
+    u = put(g, 0, 'field', 'SOC Trainee'),
+    h = put(g, 1, 'hand', 'Recon Operator');
+  const before = state(g);
+  move(g, 0, u, 'field', 'grave');
+  move(g, 1, h, 'hand', 'grave');
+  assert.deepEqual(changes(before, state(g)), [
+    {type: 'leave', uid: u.uid, owner: 0, from: 'field', fromOwner: 0, destroyed: true},
+    {type: 'leave', uid: h.uid, owner: 1, from: 'hand', fromOwner: 1, destroyed: false},
+  ]);
+});
+
+test('changes reports new damage and lost capacity, never healing or units entering hurt', () => {
+  const g = table(),
+    u = put(g, 0, 'field', 'SOC Trainee'),
+    healed = put(g, 1, 'field', 'Recon Operator');
+  healed.damage = 1;
+  const before = state(g);
+  u.damage = 1;
+  healed.damage = 0;
+  g.players[1].life -= 3;
+  g.players[0].life += 2;
+  const fresh = put(g, 1, 'field', 'Payload Runner');
+  fresh.damage = 1;
+  assert.deepEqual(changes(before, state(g)), [
+    {type: 'enter', uid: fresh.uid, owner: 1, zone: 'field', from: null},
+    {type: 'damaged', uid: u.uid, amount: 1},
+    {type: 'playerHit', p: 1, amount: 3},
+  ]);
+});
+
+test('changes is empty when nothing moved', () => {
+  const g = table();
+  put(g, 0, 'field', 'SOC Trainee');
+  assert.deepEqual(changes(state(g), state(g)), []);
 });
