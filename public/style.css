@@ -1534,49 +1534,223 @@ a:focus-visible {
     0 0 22px color-mix(in srgb, var(--combat-glow) 35%, transparent),
     inset 0 0 8px color-mix(in srgb, var(--combat-glow) 10%, transparent);
 }
+/* Command area: the player's terminal session. It stays dark on the daylight table and
+   takes its accent from the player's faction. */
 .command-area {
+  --term-accent: #71dfd2;
+  --term-accent-dim: #2d5552;
+  --term-bg: #0a0f12;
+  --term-chrome: #131c23;
+  --term-line: #2b3942;
+  --term-text: #edf3f4;
+  --term-muted: #a0b0bb;
+  --term-faint: #7d909c;
+  --term-note: #eed7a1;
   max-width: 1080px;
   margin: 12px auto 0;
-  padding: 10px 16px;
-  background: #f7fafce6;
-  border: 1px solid #b9cbd7;
-  border-radius: 12px;
   position: relative;
   z-index: 13;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--term-text);
+  background: var(--term-bg);
+  border: 1px solid var(--term-line);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px #0c111540;
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
 }
-.phase-bar {
-  justify-content: flex-end;
-  border: 0;
+.command-area[data-faction='red'] {
+  --term-accent: #fb827b;
+  --term-accent-dim: #6b3835;
+  --term-bg: #120c0d;
+  --term-chrome: #1c1314;
+  --term-line: #4a2c2c;
+  --term-muted: #c8aeac;
+  --term-faint: #a08684;
+}
+.term-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--term-chrome);
+  border-bottom: 1px solid var(--term-line);
+  color: var(--term-muted);
+  font-size: 0.6875rem;
+}
+.term-led {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--term-accent);
+  box-shadow: 0 0 8px var(--term-accent);
+}
+.command-area:has(#advance:disabled) .term-led {
+  opacity: 0.35;
+  box-shadow: none;
+}
+.term-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.term-status {
+  margin-left: auto;
+  color: var(--term-note);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+.term-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.term-prompt {
+  color: var(--term-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.term-user {
+  color: var(--term-accent);
+}
+.command-area .phase-bar {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
   padding: 0;
-  margin: 0 0 4px;
-  gap: 5px;
+  border: 0;
 }
-.phase {
-  font-size: 0.75rem;
-  color: #536a79;
+.command-area .phase {
+  padding: 1px 6px;
+  color: var(--term-faint);
+  background: none;
+  border: 1px solid var(--term-line);
+  border-radius: 3px;
+  box-shadow: none;
+  font-size: 0.6875rem;
+  white-space: nowrap;
 }
-.phase.current {
-  background: #fae7c8;
-  color: #825009;
-  box-shadow: inset 0 0 0 1px #e3bd80;
+.command-area .phase.done {
+  color: var(--term-accent);
+  border-color: var(--term-accent-dim);
 }
-.action-bar {
-  margin: 3px 0;
-  gap: 18px;
+.command-area .phase.current {
+  color: var(--term-bg);
+  background: var(--term-accent);
+  border-color: var(--term-accent);
+  font-weight: 700;
 }
-.action-bar .hint {
-  color: #405969;
-  font-size: 0.875rem;
+.command-area .action-bar {
+  margin: 0;
+  gap: 14px;
+  min-height: 0;
 }
-.action-bar .primary {
-  min-width: 190px;
-  min-height: 45px;
-  background: #99600e;
-  border-color: #99600e;
-  color: white;
+.command-area .action-bar .hint {
+  color: var(--term-muted);
+  font-size: 0.8125rem;
 }
-.action-bar .primary:hover:not(:disabled) {
-  background: #7d4c08;
+.term-comment {
+  color: var(--term-note);
+}
+.term-run {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 280px;
+  min-height: 44px;
+  padding: 8px 12px;
+  color: var(--term-text);
+  background: color-mix(in srgb, var(--term-accent) 8%, var(--term-bg));
+  border: 1px solid var(--term-accent-dim);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  text-align: left;
+}
+.term-run:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--term-accent) 18%, var(--term-bg));
+  border-color: var(--term-accent);
+}
+.term-run:focus-visible {
+  outline-color: var(--term-note);
+  outline-offset: -4px;
+}
+.term-cmd {
+  white-space: nowrap;
+}
+.term-caret {
+  color: var(--term-accent);
+  font-weight: 700;
+}
+.term-cursor {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.1em;
+  margin-left: 3px;
+  vertical-align: -0.2em;
+  background: var(--term-accent);
+  animation: term-blink 1.1s steps(1) infinite;
+}
+.term-run:disabled .term-cursor {
+  visibility: hidden;
+}
+.term-key {
+  color: var(--term-muted);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+.term-key kbd {
+  padding: 0 5px;
+  color: var(--term-text);
+  border: 1px solid var(--term-line);
+  border-radius: 3px;
+  font-family: inherit;
+}
+@keyframes term-blink {
+  50% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .term-cursor {
+    animation: none;
+  }
+}
+.command-area .priority-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  color: var(--term-muted);
+  background: var(--term-chrome);
+  border-top: 1px solid var(--term-line);
+  border-radius: 0;
+  font-size: 0.6875rem;
+}
+.command-area .priority-option input {
+  flex: none;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--term-accent);
+}
+.command-area .priority-option code {
+  color: var(--term-text);
+  white-space: nowrap;
+  font-family: inherit;
 }
 .hand-dock {
   max-width: 1150px;
@@ -1610,15 +1784,6 @@ a:focus-visible {
 }
 .hand .art {
   height: 104px;
-}
-.priority-option {
-  display: block;
-  font-size: 0.8125rem;
-  padding: 0 0 16px;
-}
-.priority-option input {
-  min-width: 0;
-  margin-right: 8px;
 }
 .effect-stack {
   max-width: 980px;
@@ -1866,28 +2031,16 @@ dialog::backdrop {
   .board-row .card-title {
     font-size: 1rem;
   }
-  .command-area {
-    padding: 8px 10px;
+  .command-area .action-bar {
+    flex-wrap: wrap;
+    gap: 8px;
   }
-  .phase-bar {
-    justify-content: center;
-    gap: 0;
-  }
-  .phase {
-    font-size: 0.7rem;
-    padding: 4px 6px;
-  }
-  .action-bar {
-    gap: 7px;
-    justify-content: flex-end;
-  }
-  .action-bar .hint {
-    font-size: 0.8125rem;
+  .command-area .action-bar .hint {
     flex-basis: 100%;
   }
-  .action-bar .primary {
-    min-width: 170px;
-    min-height: 42px;
+  .term-run {
+    flex: 1;
+    min-width: 0;
   }
   .hand {
     justify-content: flex-start;

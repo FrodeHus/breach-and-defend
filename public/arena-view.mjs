@@ -65,15 +65,48 @@ export function hint(s) {
     return 'Play a card. Ready infrastructure pays its cost.';
   return 'You have priority. Cast a Response or continue to the next step.';
 }
-export function buttonLabel(s) {
+export function buttonAction(s) {
   const {game, selected, blocks} = s;
-  if (game.phase === 'attack') return selected.size ? `Attack with ${selected.size}` : 'Skip attack';
-  if (game.phase === 'block') return Object.values(blocks).flat().length ? 'Confirm blocks' : 'Take unblocked damage';
-  if (game.phase === 'cleanup') return 'Discard selected';
-  if (game.stack.length) return 'Pass priority';
-  if (game.phase === 'main1' && game.active === 0) return 'Go to combat';
-  if (game.phase === 'main2' && game.active === 0) return 'End turn';
-  return 'Continue';
+  if (game.phase === 'attack')
+    return selected.size
+      ? {label: `Attack with ${selected.size}`, command: `attack --with ${selected.size}`}
+      : {label: 'Skip attack', command: 'attack --skip'};
+  if (game.phase === 'block')
+    return Object.values(blocks).flat().length
+      ? {label: 'Confirm blocks', command: 'block --confirm'}
+      : {label: 'Take unblocked damage', command: 'block --none'};
+  if (game.phase === 'cleanup') return {label: 'Discard selected', command: `discard --count ${selected.size}`};
+  if (game.stack.length) return {label: 'Pass priority', command: 'pass-priority'};
+  if (game.phase === 'main1' && game.active === 0) return {label: 'Go to combat', command: 'go-to-combat'};
+  if (game.phase === 'main2' && game.active === 0) return {label: 'End turn', command: 'end-turn'};
+  return {label: 'Continue', command: 'continue'};
+}
+export const buttonLabel = s => buttonAction(s).label;
+const PHASES = [
+  ['Start', 'start'],
+  ['Main I', 'main-1'],
+  ['Combat', 'combat'],
+  ['Main II', 'main-2'],
+  ['End', 'end'],
+];
+// The command area reads as the player's terminal session: phases as status tags,
+// the hint as a comment and the main action as the command to run.
+export function commandArea(s) {
+  const {game, pauseAll} = s;
+  const can = game.actor() === 0 && game.winner === null;
+  const faction = game.players[0].faction;
+  const user = `${faction}-team@${faction === 'red' ? 'c2' : 'soc'}`;
+  const turn = String(game.turn).padStart(2, '0');
+  const current = phaseGroup(s);
+  const status = game.winner !== null ? 'SESSION CLOSED' : can ? 'YOUR PRIORITY' : 'STANDBY';
+  const action =
+    game.winner !== null ? {id: 'recap', label: 'View recap', command: 'recap'} : {id: 'advance', ...buttonAction(s)};
+  const phases = PHASES.map(([name, slug], i) => {
+    const state = i < current ? 'done' : i === current ? 'current' : '';
+    const mark = i < current ? '✓ ' : i === current ? '▸ ' : '';
+    return `<span class="phase ${state}" ${i === current ? 'aria-current="step"' : ''}><span aria-hidden="true">${mark}${slug}</span><span class="sr-only">${name}</span></span>`;
+  }).join('');
+  return `<div class="command-area terminal" data-faction="${faction}"><div class="term-bar"><span class="term-led" aria-hidden="true"></span><span class="term-title">tty1 — ${user}</span><span class="term-status">TURN ${turn} · ${status}</span></div><div class="term-body"><div class="term-prompt" aria-hidden="true"><span class="term-user">${user}</span>:~/turn/${turn}$ phase --status</div><div class="phase-bar" aria-label="Turn phases">${phases}</div><div class="action-bar"><div class="hint" aria-live="polite"><span class="term-comment" aria-hidden="true"># </span>${hint(s)}</div><button class="term-run" id="${action.id}" aria-label="${action.label}" ${action.id === 'advance' && !can ? 'disabled' : ''}><span class="term-cmd"><span class="term-caret" aria-hidden="true">❯</span> ${action.command}<span class="term-cursor" aria-hidden="true"></span></span><span class="term-key" aria-hidden="true">${action.label} <kbd>⏎</kbd></span></button></div></div><label class="priority-option"><input type="checkbox" id="pauseAll" ${pauseAll ? 'checked' : ''}> <code>--pause-on-priority</code> Pause at every priority window</label></div>`;
 }
 export function guidedPanel(s) {
   const {game, selected, blocks, blocker, guidance} = s;
@@ -97,8 +130,7 @@ export function tutorialText(s) {
   return '<strong>Keep a Response ready.</strong> Spending all your compute leaves you unable to respond. Click any card to see its rules and security lesson.';
 }
 export function battlefield(s) {
-  const {game, versus, inspectorOpen, tutorial, pauseAll, guidance} = s;
-  const can = game.actor() === 0 && game.winner === null;
+  const {game, versus, inspectorOpen, tutorial, guidance} = s;
   return `<div class="workspace ${inspectorOpen ? 'inspector-open' : ''} ${guidance.enabled ? 'has-guidance' : ''}">${guidedPanel(s)}<section class="table" aria-label="Game arena"><div class="match-top"><div><div class="eyebrow">${poolEyebrow(game)} / ${versus ? 'VERSUS' : 'TRAINING'} MATCH</div><h2>Turn ${game.turn} <span class="muted">/ ${PHASE_NAMES[game.phase]}</span></h2>${versus ? versusUi.matchStatus(versus, Date.now()) : ''}</div><div class="toolbar"><button class="small" id="inspectorToggle" aria-expanded="${inspectorOpen}" aria-controls="intelligence">${inspectorOpen ? 'Close details' : 'Card details & log'}</button><button class="small" id="quit">Leave match</button></div></div>${tutorial ? `<div class="notice tutorial-step"><div>${tutorialText(s)}</div><button class="small" id="hideTutorial" aria-label="Hide tutorial">×</button></div>` : ''}<div class="player-end opponent-end">${playerBar(s, 1)}${resources(s, 1)}</div><section class="battle-lane opponent-lane" aria-label="Opponent battlefield">${zone(s, 1)}</section><div class="combat-divider"><span>${COMBAT_STEPS.includes(game.phase) ? 'COMBAT' : 'BREACH / DEFEND'}</span></div><section class="battle-lane your-lane" aria-label="Your battlefield">${zone(s, 0)}</section><div class="player-end your-end">${resources(s, 0)}${playerBar(s, 0)}</div>${
     game.stack.length
       ? `<div class="effect-stack" aria-label="Pending effects"><div class="eyebrow">STACK / RESOLVES TOP FIRST</div>${[
@@ -111,7 +143,7 @@ export function battlefield(s) {
           )
           .join('')}</div>`
       : ''
-  }<div class="command-area"><div class="phase-bar" aria-label="Turn phases">${['Start', 'Main I', 'Combat', 'Main II', 'End'].map((t, i) => `<span class="phase ${phaseGroup(s) === i ? 'current' : ''}" ${phaseGroup(s) === i ? 'aria-current="step"' : ''}>${t}</span>`).join('')}</div><div class="action-bar"><div class="hint" aria-live="polite">${hint(s)}</div>${game.winner !== null ? '<button class="primary" id="recap">View recap</button>' : `<button class="primary" id="advance" ${!can ? 'disabled' : ''}>${buttonLabel(s)}</button>`}</div></div><div class="hand-dock"><div class="zone-head"><span>Your hand / ${game.players[0].hand.length} cards · Drag to your battlefield</span><button class="text-button" id="tutorialToggle">${tutorial ? 'Hide tips' : 'Quick tips'}</button></div><div class="hand">${game.players[0].hand.length ? game.players[0].hand.map(c => card(s, c, {zone: 'hand'})).join('') : '<p class="muted">Your hand is empty. Draw a card on your next turn.</p>'}</div><label class="muted priority-option"><input type="checkbox" id="pauseAll" ${pauseAll ? 'checked' : ''}> Pause at every priority window</label></div></section><aside class="sidebar" id="intelligence" ${inspectorOpen ? '' : 'hidden'}><div class="eyebrow">CARD INTELLIGENCE</div><div id="inspection">${inspection(s)}</div><div class="log"><div class="eyebrow">MATCH LOG</div><ol>${game.log
+  }${commandArea(s)}<div class="hand-dock"><div class="zone-head"><span>Your hand / ${game.players[0].hand.length} cards · Drag to your battlefield</span><button class="text-button" id="tutorialToggle">${tutorial ? 'Hide tips' : 'Quick tips'}</button></div><div class="hand">${game.players[0].hand.length ? game.players[0].hand.map(c => card(s, c, {zone: 'hand'})).join('') : '<p class="muted">Your hand is empty. Draw a card on your next turn.</p>'}</div></div></section><aside class="sidebar" id="intelligence" ${inspectorOpen ? '' : 'hidden'}><div class="eyebrow">CARD INTELLIGENCE</div><div id="inspection">${inspection(s)}</div><div class="log"><div class="eyebrow">MATCH LOG</div><ol>${game.log
     .slice(0, 14)
     .map(l => `<li>${esc(l)}</li>`)
     .join('')}</ol></div></aside></div>`;
