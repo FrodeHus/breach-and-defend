@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Seat} from '../dist/remote.mjs';
-import {versusGame, viewFor} from '../dist/protocol.mjs';
+import {Seat} from '../public/remote.mjs';
+import {versusGame, viewFor} from '../public/protocol.mjs';
 
 const CLOCK = {kind: 'opening', owner: null, left: 60000, paused: false};
 function seat(options = {}) {

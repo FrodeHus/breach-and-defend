@@ -1,13 +1,13 @@
 // tests/session.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {HostSession, GuestSession, newMatchId, validMatchId} from '../dist/session.mjs';
-import {createStore} from '../dist/storage.mjs';
+import {HostSession, GuestSession, newMatchId, validMatchId} from '../public/session.mjs';
+import {createStore} from '../public/storage.mjs';
 import {fakeNet} from './helpers/fake-net.mjs';
 import {fakeTime, memoryBackend} from './helpers/versus.mjs';
 import {choose, perform} from './helpers/policy.mjs';
-import {redactEntry} from '../dist/protocol.mjs';
-import {audit} from '../dist/audit.mjs';
+import {redactEntry} from '../public/protocol.mjs';
+import {audit} from '../public/audit.mjs';
 
 const flush = async (n = 5) => { for (let i = 0; i < n; i++) await new Promise(r => setImmediate(r)); };
 const retry = () => new Promise(r => setImmediate(r));

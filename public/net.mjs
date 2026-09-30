@@ -1,3 +1,4 @@
+// @ts-check
 // Peer-to-peer transport over PeerJS. PeerJS loads only when a versus match starts.
 const PEERJS_URL = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js';
 const PEERJS_SRI = 'sha384-x0YgkOr/3UOZP2CRDxGW9e0Q+2Qjyr3uJrm4xU32Y7ZCNAo7Cc7bjhrZMi/dwczu';
@@ -65,7 +66,8 @@ export function wrap(conn, onClosed = () => {}) {
   const c = {
     send: msg => { if (conn.open) for (const f of toFrames(msg, ++sent)) conn.send(f); },
     close: () => conn.close(),
-    onmessage() {},
+    /** @param {any} msg */
+    onmessage(msg) {},
     onclose() {},
   };
   const done = () => { if (closed) return; closed = true; onClosed(); c.onclose(); };

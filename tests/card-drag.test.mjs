@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Game} from '../dist/engine.mjs';
-import {CARDS} from '../dist/cards.mjs';
-import {dropHandCard} from '../dist/card-drag.mjs';
+import {Game} from '../public/engine.mjs';
+import {CARDS} from '../public/cards.mjs';
+import {dropHandCard} from '../public/card-drag.mjs';
 
 function setup(name) {
   const game = new Game();

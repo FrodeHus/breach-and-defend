@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Game} from '../dist/engine.mjs';
-import {CARDS} from '../dist/cards.mjs';
+import {Game} from '../public/engine.mjs';
+import {CARDS} from '../public/cards.mjs';
 
 function setup(name) {
   const g = new Game();

@@ -1,4 +1,4 @@
-// dist/landing.mjs
+// public/landing.mjs
 // Arena start screen: splash hero, then mode and side. Pure strings, so it can be tested without a browser.
 export const MODES = [
   {id: 'solo', eyebrow: 'TRAINING', title: 'Vs. computer', body: 'Learn the rules against a local opponent that only sees the public board. Turn on the guided first game if you are new.', tags: ['1 player', '15–25 min', 'Works offline']},

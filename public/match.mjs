@@ -1,3 +1,4 @@
+// @ts-check
 import {Game} from './engine.mjs';
 import {actionFields, applyAction, seedHex, timeoutAction, unflipAction, versusGame, viewFor} from './protocol.mjs';
 
@@ -14,7 +15,8 @@ export class Match {
 
   constructor(state, {now = Date.now, schedule = (fn, ms) => setTimeout(fn, ms), cancel = h => clearTimeout(h)} = {}) {
     const {hostFaction, hostSecret, guestSecret, seedCommit} = state;
-    Object.assign(this, {hostFaction, hostSecret, guestSecret, seedCommit, now, schedule, cancel});
+    this.hostFaction = hostFaction; this.hostSecret = hostSecret; this.guestSecret = guestSecret; this.seedCommit = seedCommit;
+    this.now = now; this.schedule = schedule; this.cancel = cancel;
     this.game = Game.fromJSON(state.game);
     this.log = state.log ?? [];
     this.lastSeq = state.lastSeq ?? 0;
@@ -22,6 +24,7 @@ export class Match {
     this.guestConnected = false;
     this.timer = null;
     this.clock = state.clock ? {...state.clock, running: null} : freshClock();
+    /** @type {(change: {entry?: object}) => void} */
     this.onChange = () => {};
   }
 
