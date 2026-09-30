@@ -145,6 +145,11 @@ for (const {faction, name, cost, type, text, ...extra} of PERSISTENT_THREATS)
   add('persistent-threats', faction, name, cost, type, text, extra);
 export const CARDS = cards;
 export const BY_ID = Object.fromEntries(cards.map(c => [c.id, c]));
+// A card's or token's lore fields, from LORE by name.
+const loreOf = name => {
+  const lore = LORE[name];
+  return {flavor: lore?.flavor, flavorBy: lore?.by, lesson: lore?.learn};
+};
 // Tokens are created during play: they are looked up by id like cards, but are never in CARDS or a deck.
 export const TOKENS = {
   backdoor: {
@@ -167,6 +172,7 @@ export const TOKENS = {
       },
     ],
     art: 'cards/backdoor',
+    ...loreOf('Backdoor'),
   },
   indicator: {
     id: 'pt-indicator',
@@ -187,9 +193,13 @@ export const TOKENS = {
       },
     ],
     art: 'cards/indicator',
+    ...loreOf('Indicator'),
   },
 };
-for (const t of Object.values(TOKENS)) BY_ID[t.id] = t;
+for (const t of Object.values(TOKENS)) {
+  if (!t.lesson && SETS[t.set].released) throw Error(`${t.name} has no lore.`);
+  BY_ID[t.id] = t;
+}
 // The shipped starters: 24 infrastructure, two of each unit, one of everything else. Order matters: seeded shuffles
 // start from it, so changing it would change every saved and audited match.
 function starter(faction) {

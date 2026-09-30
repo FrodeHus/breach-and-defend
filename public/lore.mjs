@@ -302,4 +302,163 @@ export const LORE = {
     learn:
       'Misconfigurations, such as open storage, default passwords, and exposed admin interfaces, cause many breaches. Configuration audits compare systems against secure baselines like the CIS Benchmarks and flag risky changes. Automated, continuous checks catch drift before an attacker does.',
   },
+  // Persistent Threats — red
+  'Ghost Relay': {
+    flavor: 'Burn the relay before they map it. We have spares.',
+    by: 'Infrastructure handler',
+    learn:
+      'Campaigns often rotate the servers and domains they rely on, abandoning one before defenders can block it. Rapidly changing infrastructure makes simple blocklists age quickly. Defenders respond with behavior-based detection, domain reputation and fast sharing of indicators, so each discarded relay still teaches them something about the campaign.',
+  },
+  'Reconnaissance Outpost': {
+    flavor: 'Nothing here touches the target. Not yet.',
+    by: 'Outpost analyst',
+    learn:
+      'Much reconnaissance happens without touching a target at all: public records, job postings, certificate logs and exposed service banners reveal a surprising amount. Organizations reduce this exposure by inventorying what they publish, limiting unnecessary detail, and checking their own attack surface the way an outsider would.',
+  },
+  'Attack Surface Mapper': {
+    flavor: 'Every forgotten server is a door someone left unlocked.',
+    by: 'Surface mapper',
+    learn:
+      'An attack surface is every system, service and account reachable from outside. Forgotten test servers, old subdomains and unmanaged cloud resources are common weak points because nobody patches what nobody knows about. Attack surface management gives defenders a continuous inventory, so exposed assets are found and fixed first.',
+  },
+  'Beachhead Scout': {
+    flavor: 'Get one foot in. The rest of the body follows.',
+    by: 'Entry team lead',
+    learn:
+      'Initial access is the first point where an intruder gets inside, often through one weak account, an unpatched edge device or a phishing message. Attackers treat it as a beachhead for everything after. Multi-factor authentication, prompt patching of internet-facing systems and alerts on unusual first logins make a single foothold much harder to keep quiet.',
+  },
+  'Staged Loader': {
+    flavor: 'The first stage is harmless. That is the point.',
+    by: 'Malware operator',
+    learn:
+      'Many infections arrive in stages. A small loader establishes itself first, then fetches a heavier payload later, so the first file looks almost harmless. Defenders counter staging with application allow-listing, endpoint detection that watches what a process does rather than what it looks like, and blocking unexpected downloads.',
+  },
+  'Dead-Drop Courier': {
+    flavor: 'Leave it where everyone posts. No one reads the comments.',
+    by: 'Courier contact',
+    learn:
+      'A dead drop hides instructions or data inside legitimate public services, such as a shared document or a social media profile, so malicious traffic blends in with ordinary use. Defenders look for unusual patterns, like a server reading a public page on a fixed schedule. Even a lost channel can reveal how a campaign communicates.',
+  },
+  'Access Broker': {
+    flavor: 'I do not break in. I sell the keys to people who do.',
+    by: 'Access broker',
+    learn:
+      'Initial access brokers specialize in getting into organizations and selling that access to other criminal groups, such as ransomware operators. One quiet compromise can later become a very loud attack. Monitoring for stolen credentials, removing stale accounts and investigating small intrusions promptly all reduce what a broker has to sell.',
+  },
+  'Dormant Implant': {
+    flavor: 'Patience is a feature, not a bug.',
+    by: 'Implant author',
+    learn:
+      'Persistence mechanisms let an intruder survive reboots and password changes, and some stay quiet for weeks before doing anything visible. Scheduled tasks, startup entries and new services are common hiding places. Defenders regularly review what starts automatically on their systems and compare it with a known-good baseline.',
+  },
+  'Living-off-the-Land Operator': {
+    flavor: 'Why bring tools when the house already has them?',
+    by: 'Intrusion operator',
+    learn:
+      'Living off the land means misusing tools that already exist on a system, such as scripting shells and administration utilities, instead of bringing obvious malware. Because the tools are legitimate, simple antivirus often ignores them. Defenders log how built-in tools are used, restrict who can run them, and alert on unusual command lines.',
+  },
+  'Redundant Handler': {
+    flavor: 'Cut one line and the call comes in on another.',
+    by: 'Campaign handler',
+    learn:
+      'Persistent campaigns often keep more than one way back in, like a second remote-access tool or a hidden account. Removing only the obvious foothold invites a quick return. Effective incident response scopes the whole intrusion first, removes every known access path at the same time, and keeps watching for reinfection afterwards.',
+  },
+  'Coordinated Intrusion Lead': {
+    flavor: 'Three quiet doors at once make one loud problem.',
+    by: 'Operations lead',
+    learn:
+      'Organized intrusion groups divide work across operators and coordinate timing, using several footholds together once the campaign is ready. Lateral movement from one system to others turns a small incident into a large one. Network segmentation, limited administrative access and alerts on unusual internal connections keep one machine from reaching the rest.',
+  },
+  'Long-Haul Campaign': {
+    flavor: 'We measure this operation in quarters, not days.',
+    by: 'Campaign director',
+    learn:
+      'Advanced persistent threats are well-resourced groups that pursue a target for months or years and return after setbacks. They combine visible attacks with quieter supporting access. Defending against them relies on layered controls, threat intelligence about their known behavior, and treating each incident as possibly part of a larger campaign.',
+  },
+  'Map Trust Relationships': {
+    flavor: 'Their partner has a quieter door and a key to theirs.',
+    by: 'Recon lead',
+    learn:
+      'Organizations trust suppliers, partners and connected domains, and those trust relationships can become routes in. An attacker who compromises a smaller partner may inherit its access. Defenders inventory third-party connections, limit what each partner can reach and review trust settings regularly. Reuse in the game represents mapping work paying off again later.',
+  },
+  'Seed Access': {
+    flavor: 'Plant enough seeds and one of them will grow.',
+    by: 'Access planner',
+    learn:
+      'Intruders often plant several small footholds early, such as extra accounts or access tokens, so losing one does not end the campaign. Each one is easy to miss on its own. Defenders review newly created accounts and credentials, alert on changes to privileged groups, and expire access that nobody can explain.',
+  },
+  'Coordinated Pressure': {
+    flavor: 'Hit the same wall harder. It will give.',
+    by: 'Pressure team',
+    learn:
+      'Some attacks succeed simply by applying more resources than a defense was built to absorb, such as a denial-of-service flood. Defenders plan capacity, use services that absorb traffic spikes, and rehearse escalation so a surge does not overwhelm them. Overclock in the game represents committing extra resources for a bigger effect.',
+  },
+  'Burn the Channel': {
+    flavor: 'We will never use that route again. Make it count.',
+    by: 'Operation lead',
+    learn:
+      'Attackers sometimes spend a valuable capability, such as an undisclosed vulnerability or a trusted channel, knowing it will be discovered once used. Afterwards defenders can patch, block and share details, so the same trick rarely works twice. Fast patching and shared threat intelligence make every burned channel expensive.',
+  },
+  'Cascading Outage': {
+    flavor: 'Pull one dependency and watch the whole stack fall.',
+    by: 'Disruption specialist',
+    learn:
+      'Modern systems depend on each other, so a failure in one shared service, such as sign-in or name resolution, can cascade into many outages at once, sometimes including the attacker' +
+      "'" +
+      's own tools. Mapping dependencies and building redundancy for critical services limit how far a failure spreads. Overclock in the game represents a broader, costlier disruption.',
+  },
+  'Adaptive Payload': {
+    flavor: 'Tell me what it runs on. I will ship the right module.',
+    by: 'Payload engineer',
+    learn:
+      'Modular malware can download new components after infection and adapt to what it finds. The core stays small while its capability grows. Defenders watch for processes that suddenly load new code or contact new servers, and contain infected systems before extra modules arrive. Overclock in the game represents investing in a larger upgrade.',
+  },
+  'Exploit the Handoff': {
+    flavor: 'Hit them during the shift change. Nobody owns the alert.',
+    by: 'Timing specialist',
+    learn:
+      'Transitions create gaps: shift changes, maintenance windows, migrations and handovers between teams can leave an alert without a clear owner. Attackers often time activity for nights, weekends and holidays. Clear handover procedures, round-the-clock monitoring and extra care during changes keep busy moments from becoming blind spots.',
+  },
+  'Signal Spoof': {
+    flavor: 'Give them a thousand alarms. They will miss the real one.',
+    by: 'Deception operator',
+    learn:
+      'Attackers can generate noise, such as spoofed traffic or decoy activity, to distract defenders and exhaust their attention. Alert fatigue makes it easier to dismiss a real warning. Defenders tune detections to cut false positives, group related alerts into single incidents, and prioritize by impact so distractions do not bury the signal.',
+  },
+  'Reopened Connection': {
+    flavor: 'Pull back, let them relax, then dial in again.',
+    by: 'Access operator',
+    learn:
+      'When intruders sense detection, they may pause, remove visible tools and return later through the same weakness if it was never fixed. Closing an incident too early invites that return. Defenders fix the root cause, reset affected credentials and keep monitoring after recovery. Reuse in the game represents an old access route used one more time.',
+  },
+  'Burn Credentials': {
+    flavor: 'If it can be traced back to us, it does not exist.',
+    by: 'Cleanup crew',
+    learn:
+      'Intruders may destroy artifacts they no longer need, such as used credentials, tools and logs, to hinder investigators. Deleting evidence often leaves its own traces, like gaps in logging. Defenders send logs to a separate, protected system as they are created, so records survive a wiped machine, and treat missing logs as a warning sign.',
+  },
+  'Disposable Cache': {
+    flavor: 'Use it once, wipe it, move on.',
+    by: 'Tooling handler',
+    learn:
+      'Campaigns often keep tools and stolen data in temporary places, such as rented cloud storage or a compromised file share, and abandon them after use. Short-lived infrastructure is hard to block in advance. Defenders watch for unusual storage use, large transfers to unexpected locations and accounts on cloud services the organization does not use.',
+  },
+  'Exfiltration Buffer': {
+    flavor: 'Collect quietly, compress tightly, leave slowly.',
+    by: 'Exfiltration operator',
+    learn:
+      'Before data is stolen, attackers often gather it in one place and compress it, then send it out in small amounts to avoid notice. That staging is a chance to catch them. Data loss prevention, alerts on unusual archive creation and monitoring of outbound traffic volume help defenders stop exfiltration while there is still time.',
+  },
+  'Distributed Command': {
+    flavor: 'No single server to seize. No single head to cut off.',
+    by: 'Command architect',
+    learn:
+      'Command-and-control is how attackers send instructions to compromised systems. Distributed designs spread that control across many servers, so taking one down does not stop the campaign. Defenders focus on behavior common to all of them, such as regular check-in traffic, and coordinate takedowns with providers and law enforcement.',
+  },
+  Backdoor: {
+    flavor: 'Keep it quiet, keep it open, keep it ready.',
+    by: 'Persistence engineer',
+    learn:
+      'A backdoor is any hidden way back into a system that bypasses normal sign-in, such as an unauthorized account or a remote-access tool. Intruders plant them so losing one entry point does not end a campaign. Defenders audit accounts and remote-access software against known-good baselines. Backdoor tokens in the game abstract these footholds into a spendable resource.',
+  },
 };
