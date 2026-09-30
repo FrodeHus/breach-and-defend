@@ -9,6 +9,7 @@ import {choose, perform} from './helpers/policy.mjs';
 import {redactEntry, timeoutAction} from '../public/protocol.mjs';
 import {OPENING_MS} from '../public/match.mjs';
 import {audit} from '../public/audit.mjs';
+import {POOLS} from '../public/cards.mjs';
 
 const flush = async (n = 5) => {
   for (let i = 0; i < n; i++) await new Promise(r => setImmediate(r));
@@ -33,8 +34,22 @@ const secrets = seed => {
   let i = 0;
   return () => (seed * 1_000_000 + ++i).toString(16).padStart(32, '0');
 };
-async function pair({hostStore = store(), guestStore = store(), net = fakeNet(), seed = 1, clock = fakeTime()} = {}) {
-  const host = await HostSession.create({net, store: hostStore, hostFaction: 'blue', clock, random: secrets(seed)});
+async function pair({
+  hostStore = store(),
+  guestStore = store(),
+  net = fakeNet(),
+  seed = 1,
+  clock = fakeTime(),
+  pool,
+} = {}) {
+  const host = await HostSession.create({
+    net,
+    store: hostStore,
+    hostFaction: 'blue',
+    pool,
+    clock,
+    random: secrets(seed),
+  });
   const waiting = host.status;
   const guest = await GuestSession.join({
     net,
@@ -823,4 +838,46 @@ test('a guest timed out by the referee audits verified; one recorded early is ca
   await finish(cheat);
   assert.equal(cheat.guest.audit.result, 'tampered');
   assert.match(cheat.guest.audit.reason, /before your clock ran out/);
+});
+
+const mirror = t => {
+  POOLS.mirror = {name: 'Mirror', sets: ['first-breach'], deck: f => [...POOLS['first-breach'].deck(f)].reverse()};
+  t.after(() => delete POOLS.mirror);
+};
+
+test('the invite carries the card pool to the guest, and the match verifies', async t => {
+  mirror(t);
+  const ctx = await start(await pair({pool: 'mirror'}));
+  assert.equal(ctx.host.pool, 'mirror');
+  assert.equal(ctx.guest.pool, 'mirror');
+  assert.equal(ctx.guest.seat.game.pool, 'mirror');
+  await drive(ctx, () => [ctx.host.seat, ctx.guest.seat], 80);
+  if (ctx.host.seat.game.winner === null) await ctx.host.seat.game.concede(0);
+  await settle(ctx);
+  assert.deepEqual(ctx.guest.audit, {result: 'verified'});
+});
+
+test('a First Breach invite reports its pool', async () => {
+  const ctx = await pair();
+  assert.equal(ctx.host.pool, 'first-breach');
+  assert.equal(ctx.guest.pool, 'first-breach');
+});
+
+test('a guest offered a pool it does not know stops with a clear error', async t => {
+  mirror(t);
+  const net = fakeNet();
+  const host = await HostSession.create({net, store: store(), hostFaction: 'blue', pool: 'mirror', clock: fakeTime()});
+  delete POOLS.mirror; // This guest's version of the game doesn't have the pool.
+  const guest = await GuestSession.join({net, store: store(), matchId: host.matchId, retry});
+  await settle({host, guest, net});
+  assert.equal(guest.status, 'error');
+  assert.equal(guest.error, 'unknown-pool');
+  assert.equal(host.match, null, 'no match was seeded');
+});
+
+test('a host cannot open an invite for an unknown pool', async () => {
+  await assert.rejects(
+    HostSession.create({net: fakeNet(), store: store(), hostFaction: 'blue', pool: 'nope', clock: fakeTime()}),
+    /Unknown card pool/,
+  );
 });

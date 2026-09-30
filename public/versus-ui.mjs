@@ -1,6 +1,7 @@
 // public/versus-ui.mjs
 // Markup for play-a-friend screens. Pure strings, so it can be tested without a browser.
 import {esc} from './html.mjs';
+import {DEFAULT_POOL, POOLS} from './cards.mjs';
 
 export const ERRORS = {
   server: 'Couldn’t reach the matchmaking server. Try again, or play the computer.',
@@ -11,6 +12,8 @@ export const ERRORS = {
   'id-taken': 'This match is still open in another tab, or is closing. Wait a few seconds and try again.',
   impostor: 'Couldn’t confirm this is the same opponent as before, so the match was stopped.',
   replaced: 'This match is open in another tab or window.',
+  'unknown-pool':
+    'This match uses cards this version of the game doesn’t have. Reload the page to update, then open the link again.',
   internal: 'Something went wrong on this page, so the match was stopped. Reloading usually picks it up again.',
 };
 export const errorMessage = code => ERRORS[code] ?? ERRORS['no-connection'];
@@ -20,17 +23,21 @@ export function lobby(session, {url = '', canShare = false, storageOk = true} = 
   const page = (title, body, actions) =>
     `<section class="versus-lobby" aria-live="polite"><div class="eyebrow">FIRST BREACH / PLAY A FRIEND</div><h1>${title}</h1>${body}<div class="toolbar">${actions}</div></section>`;
   const home = '<button id="versusHome">Back to arena</button>';
+  const pool =
+    session.pool && session.pool !== DEFAULT_POOL
+      ? `<p class="lobby-pool">Cards: ${esc(POOLS[session.pool]?.name ?? session.pool)}</p>`
+      : '';
   switch (session.status) {
     case 'waiting':
       return page(
         'Send this link to your opponent.',
-        `<p class="muted">They’ll play the other faction. Keep this tab open until they join.</p><div class="invite-link"><label class="sr-only" for="inviteLink">Invite link</label><input id="inviteLink" readonly value="${esc(url)}"><button class="primary" id="copyInvite">Copy link</button>${canShare ? '<button id="shareInvite">Share…</button>' : ''}</div>${storageOk ? '' : '<p class="notice">This browser is blocking site storage, so this match can’t survive a reload. Keep this tab open.</p>'}<p class="muted" role="status">Waiting for your opponent…</p>`,
+        `${pool}<p class="muted">They’ll play the other faction. Keep this tab open until they join.</p><div class="invite-link"><label class="sr-only" for="inviteLink">Invite link</label><input id="inviteLink" readonly value="${esc(url)}"><button class="primary" id="copyInvite">Copy link</button>${canShare ? '<button id="shareInvite">Share…</button>' : ''}</div>${storageOk ? '' : '<p class="notice">This browser is blocking site storage, so this match can’t survive a reload. Keep this tab open.</p>'}<p class="muted" role="status">Waiting for your opponent…</p>`,
         '<button id="cancelVersus">Cancel match</button>',
       );
     case 'pledge':
       return page(
         'Your opponent is here.',
-        '<p class="muted">Both players take the honor pledge before the match starts.</p>',
+        `${pool}<p class="muted">Both players take the honor pledge before the match starts.</p>`,
         '<button class="primary" id="showPledge">Take the pledge</button><button id="cancelVersus">Leave match</button>',
       );
     case 'pledged':
