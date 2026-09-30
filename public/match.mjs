@@ -5,13 +5,23 @@ import {actionFields, applyAction, seedHex, timeoutAction, unflipAction, versusG
 export const TURN_MS = 90_000,
   RESPONSE_MS = 20_000,
   OPENING_MS = 60_000;
-const freshClock = () => ({
+export const freshClock = () => ({
   turn: 1,
   turnLeft: TURN_MS,
   responseLeft: RESPONSE_MS,
   openingLeft: OPENING_MS,
   running: null,
 });
+
+// The clock rule, shared with the guest's audit: which clock runs for the player who must act now, resetting the
+// turn clock on a new turn and the response clock after each move (`fresh`). Returns that clock's key in `c`.
+export function runningClock(c, game, fresh) {
+  if (game.phase === 'opening') return 'openingLeft';
+  if (c.turn !== game.turn) Object.assign(c, {turn: game.turn, turnLeft: TURN_MS});
+  const kind = game.actor() === game.active ? 'turnLeft' : 'responseLeft';
+  if (kind === 'responseLeft' && fresh) c.responseLeft = RESPONSE_MS;
+  return kind;
+}
 
 // Host-side referee: every change to a versus match, from either player, goes through here.
 export class Match {
@@ -107,12 +117,7 @@ export class Match {
     const g = this.game,
       c = this.clock;
     if (!this.started || !this.guestConnected || this.ended) return;
-    let kind = 'openingLeft';
-    if (g.phase !== 'opening') {
-      if (c.turn !== g.turn) Object.assign(c, {turn: g.turn, turnLeft: TURN_MS});
-      kind = g.actor() === g.active ? 'turnLeft' : 'responseLeft';
-      if (kind === 'responseLeft' && fresh) c.responseLeft = RESPONSE_MS;
-    }
+    const kind = runningClock(c, g, fresh);
     c.running = {kind, since: this.now()};
     this.timer = this.schedule(() => this.expire(), c[kind]);
   }

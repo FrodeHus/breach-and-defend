@@ -64,7 +64,7 @@ On the arena start screen, choose **Play a friend**, pick your side and send the
 - **Connection:** Browsers connect directly with WebRTC through the free public PeerJS signaling server. No accounts, keys or backend are required, so this works on GitHub Pages. Some corporate or mobile networks block direct connections; there is no relay server.
 - **Clocks:** 60 seconds to keep an opening hand, 90 seconds per turn, and 20 seconds per response. When time runs out the game passes, skips attacks or blocks, or discards the costliest cards for you.
 - **Reconnecting:** Either player can reload or lose connection and continue. The match pauses, including the clocks, until both are back. Leaving the match concedes.
-- **Fair play:** The host's browser runs the rules. The guest never receives hidden cards, so the guest cannot cheat. When the match ends, the guest's browser replays every move from the revealed seed and the recap shows **Verified**, **Tampering detected**, or **Unverified**. Tampering with decks, hands or capacity is caught. Peeking at the other hand is not, which is what the honor pledge is for.
+- **Fair play:** The host's browser runs the rules. The guest never receives hidden cards, so the guest cannot cheat. When the match ends, the guest's browser replays every move from the revealed seed and the recap shows **Verified**, **Tampering detected**, or **Unverified**. Tampering with decks, hands or capacity is caught, and so is a timeout recorded for the guest before the guest's own clock ran out (within a 5-second allowance for network delay). Peeking at the other hand is not, which is what the honor pledge is for.
 
 ## Deliberate simplifications
 

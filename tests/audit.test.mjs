@@ -3,31 +3,37 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {audit} from '../public/audit.mjs';
 import {Match} from '../public/match.mjs';
-import {digest, randomHex, sha256Hex, unflipAction, viewFor} from '../public/protocol.mjs';
+import {digest, randomHex, sha256Hex, timeoutAction, unflipAction, viewFor} from '../public/protocol.mjs';
+import {OPENING_MS, TURN_MS} from '../public/match.mjs';
 import {choose} from './helpers/policy.mjs';
 import {fakeTime} from './helpers/versus.mjs';
 
-// Plays a full match the way the guest would record it. `tamper` simulates a cheating host.
+// Plays a full match the way the guest would record it, including when each entry arrived by the match's fake
+// clock. `tamper` simulates a cheating host, or lets time pass.
 // Fixed secrets per seed, so every run plays the same games.
 const secret = (seed, who) => (seed * 2 + who).toString(16).padStart(32, '0');
 async function record(tamper = () => {}, seed = 1) {
   const hostSecret = secret(seed, 0),
     guestSecret = secret(seed, 1);
+  const time = fakeTime();
   const m = await Match.create(
     {hostFaction: 'blue', hostSecret, guestSecret, seedCommit: await sha256Hex(hostSecret)},
-    fakeTime(),
+    time,
   );
   const views = [],
-    sent = {};
+    sent = {},
+    timing = {startedAt: null, times: {}, gaps: []};
   let seq = 0;
   m.onChange = ({entry}) => {
     views[entry ? entry.n : 0] = m.view(1);
+    if (entry) timing.times[entry.n] = time.now();
   };
   m.connect(true);
   m.pledge(0);
   m.pledge(1);
+  timing.startedAt = time.now();
   for (let i = 0; i < 1500 && !m.ended; i++) {
-    tamper(m, i);
+    tamper(m, i, time);
     if (m.ended) break; // a tamper step may itself end the match
     const p = m.game.actor(),
       a = choose(m.game, p);
@@ -45,6 +51,7 @@ async function record(tamper = () => {}, seed = 1) {
     log: structuredClone(m.log),
     sent,
     digests: await Promise.all(views.map(digest)),
+    timing,
   };
 }
 
@@ -119,6 +126,67 @@ test('a guest move logged as a forged timeout is caught', async () => {
   const r = await audit(rec);
   assert.equal(r.result, 'tampered');
   assert.match(r.reason, /timeout/);
+});
+
+// Runs `fn` once, on the first step from `from` on where the guest must act outside the opening.
+const onGuestTurn = (from, fn) => {
+  let done = false;
+  return (m, i, time) => {
+    if (done || i < from || m.game.phase === 'opening' || m.game.actor() !== 1) return;
+    done = true;
+    fn(m, time);
+  };
+};
+// The guest drops for `ms` while the referee pauses the clock, then comes back. Returns the gap as the guest saw it.
+const disconnect = (m, time, ms) => {
+  const from = time.now();
+  m.connect(false);
+  time.advance(ms);
+  m.connect(true);
+  return [from, time.now()];
+};
+const guestTimeouts = rec => rec.log.filter(e => e.by === 1 && e.timeout).length;
+
+test('a timeout recorded for the guest before its clock ran out is caught', async () => {
+  const rec = await record(onGuestTurn(25, m => m.apply(1, timeoutAction(m.game, 1), null, true)));
+  assert.equal(guestTimeouts(rec), 1);
+  const r = await audit(rec);
+  assert.equal(r.result, 'tampered');
+  assert.match(r.reason, /before your clock ran out/);
+  // Without timing (a record saved before it was kept), only the move itself can be checked.
+  assert.deepEqual(await audit({...rec, timing: null}), {result: 'verified'});
+});
+
+test('honest guest timeouts verify, in the opening and after a disconnection', async () => {
+  const gaps = [];
+  const later = onGuestTurn(30, (m, time) => {
+    gaps.push(disconnect(m, time, 60_000));
+    time.advance(TURN_MS); // enough for either clock to run out
+  });
+  const rec = await record((m, i, time) => {
+    if (i === 0) time.advance(OPENING_MS); // both opening hands are kept by timeout
+    later(m, i, time);
+  });
+  rec.timing.gaps = gaps;
+  assert.ok(guestTimeouts(rec) >= 2);
+  assert.deepEqual(await audit(rec), {result: 'verified'});
+  // Counting the disconnection as clock time only makes the guest's copy expire sooner: still no false alarm.
+  assert.deepEqual(await audit({...rec, timing: {...rec.timing, gaps: []}}), {result: 'verified'});
+});
+
+test('a timeout recorded right after the guest reconnects is caught, since the clock was paused', async () => {
+  const gaps = [];
+  const rec = await record(
+    onGuestTurn(30, (m, time) => {
+      gaps.push(disconnect(m, time, 120_000));
+      m.apply(1, timeoutAction(m.game, 1), null, true);
+    }),
+  );
+  rec.timing.gaps = gaps;
+  assert.equal(guestTimeouts(rec), 1);
+  const r = await audit(rec);
+  assert.equal(r.result, 'tampered');
+  assert.match(r.reason, /before your clock ran out/);
 });
 
 test('a reused guest sequence number is caught', async () => {
