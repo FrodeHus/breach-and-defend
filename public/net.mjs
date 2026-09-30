@@ -2,7 +2,9 @@
 // Peer-to-peer transport over PeerJS. PeerJS loads only when a versus match starts.
 const PEERJS_URL = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js';
 const PEERJS_SRI = 'sha384-x0YgkOr/3UOZP2CRDxGW9e0Q+2Qjyr3uJrm4xU32Y7ZCNAo7Cc7bjhrZMi/dwczu';
-const CONNECT_MS = 20_000, ID_RETRY_MS = 3_000, ID_WAIT_MS = 30_000;
+const CONNECT_MS = 20_000,
+  ID_RETRY_MS = 3_000,
+  ID_WAIT_MS = 30_000;
 
 export const peerId = matchId => `bnd-${matchId}`;
 export const netError = code => Object.assign(Error(code), {code});
@@ -11,9 +13,17 @@ let loading = null;
 export function loadPeer() {
   if (globalThis.Peer) return Promise.resolve(globalThis.Peer);
   return (loading ??= new Promise((resolve, reject) => {
-    const script = Object.assign(document.createElement('script'), {src: PEERJS_URL, integrity: PEERJS_SRI, crossOrigin: 'anonymous'});
+    const script = Object.assign(document.createElement('script'), {
+      src: PEERJS_URL,
+      integrity: PEERJS_SRI,
+      crossOrigin: 'anonymous',
+    });
     script.onload = () => resolve(globalThis.Peer);
-    script.onerror = () => { loading = null; script.remove(); reject(netError('server')); };
+    script.onerror = () => {
+      loading = null;
+      script.remove();
+      reject(netError('server'));
+    };
     document.head.append(script);
   }));
 }
@@ -46,47 +56,82 @@ export function toFrames(msg, id, size = FRAME_CHARS) {
 // framed message is still incomplete. Frames of a message arrive in order on the reliable channel; a frame
 // out of sequence discards the partial message rather than delivering a corrupted one.
 export function fromFrames() {
-  let id = null, parts = [];
+  let id = null,
+    parts = [];
   return msg => {
     if (msg?.type !== FRAME) return msg;
-    if (!Number.isInteger(msg.n) || msg.n < 1 || msg.n > MAX_FRAMES || typeof msg.part !== 'string' || msg.part.length > FRAME_CHARS) throw RangeError('Invalid frame.');
-    if (msg.i === 0) { id = msg.id; parts = []; }
-    if (msg.id !== id || msg.i !== parts.length) { id = null; parts = []; return undefined; }
+    if (
+      !Number.isInteger(msg.n) ||
+      msg.n < 1 ||
+      msg.n > MAX_FRAMES ||
+      typeof msg.part !== 'string' ||
+      msg.part.length > FRAME_CHARS
+    )
+      throw RangeError('Invalid frame.');
+    if (msg.i === 0) {
+      id = msg.id;
+      parts = [];
+    }
+    if (msg.id !== id || msg.i !== parts.length) {
+      id = null;
+      parts = [];
+      return undefined;
+    }
     parts.push(msg.part);
     if (parts.length < msg.n) return undefined;
     const json = parts.join('');
-    id = null; parts = [];
+    id = null;
+    parts = [];
     return JSON.parse(json);
   };
 }
 
 export function wrap(conn, onClosed = () => {}) {
-  let closed = false, sent = 0;
+  let closed = false,
+    sent = 0;
   const receive = fromFrames();
   const c = {
-    send: msg => { if (conn.open) for (const f of toFrames(msg, ++sent)) conn.send(f); },
+    send: msg => {
+      if (conn.open) for (const f of toFrames(msg, ++sent)) conn.send(f);
+    },
     close: () => conn.close(),
     /** @param {any} msg */
     onmessage(msg) {},
     onclose() {},
   };
-  const done = () => { if (closed) return; closed = true; onClosed(); c.onclose(); };
+  const done = () => {
+    if (closed) return;
+    closed = true;
+    onClosed();
+    c.onclose();
+  };
   conn.on('data', data => {
     let msg;
-    try { msg = receive(data); } catch { return conn.close(); }
+    try {
+      msg = receive(data);
+    } catch {
+      return conn.close();
+    }
     if (msg !== undefined) c.onmessage(msg);
   });
   conn.on('close', done);
   // Close on error too, so the other end hears about it and reconnects instead of waiting on a dead channel.
-  conn.on('error', () => { try { conn.close(); } catch {} done(); });
+  conn.on('error', () => {
+    try {
+      conn.close();
+    } catch {}
+    done();
+  });
   return c;
 }
 
 export async function listen(matchId, {onconnection}) {
-  const Peer = await loadPeer(), started = Date.now();
+  const Peer = await loadPeer(),
+    started = Date.now();
   for (;;) {
-    try { return await register(Peer, matchId, onconnection); }
-    catch (e) {
+    try {
+      return await register(Peer, matchId, onconnection);
+    } catch (e) {
       // A reloaded host tab can briefly find its own old id still registered.
       if (e.code !== 'id-taken' || Date.now() - started > ID_WAIT_MS) throw e;
       await new Promise(r => setTimeout(r, ID_RETRY_MS));
@@ -98,9 +143,14 @@ function register(Peer, matchId, onconnection) {
   return new Promise((resolve, reject) => {
     const peer = new Peer(peerId(matchId));
     let open = false;
-    peer.on('open', () => { open = true; resolve({close: () => peer.destroy()}); });
+    peer.on('open', () => {
+      open = true;
+      resolve({close: () => peer.destroy()});
+    });
     peer.on('connection', conn => conn.on('open', () => onconnection(wrap(conn))));
-    peer.on('disconnected', () => { if (open && !peer.destroyed) peer.reconnect(); });
+    peer.on('disconnected', () => {
+      if (open && !peer.destroyed) peer.reconnect();
+    });
     peer.on('error', e => {
       if (open) return;
       peer.destroy();
@@ -114,9 +164,23 @@ export async function dial(matchId) {
   return new Promise((resolve, reject) => {
     const peer = new Peer();
     let settled = false;
-    const fail = code => { if (settled) return; settled = true; clearTimeout(timer); peer.destroy(); reject(netError(code)); };
+    const fail = code => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      peer.destroy();
+      reject(netError(code));
+    };
     const timer = setTimeout(() => fail('no-connection'), CONNECT_MS);
-    peer.on('error', e => fail(e.type === 'peer-unavailable' ? 'host-offline' : ['network', 'server-error', 'socket-error'].includes(e.type) ? 'server' : 'no-connection'));
+    peer.on('error', e =>
+      fail(
+        e.type === 'peer-unavailable'
+          ? 'host-offline'
+          : ['network', 'server-error', 'socket-error'].includes(e.type)
+            ? 'server'
+            : 'no-connection',
+      ),
+    );
     peer.on('open', () => {
       const conn = peer.connect(peerId(matchId), {reliable: true, serialization: 'json'});
       conn.on('open', () => {

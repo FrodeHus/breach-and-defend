@@ -1,19 +1,99 @@
-.lore{--accent:var(--blue);position:relative;margin:18px 0;perspective:900px}
-.lore.red{--accent:var(--red)}
-.lore-inner{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);border-left:3px solid var(--accent);border-radius:8px;background:var(--panel);padding:14px 16px 44px;min-height:112px;transform-origin:center;backface-visibility:hidden}
-.lore-face[hidden]{display:none}
-.lore-flavor{margin:0}
-.lore-flavor blockquote{margin:0;font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:1.02rem;line-height:1.5;color:var(--text)}
-.lore-flavor figcaption{margin-top:8px;font-size:.8125rem;color:var(--muted)}
-.lore-learn .eyebrow{color:var(--accent);margin-bottom:8px}
-.lore-learn p{margin:0;font-size:.875rem;line-height:1.6;color:var(--muted)}
-.lore-flip{position:absolute;right:8px;bottom:8px;display:inline-flex;align-items:center;gap:6px;padding:5px 10px;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);background:transparent;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:999px}
-.lore-flip:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 12%,transparent)}
-.lore-flip svg{transition:transform .3s}
-.lore-flip:hover svg{transform:rotate(180deg)}
-.sidebar .lore{margin:14px 0}
-.modal-card .lore{margin:12px 0 16px}
-.modal-card>.card{align-self:start}
-.modal-card .lore p{font-size:.875rem}
-.preview-flavor{margin:10px 3px 0;font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:.9375rem;line-height:1.45;color:var(--muted)}
-@media(prefers-reduced-motion:reduce){.lore-flip svg{transition:none}}
+.lore {
+  --accent: var(--blue);
+  position: relative;
+  margin: 18px 0;
+  perspective: 900px;
+}
+.lore.red {
+  --accent: var(--red);
+}
+.lore-inner {
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 14px 16px 44px;
+  min-height: 112px;
+  transform-origin: center;
+  backface-visibility: hidden;
+}
+.lore-face[hidden] {
+  display: none;
+}
+.lore-flavor {
+  margin: 0;
+}
+.lore-flavor blockquote {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 1.02rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+.lore-flavor figcaption {
+  margin-top: 8px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.lore-learn .eyebrow {
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.lore-learn p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.lore-flip {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 999px;
+}
+.lore-flip:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.lore-flip svg {
+  transition: transform 0.3s;
+}
+.lore-flip:hover svg {
+  transform: rotate(180deg);
+}
+.sidebar .lore {
+  margin: 14px 0;
+}
+.modal-card .lore {
+  margin: 12px 0 16px;
+}
+.modal-card > .card {
+  align-self: start;
+}
+.modal-card .lore p {
+  font-size: 0.875rem;
+}
+.preview-flavor {
+  margin: 10px 3px 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lore-flip svg {
+    transition: none;
+  }
+}

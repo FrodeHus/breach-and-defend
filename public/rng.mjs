@@ -2,7 +2,10 @@
 export function seededRandom(seed) {
   let [a, b, c, d] = Array.isArray(seed) ? seed : fromBytes(seed);
   const random = () => {
-    a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+    a >>>= 0;
+    b >>>= 0;
+    c >>>= 0;
+    d >>>= 0;
     let t = (a + b) | 0;
     a = b ^ (b >>> 9);
     b = (c + (c << 3)) | 0;

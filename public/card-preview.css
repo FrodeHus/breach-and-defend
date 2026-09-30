@@ -1,25 +1,125 @@
-.card-hover-preview{position:fixed;z-index:70;width:310px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;padding:9px;background:#f7fafc;color:#203b4c;border:1px solid #7497a9;border-radius:12px;box-shadow:0 18px 48px #102c3b55,0 3px 12px #102c3b30;transform-origin:center;cursor:pointer;overscroll-behavior:contain}
-.card-hover-preview[hidden]{display:none}
-.card-hover-preview .card{width:100%;max-width:none;margin:0;transform:none;box-shadow:none;padding:7px;cursor:inherit}
-.card-hover-preview .card-title{font-size:1.15rem;line-height:1.2;white-space:normal}
-.card-hover-preview .card-top{min-height:38px}
-.card-hover-preview .art{height:135px}
-.card-hover-preview .card-type{display:block;font-size:.875rem;margin:8px 3px}
-.card-hover-preview .card-text{display:block;font-size:1rem;line-height:1.45;min-height:0;padding:4px 3px 10px}
-.card-hover-preview .card-bottom{font-size:.8125rem}
-.card-hover-preview .stats{font-size:1.1rem}
-.card-hover-preview .preview-keywords{font-size:.875rem;line-height:1.45;margin:10px 3px 0}
-.preview-keywords p{margin:0 0 6px}
-.play-status{font-size:.9375rem;line-height:1.45;border:1px solid #d5b480;border-radius:6px;background:#fff6e6;color:#68430b;padding:10px 12px;margin:12px 0}
-.play-status strong{display:block;margin-bottom:4px}
-.play-status ul{padding-left:18px;margin:0}
-.play-status li+li{margin-top:5px}
-.play-status.ready{color:#135e4e;background:#eaf7f1;border-color:#99c8b8}
-.play-status.ready strong{margin:0}
-.card-hover-preview .play-status{font-size:.875rem;margin:10px 0 0}
-.preview-source{box-shadow:0 0 0 2px #096b78,0 5px 15px #17354440!important}
+.card-hover-preview {
+  position: fixed;
+  z-index: 70;
+  width: 310px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  padding: 9px;
+  background: #f7fafc;
+  color: #203b4c;
+  border: 1px solid #7497a9;
+  border-radius: 12px;
+  box-shadow:
+    0 18px 48px #102c3b55,
+    0 3px 12px #102c3b30;
+  transform-origin: center;
+  cursor: pointer;
+  overscroll-behavior: contain;
+}
+.card-hover-preview[hidden] {
+  display: none;
+}
+.card-hover-preview .card {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  transform: none;
+  box-shadow: none;
+  padding: 7px;
+  cursor: inherit;
+}
+.card-hover-preview .card-title {
+  font-size: 1.15rem;
+  line-height: 1.2;
+  white-space: normal;
+}
+.card-hover-preview .card-top {
+  min-height: 38px;
+}
+.card-hover-preview .art {
+  height: 135px;
+}
+.card-hover-preview .card-type {
+  display: block;
+  font-size: 0.875rem;
+  margin: 8px 3px;
+}
+.card-hover-preview .card-text {
+  display: block;
+  font-size: 1rem;
+  line-height: 1.45;
+  min-height: 0;
+  padding: 4px 3px 10px;
+}
+.card-hover-preview .card-bottom {
+  font-size: 0.8125rem;
+}
+.card-hover-preview .stats {
+  font-size: 1.1rem;
+}
+.card-hover-preview .preview-keywords {
+  font-size: 0.875rem;
+  line-height: 1.45;
+  margin: 10px 3px 0;
+}
+.preview-keywords p {
+  margin: 0 0 6px;
+}
+.play-status {
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  border: 1px solid #d5b480;
+  border-radius: 6px;
+  background: #fff6e6;
+  color: #68430b;
+  padding: 10px 12px;
+  margin: 12px 0;
+}
+.play-status strong {
+  display: block;
+  margin-bottom: 4px;
+}
+.play-status ul {
+  padding-left: 18px;
+  margin: 0;
+}
+.play-status li + li {
+  margin-top: 5px;
+}
+.play-status.ready {
+  color: #135e4e;
+  background: #eaf7f1;
+  border-color: #99c8b8;
+}
+.play-status.ready strong {
+  margin: 0;
+}
+.card-hover-preview .play-status {
+  font-size: 0.875rem;
+  margin: 10px 0 0;
+}
+.preview-source {
+  box-shadow:
+    0 0 0 2px #096b78,
+    0 5px 15px #17354440 !important;
+}
 /* The floating preview supplies the lift without moving the underlying hit area. */
-.hand .card.preview-source:hover,.hand .card.preview-source:focus-visible,
-.match-playing .hand .card.preview-source:hover,.match-playing .hand .card.preview-source:focus-visible{transform:none}
-@media(max-height:600px){.card-hover-preview .art{height:85px}}
-@media(prefers-reduced-motion:reduce){.hand .card,.opening-hand .card,.grid .card{transition:none!important}}
+.hand .card.preview-source:hover,
+.hand .card.preview-source:focus-visible,
+.match-playing .hand .card.preview-source:hover,
+.match-playing .hand .card.preview-source:focus-visible {
+  transform: none;
+}
+@media (max-height: 600px) {
+  .card-hover-preview .art {
+    height: 85px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hand .card,
+  .opening-hand .card,
+  .grid .card {
+    transition: none !important;
+  }
+}

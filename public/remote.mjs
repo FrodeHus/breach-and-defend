@@ -16,7 +16,9 @@ const INTENTS = {
 // whose rule queries work locally and whose moves are sent to the host as intents.
 export class Seat {
   constructor(send, {seq = 0, now = Date.now} = {}) {
-    this.send = send; this.seq = seq; this.now = now;
+    this.send = send;
+    this.seq = seq;
+    this.now = now;
     this.pending = new Map();
     this.game = null;
     this.clock = null;
@@ -30,7 +32,7 @@ export class Seat {
       Object.defineProperty(game, name, {
         value: (...args) => this.act(intent(...args)),
         enumerable: false,
-        configurable: true
+        configurable: true,
       });
     }
     this.game = game;

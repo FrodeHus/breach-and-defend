@@ -23,6 +23,6 @@ test('lore panel shows the chosen side and labels the flip button for the other'
 });
 
 test('lore panel escapes card text', () => {
-  const html = lorePanel({name:'<x>', faction:'red', flavor:'"a" & b', flavorBy:'<i>', lesson:'<script>'});
+  const html = lorePanel({name: '<x>', faction: 'red', flavor: '"a" & b', flavorBy: '<i>', lesson: '<script>'});
   assert.doesNotMatch(html, /<script>|<i>|<x>/);
 });

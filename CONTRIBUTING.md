@@ -23,6 +23,7 @@ cd breach-and-defend
 npm start   # serves the game at http://127.0.0.1:4173
 npm test    # rules, tutorial and 100 simulated matches
 npm run typecheck   # checks the files marked // @ts-check (downloads TypeScript)
+npm run format      # formats code with Prettier (downloads Prettier)
 ```
 
 Edit files in `public/` and refresh the browser.
@@ -32,7 +33,7 @@ Edit files in `public/` and refresh the browser.
 1. Fork the repo and create a branch from `main` (`fix/…`, `feat/…`, `docs/…`).
 2. Keep the rules engine (`public/engine.mjs`) independent of the UI.
 3. Add or update tests in `tests/` for rule and behaviour changes.
-4. Run `npm test` and `npm run typecheck`. Both must pass.
+4. Run `npm test`, `npm run typecheck` and `npm run format`. CI checks all three.
 5. Check the change in a browser, including keyboard navigation and a narrow
    (mobile) viewport if you touched the UI.
 6. Open a pull request and fill in the template.

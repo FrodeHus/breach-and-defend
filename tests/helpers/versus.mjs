@@ -6,8 +6,14 @@ export function fakeTime() {
   const timers = new Set();
   return {
     now: () => t,
-    schedule(fn, ms) { const h = {fn, at: t + Math.max(0, ms)}; timers.add(h); return h; },
-    cancel(h) { timers.delete(h); },
+    schedule(fn, ms) {
+      const h = {fn, at: t + Math.max(0, ms)};
+      timers.add(h);
+      return h;
+    },
+    cancel(h) {
+      timers.delete(h);
+    },
     advance(ms) {
       const end = t + ms;
       for (;;) {
@@ -26,18 +32,23 @@ let seq = 1000;
 export const act = (m, p, action) => m.submit(p, action, p === 1 ? ++seq : null);
 
 export async function newMatch(time = fakeTime()) {
-  const m = await Match.create({hostFaction: 'blue', hostSecret: 'a'.repeat(32), guestSecret: 'b'.repeat(32), seedCommit: 'c'.repeat(64)}, time);
+  const m = await Match.create(
+    {hostFaction: 'blue', hostSecret: 'a'.repeat(32), guestSecret: 'b'.repeat(32), seedCommit: 'c'.repeat(64)},
+    time,
+  );
   m.connect(true);
   return m;
 }
 export async function startedMatch(time) {
   const m = await newMatch(time);
-  m.pledge(0); m.pledge(1);
+  m.pledge(0);
+  m.pledge(1);
   return m;
 }
 export async function openedMatch(time) {
   const m = await startedMatch(time);
-  act(m, 0, {type: 'keep'}); act(m, 1, {type: 'keep'});
+  act(m, 0, {type: 'keep'});
+  act(m, 1, {type: 'keep'});
   return m;
 }
 
@@ -49,6 +60,8 @@ export function memoryBackend() {
     setItem: (k, v) => void map.set(k, String(v)),
     removeItem: k => void map.delete(k),
     key: i => [...map.keys()][i] ?? null,
-    get length() { return map.size; },
+    get length() {
+      return map.size;
+    },
   };
 }

@@ -1,18 +1,101 @@
 /* Full-size cards use the trading-card shape (63×88 mm, 5:7) with an MTG-style 11:8 art box and a text box that fills the rest.
    The fitted in-match hand and board keep their compact art tiles. */
-:is(.grid,.inspect,.modal-card,.card-hover-preview) .card{aspect-ratio:5/7;height:auto!important;min-height:0;align-self:start;display:flex;flex-direction:column;container-type:inline-size;padding:7px;border-width:2px;border-radius:12px}
-:is(.grid,.inspect,.modal-card,.card-hover-preview) .card-top{flex:none;min-height:0;padding:3px 4px 6px}
-:is(.grid,.inspect,.modal-card,.card-hover-preview) .art{flex:none;height:auto!important;aspect-ratio:11/8;border-radius:6px;background-position:center}
-:is(.grid,.inspect,.modal-card,.card-hover-preview) .card-type{flex:none;margin:6px 2px 5px;padding:0 4px 5px}
-:is(.grid,.inspect,.modal-card,.card-hover-preview) .card-text{display:block!important;flex:1 1 auto;min-height:0;overflow:auto;margin:0 2px;padding:5px 7px;border-radius:6px;font-size:clamp(.625rem,6.2cqi,1rem);line-height:1.35;background:color-mix(in srgb,var(--accent) 7%,#fff);border:1px solid color-mix(in srgb,var(--accent) 18%,transparent)}
-:is(.grid,.inspect,.modal-card,.card-hover-preview) .card-status{flex:none}
-:is(.grid,.inspect,.modal-card,.card-hover-preview) .card-bottom{flex:none;padding:6px 4px 1px}
-@media(min-width:761px){.grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}}
+:is(.grid, .inspect, .modal-card, .card-hover-preview) .card {
+  aspect-ratio: 5/7;
+  height: auto !important;
+  min-height: 0;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
+  padding: 7px;
+  border-width: 2px;
+  border-radius: 12px;
+}
+:is(.grid, .inspect, .modal-card, .card-hover-preview) .card-top {
+  flex: none;
+  min-height: 0;
+  padding: 3px 4px 6px;
+}
+:is(.grid, .inspect, .modal-card, .card-hover-preview) .art {
+  flex: none;
+  height: auto !important;
+  aspect-ratio: 11/8;
+  border-radius: 6px;
+  background-position: center;
+}
+:is(.grid, .inspect, .modal-card, .card-hover-preview) .card-type {
+  flex: none;
+  margin: 6px 2px 5px;
+  padding: 0 4px 5px;
+}
+:is(.grid, .inspect, .modal-card, .card-hover-preview) .card-text {
+  display: block !important;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  margin: 0 2px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  font-size: clamp(0.625rem, 6.2cqi, 1rem);
+  line-height: 1.35;
+  background: color-mix(in srgb, var(--accent) 7%, #fff);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+}
+:is(.grid, .inspect, .modal-card, .card-hover-preview) .card-status {
+  flex: none;
+}
+:is(.grid, .inspect, .modal-card, .card-hover-preview) .card-bottom {
+  flex: none;
+  padding: 6px 4px 1px;
+}
+@media (min-width: 761px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
 /* Everything on the face scales with the card's width, so narrow grids keep room for rules text. */
-:is(.grid,.inspect,.modal-card,.card-hover-preview) .card-title{font-size:clamp(.75rem,7cqi,1.3rem);line-height:1.1}
-:is(.grid,.inspect,.modal-card,.card-hover-preview) .cost{width:clamp(18px,10cqi,26px);height:clamp(18px,10cqi,26px);min-width:clamp(18px,10cqi,26px);font-size:clamp(.625rem,5cqi,.875rem)}
-:is(.grid,.inspect,.modal-card,.card-hover-preview) :is(.card-type,.card-bottom,.card-status){font-size:clamp(.5625rem,4.6cqi,.8125rem)}
-:is(.grid,.inspect,.modal-card,.card-hover-preview) .stats{font-size:clamp(.75rem,6cqi,1.1rem);padding:0 5px}
-@container (max-width:190px){.card .card-top{padding:1px 2px 4px}.card .card-type{margin:4px 1px 3px;padding-bottom:3px}.card .card-text{padding:3px 5px}.card .card-bottom{padding-top:3px}.card .art{aspect-ratio:8/5}}
+:is(.grid, .inspect, .modal-card, .card-hover-preview) .card-title {
+  font-size: clamp(0.75rem, 7cqi, 1.3rem);
+  line-height: 1.1;
+}
+:is(.grid, .inspect, .modal-card, .card-hover-preview) .cost {
+  width: clamp(18px, 10cqi, 26px);
+  height: clamp(18px, 10cqi, 26px);
+  min-width: clamp(18px, 10cqi, 26px);
+  font-size: clamp(0.625rem, 5cqi, 0.875rem);
+}
+:is(.grid, .inspect, .modal-card, .card-hover-preview) :is(.card-type, .card-bottom, .card-status) {
+  font-size: clamp(0.5625rem, 4.6cqi, 0.8125rem);
+}
+:is(.grid, .inspect, .modal-card, .card-hover-preview) .stats {
+  font-size: clamp(0.75rem, 6cqi, 1.1rem);
+  padding: 0 5px;
+}
+@container (max-width:190px) {
+  .card .card-top {
+    padding: 1px 2px 4px;
+  }
+  .card .card-type {
+    margin: 4px 1px 3px;
+    padding-bottom: 3px;
+  }
+  .card .card-text {
+    padding: 3px 5px;
+  }
+  .card .card-bottom {
+    padding-top: 3px;
+  }
+  .card .art {
+    aspect-ratio: 8/5;
+  }
+}
 /* Short screens keep the hover preview readable without scrolling. */
-@media(max-height:700px){.card-hover-preview .card{aspect-ratio:auto}.card-hover-preview .card-text{flex:none}}
+@media (max-height: 700px) {
+  .card-hover-preview .card {
+    aspect-ratio: auto;
+  }
+  .card-hover-preview .card-text {
+    flex: none;
+  }
+}

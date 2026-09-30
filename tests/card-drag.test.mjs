@@ -14,7 +14,10 @@ function setup(name) {
 
 test('a valid battlefield drop plays the actual card once', () => {
   const {game, card} = setup('Secure Datacenter');
-  assert.deepEqual(dropHandCard(game, card.uid, uid => game.play(0, uid)), []);
+  assert.deepEqual(
+    dropHandCard(game, card.uid, uid => game.play(0, uid)),
+    [],
+  );
   assert.equal(game.players[0].hand.length, 0);
   assert.equal(game.players[0].field[0].uid, card.uid);
   assert.equal(game.players[0].landPlayed, true);
@@ -43,7 +46,12 @@ test('a targeted drop can open selection without paying until a target is chosen
   game.players[0].field.push(game.card('b2'));
   const before = JSON.stringify(game);
   let pending;
-  assert.deepEqual(dropHandCard(game, card.uid, uid => { pending = uid; }), []);
+  assert.deepEqual(
+    dropHandCard(game, card.uid, uid => {
+      pending = uid;
+    }),
+    [],
+  );
   assert.equal(pending, card.uid);
   assert.equal(JSON.stringify(game), before);
   game.play(0, pending, game.targets(0, card)[0]);
