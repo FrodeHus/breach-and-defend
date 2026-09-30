@@ -58,9 +58,12 @@ export function playOut(seed) {
 }
 
 // A player's real cards wherever they are: tokens are not cards, and abilities on the stack are not either.
+// A card being resolved leaves the stack and waits in the pending choice's frame until its steps finish.
 export function conserved(g, p) {
-  const q = g.players[p];
+  const q = g.players[p],
+    resolving = g.pending?.frame?.entry;
   return (
+    (resolving?.card && resolving.p === p ? 1 : 0) +
     q.deck.length +
     q.hand.length +
     q.field.filter(c => !BY_ID[c.id].token).length +
@@ -68,4 +71,20 @@ export function conserved(g, p) {
     q.archive.length +
     g.stack.filter(s => s.card && s.p === p).length
   );
+}
+
+// A complete seeded match with the computer playing both seats. `check(g, step)` runs every 25 actions.
+export function aiMatch(seed, {faction = 'red', first = 0, pool = 'first-breach', check = () => {}} = {}) {
+  let s = seed;
+  const rng = () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+  const g = new Game(faction, rng, {first, pool});
+  g.keep();
+  for (let step = 0; step < 20000 && g.winner === null; step++) {
+    g.aiAction(g.actor());
+    if (step % 25 === 0) check(g, step);
+  }
+  return g;
 }

@@ -39,3 +39,17 @@ test('card conservation counts archived and stacked cards but not tokens', t => 
   g.pass(1);
   assert.equal(conserved(g, 0), before + 1);
 });
+
+test('card conservation counts a card that waits mid-resolution on a choice', t => {
+  define(t, {id: 'x-peek', type: 'Operation', cost: 0, steps: [{op: 'probe', n: 1}]});
+  const g = table();
+  const c = put(g, 0, 'x-peek', 'hand');
+  const before = conserved(g, 0);
+  g.play(0, c.uid);
+  g.pass(0);
+  g.pass(1);
+  assert.equal(g.pending.frame.entry.card.uid, c.uid);
+  assert.equal(conserved(g, 0), before);
+  g.choose(0, g.defaultChoice());
+  assert.equal(conserved(g, 0), before);
+});
