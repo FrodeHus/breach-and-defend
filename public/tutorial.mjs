@@ -41,7 +41,7 @@ export class Tutorial {
     if (before.phase === 'opening' && g.phase !== 'opening') this.completed.add('opening');
     if (g.players[0].field.some(c => before.hand.has(c.uid) && BY_ID[c.id].type === 'Infrastructure'))
       this.completed.add('infrastructure');
-    const played = g.stack.filter(s => s.p === 0 && before.hand.has(s.card.uid));
+    const played = g.stack.filter(s => s.p === 0 && s.card && before.hand.has(s.card.uid));
     if (played.some(s => BY_ID[s.card.id].type === 'Unit')) this.completed.add('unit');
     if (
       played.some(s => BY_ID[s.card.id].type === 'Response') ||

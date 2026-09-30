@@ -86,5 +86,5 @@ export function hoverCard(s, el) {
     c = found?.card,
     d = BY_ID[id];
   if (!d) return '';
-  return `${card(s, c || id, {detail: true, zone, p: found?.p ?? null})}<blockquote class="preview-flavor">“${esc(d.flavor)}”</blockquote>${zone === 'hand' ? playStatus(s, c) : ''}${d.keywords?.length ? `<div class="preview-keywords">${d.keywords.map(k => `<p><strong>${esc(KEYWORD_NAMES[k])}.</strong> ${esc(KEYWORDS[k])}</p>`).join('')}</div>` : ''}`;
+  return `${card(s, c || id, {detail: true, zone, p: found?.p ?? null})}${d.flavor ? `<blockquote class="preview-flavor">“${esc(d.flavor)}”</blockquote>` : ''}${zone === 'hand' ? playStatus(s, c) : ''}${d.keywords?.length ? `<div class="preview-keywords">${d.keywords.map(k => `<p><strong>${esc(KEYWORD_NAMES[k])}.</strong> ${esc(KEYWORDS[k])}</p>`).join('')}</div>` : ''}`;
 }

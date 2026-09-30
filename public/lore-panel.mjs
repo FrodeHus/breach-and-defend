@@ -5,6 +5,9 @@ const LABELS = {flavor: 'Show learning text', learn: 'Show flavor text'};
 
 // Both faces are rendered so a flip only swaps visibility; the chosen side is remembered across cards and re-renders.
 export function lorePanel(d, side = 'flavor') {
+  // Unreleased cards have no story yet; say so rather than print "undefined".
+  if (!d.lesson)
+    return `<section class="lore ${d.faction}" aria-label="${esc(d.name)} story and lesson"><p class="muted">This card’s story and security lesson arrive with its release.</p></section>`;
   const learn = side === 'learn';
   return `<section class="lore ${d.faction}" data-side="${learn ? 'learn' : 'flavor'}" aria-label="${esc(d.name)} story and lesson"><div class="lore-inner"><figure class="lore-face lore-flavor" ${learn ? 'hidden' : ''}><blockquote>“${esc(d.flavor)}”</blockquote><figcaption>— ${esc(d.flavorBy)}</figcaption></figure><div class="lore-face lore-learn" ${learn ? '' : 'hidden'}><div class="eyebrow">LEARN / WHAT IS IT?</div><p>${esc(d.lesson)}</p></div></div><button type="button" class="lore-flip" aria-label="${LABELS[learn ? 'learn' : 'flavor']}" title="${LABELS[learn ? 'learn' : 'flavor']}">${FLIP_ICON}<span>${learn ? 'Flavor' : 'Learn'}</span></button></section>`;
 }

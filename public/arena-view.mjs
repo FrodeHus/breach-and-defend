@@ -8,6 +8,7 @@ import {lorePanel} from './lore-panel.mjs';
 import * as versusUi from './versus-ui.mjs';
 import {esc} from './html.mjs';
 import {card, label, playStatus} from './card-view.mjs';
+import {stackItem} from './expansion-view.mjs';
 
 export const poolEyebrow = game => (POOLS[game.pool]?.name ?? POOLS['first-breach'].name).toUpperCase();
 export function opening(s) {
@@ -137,10 +138,7 @@ export function battlefield(s) {
           ...game.stack,
         ]
           .reverse()
-          .map(
-            s =>
-              `<div class="stack-item" data-motion-uid="${s.card.uid}"><strong>${BY_ID[s.card.id].name}</strong>${s.p === 0 ? 'You' : versus ? 'Opponent' : 'Computer'}${s.target ? ' → ' + esc(game.targetName(s.target)) : ''}</div>`,
-          )
+          .map(e => stackItem(s, e))
           .join('')}</div>`
       : ''
   }${commandArea(s)}<div class="hand-dock"><div class="zone-head"><span>Your hand / ${game.players[0].hand.length} cards · Drag to your battlefield</span><button class="text-button" id="tutorialToggle">${tutorial ? 'Hide tips' : 'Quick tips'}</button></div><div class="hand">${game.players[0].hand.length ? game.players[0].hand.map(c => card(s, c, {zone: 'hand'})).join('') : '<p class="muted">Your hand is empty. Draw a card on your next turn.</p>'}</div></div></section><aside class="sidebar" id="intelligence" ${inspectorOpen ? '' : 'hidden'}><div class="eyebrow">CARD INTELLIGENCE</div><div id="inspection">${inspection(s)}</div><div class="log"><div class="eyebrow">MATCH LOG</div><ol>${game.log
