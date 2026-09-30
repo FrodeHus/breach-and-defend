@@ -31,7 +31,11 @@ test('the hero serves responsive splash images that exist, with text alternative
   for (const file of ['splash-960.webp', 'splash-1732.webp', 'splash-1280.jpg']) {
     assert.ok(fs.existsSync(new URL(`../public/art/${file}`, import.meta.url)), file);
   }
-  assert.equal(fs.existsSync(new URL('../public/art/breach-and-defend-splash.png', import.meta.url)), false, 'the 2.4 MB original must not ship');
+  assert.equal(
+    fs.existsSync(new URL('../public/art/breach-and-defend-splash.png', import.meta.url)),
+    false,
+    'the 2.4 MB original must not ship',
+  );
 });
 
 test('both modes are real buttons with headings for each step, in focusable slots', () => {
@@ -39,7 +43,10 @@ test('both modes are real buttons with headings for each step, in focusable slot
   assert.equal((html.match(/<div class="mode-slot"><button type="button" class="mode-card"/g) || []).length, 2);
   assert.equal((html.match(/<div class="side-frame"><article class="side /g) || []).length, 2);
   assert.match(html, /<button class="primary slant" data-start="blue">/);
-  assert.deepEqual(MODES.map(m => m.id), ['solo', 'friend']);
+  assert.deepEqual(
+    MODES.map(m => m.id),
+    ['solo', 'friend'],
+  );
   assert.equal((html.match(/<button type="button" class="mode-card"/g) || []).length, 2);
   assert.match(html, /<h2 id="modeTitle">Choose a mode<\/h2>/);
   assert.match(html, /<h2 id="sideTitle">Choose your side<\/h2>/);
@@ -48,6 +55,14 @@ test('both modes are real buttons with headings for each step, in focusable slot
 test('each side button sits in an unclipped cta-slot so its focus glow is visible', () => {
   for (const mode of ['solo', 'friend']) {
     const html = landing({mode});
-    assert.equal((html.match(/<span class="cta-slot"><button class="primary slant" data-(start|invite)="(blue|red)">[^<]*<\/button><\/span>/g) || []).length, 2, mode);
+    assert.equal(
+      (
+        html.match(
+          /<span class="cta-slot"><button class="primary slant" data-(start|invite)="(blue|red)">[^<]*<\/button><\/span>/g,
+        ) || []
+      ).length,
+      2,
+      mode,
+    );
   }
 });

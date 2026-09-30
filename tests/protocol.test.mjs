@@ -2,13 +2,39 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Game} from '../public/engine.mjs';
 import {CARDS, BY_ID} from '../public/cards.mjs';
-import {viewFor, flip, flipTarget, unflipAction, applyAction, timeoutAction, canonical, digest, versusGame, seedHex, sha256Hex, randomHex, actionFields, sanitizeView, redactEntry, hostBottoms, restoreBottoms} from '../public/protocol.mjs';
+import {
+  viewFor,
+  flip,
+  flipTarget,
+  unflipAction,
+  applyAction,
+  timeoutAction,
+  canonical,
+  digest,
+  versusGame,
+  seedHex,
+  sha256Hex,
+  randomHex,
+  actionFields,
+  sanitizeView,
+  redactEntry,
+  hostBottoms,
+  restoreBottoms,
+} from '../public/protocol.mjs';
 
 const SEED = 'ab'.repeat(32);
-const opened = () => { const g = versusGame(SEED, 'blue'); g.keep([], 0); g.keep([], 1); return g; };
+const opened = () => {
+  const g = versusGame(SEED, 'blue');
+  g.keep([], 0);
+  g.keep([], 1);
+  return g;
+};
 const uidsIn = value => {
   const found = new Set();
-  JSON.stringify(value, (key, x) => { if (key === 'uid' && typeof x === 'number') found.add(x); return x; });
+  JSON.stringify(value, (key, x) => {
+    if (key === 'uid' && typeof x === 'number') found.add(x);
+    return x;
+  });
   return found;
 };
 
@@ -28,7 +54,8 @@ test('hash and seed helpers', async () => {
 });
 
 test('a guest view hides the host hand and both decks, and puts the guest at index 0', () => {
-  const g = opened(), v = viewFor(g, 1);
+  const g = opened(),
+    v = viewFor(g, 1);
   assert.equal(v.players[0].faction, 'red');
   assert.equal(v.players[1].faction, 'blue');
   assert.deepEqual(v.players[0].hand, g.players[1].hand);
@@ -37,7 +64,8 @@ test('a guest view hides the host hand and both decks, and puts the guest at ind
   assert.ok(v.players.every((q, i) => q.deck.length === g.players[1 - i].deck.length && q.deck.every(c => c.hidden)));
   assert.equal('rng' in v, false);
   const seen = uidsIn(v);
-  for (const c of [...g.players[0].hand, ...g.players[0].deck, ...g.players[1].deck]) assert.equal(seen.has(c.uid), false);
+  for (const c of [...g.players[0].hand, ...g.players[0].deck, ...g.players[1].deck])
+    assert.equal(seen.has(c.uid), false);
 });
 
 test('a card returned to the host hand stays hidden under its new uid', () => {
@@ -54,7 +82,8 @@ test('a card returned to the host hand stays hidden under its new uid', () => {
 test('the host view is redacted but not flipped; flip is its own inverse', () => {
   const g = opened();
   g.stack.push({card: g.card('r2'), p: 1, target: {kind: 'player', p: 0}});
-  const v0 = viewFor(g, 0), v1 = viewFor(g, 1);
+  const v0 = viewFor(g, 0),
+    v1 = viewFor(g, 1);
   assert.equal(v0.players[0].faction, 'blue');
   assert.ok(v0.players[1].hand.every(c => c.hidden));
   assert.equal(v1.stack[0].p, 0);
@@ -67,7 +96,8 @@ test('the host view is redacted but not flipped; flip is its own inverse', () =>
 });
 
 test('a view rebuilds into a Game that answers the interface queries', () => {
-  const g = opened(), local = Game.fromJSON(viewFor(g, 1));
+  const g = opened(),
+    local = Game.fromJSON(viewFor(g, 1));
   assert.equal(local.actor(), g.actor() === 1 ? 0 : 1);
   for (const c of local.players[0].hand) {
     const real = g.players[1].hand.find(x => x.uid === c.uid);
@@ -76,13 +106,18 @@ test('a view rebuilds into a Game that answers the interface queries', () => {
 });
 
 test('viewFor sets uid to 0 (sentinel for minting new cards)', () => {
-  const g = opened(), v = viewFor(g, 1);
+  const g = opened(),
+    v = viewFor(g, 1);
   assert.equal(v.uid, 0);
   assert.equal(Game.fromJSON(v).uid, 0);
 });
 
 test('guest targets translate back to host indices', () => {
-  assert.deepEqual(unflipAction({type: 'play', uid: 4, target: {kind: 'player', p: 1}}), {type: 'play', uid: 4, target: {kind: 'player', p: 0}});
+  assert.deepEqual(unflipAction({type: 'play', uid: 4, target: {kind: 'player', p: 1}}), {
+    type: 'play',
+    uid: 4,
+    target: {kind: 'player', p: 0},
+  });
   assert.deepEqual(unflipAction({type: 'pass'}), {type: 'pass'});
   assert.deepEqual(actionFields({type: 'pass', n: 3, by: 1, seq: 9}), {type: 'pass'});
 });
@@ -91,7 +126,8 @@ test('applyAction enforces turn order and rejects unknown players and actions', 
   const g = versusGame(SEED, 'blue');
   applyAction(g, 1, {type: 'keep', bottom: []});
   applyAction(g, 0, {type: 'keep'});
-  const a = g.actor(), b = 1 - a;
+  const a = g.actor(),
+    b = 1 - a;
   assert.throws(() => applyAction(g, b, {type: 'pass'}), /Wait for your turn/);
   assert.throws(() => applyAction(g, a, {type: 'hack'}), /Unknown action/);
   assert.throws(() => applyAction(g, 2, {type: 'pass'}), /Unknown player/);
@@ -115,7 +151,8 @@ test('timeouts keep, skip attacks and blocks, discard the costliest cards, or pa
   g.phase = 'block';
   assert.deepEqual(timeoutAction(g, 1 - g.active), {type: 'blockers', assignments: {}});
   g.phase = 'cleanup';
-  const q = g.players[g.active], top = CARDS.filter(c => c.faction === q.faction).sort((x, y) => y.cost - x.cost)[0];
+  const q = g.players[g.active],
+    top = CARDS.filter(c => c.faction === q.faction).sort((x, y) => y.cost - x.cost)[0];
   while (q.hand.length < 9) q.hand.push(g.card(top.id));
   const discard = timeoutAction(g, g.active);
   assert.equal(discard.uids.length, 2);
@@ -124,7 +161,8 @@ test('timeouts keep, skip attacks and blocks, discard the costliest cards, or pa
 
 test('canonical JSON ignores key order; digests pinpoint the changed section', async () => {
   assert.equal(canonical({b: 1, a: [2, {d: 3, c: undefined}]}), '{"a":[2,{"d":3}],"b":1}');
-  const v = viewFor(opened(), 1), d = await digest(v);
+  const v = viewFor(opened(), 1),
+    d = await digest(v);
   const changed = structuredClone(v);
   changed.players[1].life += 1;
   const e = await digest(changed);
@@ -141,14 +179,28 @@ async function views(games = 6) {
   const {fakeTime} = await import('./helpers/versus.mjs');
   const out = [];
   for (let g = 0; g < games; g++) {
-    const m = await Match.create({hostFaction: g % 2 ? 'red' : 'blue', hostSecret: (g + 1).toString(16).padStart(32, '0'), guestSecret: 'b'.repeat(32), seedCommit: ''}, fakeTime());
-    m.connect(true); m.pledge(0); m.pledge(1);
-    if (g % 2) { m.submit(0, {type: 'mulligan'}); m.submit(1, {type: 'mulligan'}, 1); }
+    const m = await Match.create(
+      {
+        hostFaction: g % 2 ? 'red' : 'blue',
+        hostSecret: (g + 1).toString(16).padStart(32, '0'),
+        guestSecret: 'b'.repeat(32),
+        seedCommit: '',
+      },
+      fakeTime(),
+    );
+    m.connect(true);
+    m.pledge(0);
+    m.pledge(1);
+    if (g % 2) {
+      m.submit(0, {type: 'mulligan'});
+      m.submit(1, {type: 'mulligan'}, 1);
+    }
     let seq = 1;
     for (let i = 0; i < 3000 && !m.ended; i++) {
       const p = m.game.phase === 'opening' ? (m.game.kept[0] ? 1 : 0) : m.game.actor();
       let a = choose(m.game, p);
-      if (a.type === 'keep') a = {type: 'keep', bottom: m.game.players[p].hand.slice(0, m.game.mulls[p]).map(c => c.uid)};
+      if (a.type === 'keep')
+        a = {type: 'keep', bottom: m.game.players[p].hand.slice(0, m.game.mulls[p]).map(c => c.uid)};
       if (g % 3 === 0 && a.type === 'attackers' && i < 800) a = {...a, uids: []}; // long games, big views
       m.submit(p, a, p === 1 ? ++seq : null);
       out.push(m.view(1), m.view(0));
@@ -161,7 +213,10 @@ async function views(games = 6) {
 
 test('sanitizeView accepts every view an honest referee sends, through to the end of long matches', async () => {
   const all = await views();
-  assert.ok(all.some(v => v.turn >= 20), 'late-game views are covered');
+  assert.ok(
+    all.some(v => v.turn >= 20),
+    'late-game views are covered',
+  );
   assert.ok(all.some(v => v.winner !== null));
   for (const v of all) assert.equal(sanitizeView(JSON.parse(JSON.stringify(v))) !== undefined, true);
 });
@@ -169,32 +224,82 @@ test('sanitizeView accepts every view an honest referee sends, through to the en
 test('sanitizeView rejects markup, unknown values, extra fields and prototype keys', async () => {
   const base = viewFor(versusGame('ab'.repeat(32), 'blue'), 1);
   const bad = [
-    v => { v.reason = '<img src=x onerror=alert(1)>'; },
-    v => { v.reason = 'x'.repeat(5000); },
-    v => { v.log.push('</p><script>1</script>'); },
-    v => { v.players[0].faction = 'red" onclick="x'; },
-    v => { v.players[1].faction = v.players[0].faction; },
-    v => { v.players[0].hand[0].id = 'nope'; },
-    v => { v.players[0].hand[0].uid = '1"><b>'; },
-    v => { v.players[0].hand[0].damage = Infinity; },
-    v => { v.players[0].hand[0].extra = 1; },
-    v => { v.players[1].hand[0] = {hidden: true, uid: 3}; },
-    v => { v.players[1].hand[0] = base.players[0].hand[0]; },
-    v => { v.players[0].deck[0] = {hidden: 'yes'}; },
-    v => { v.phase = 'toString'; },
-    v => { v.phase = '<x>'; },
-    v => { v.mode = 'solo'; },
-    v => { v.turn = '2'; },
-    v => { v.turn = NaN; },
-    v => { v.winner = 2; },
-    v => { v.players = {}; },
-    v => { v.stack = [{card: base.players[0].hand[0], p: 0, target: {kind: 'player', p: 1, x: '<b>'}}]; },
-    v => { v.blocks = {'1<b>': [2]}; },
-    v => { v.events = [{name: '<b>', lesson: 'x', faction: 'red'}]; },
-    v => { v.play = 1; },
+    v => {
+      v.reason = '<img src=x onerror=alert(1)>';
+    },
+    v => {
+      v.reason = 'x'.repeat(5000);
+    },
+    v => {
+      v.log.push('</p><script>1</script>');
+    },
+    v => {
+      v.players[0].faction = 'red" onclick="x';
+    },
+    v => {
+      v.players[1].faction = v.players[0].faction;
+    },
+    v => {
+      v.players[0].hand[0].id = 'nope';
+    },
+    v => {
+      v.players[0].hand[0].uid = '1"><b>';
+    },
+    v => {
+      v.players[0].hand[0].damage = Infinity;
+    },
+    v => {
+      v.players[0].hand[0].extra = 1;
+    },
+    v => {
+      v.players[1].hand[0] = {hidden: true, uid: 3};
+    },
+    v => {
+      v.players[1].hand[0] = base.players[0].hand[0];
+    },
+    v => {
+      v.players[0].deck[0] = {hidden: 'yes'};
+    },
+    v => {
+      v.phase = 'toString';
+    },
+    v => {
+      v.phase = '<x>';
+    },
+    v => {
+      v.mode = 'solo';
+    },
+    v => {
+      v.turn = '2';
+    },
+    v => {
+      v.turn = NaN;
+    },
+    v => {
+      v.winner = 2;
+    },
+    v => {
+      v.players = {};
+    },
+    v => {
+      v.stack = [{card: base.players[0].hand[0], p: 0, target: {kind: 'player', p: 1, x: '<b>'}}];
+    },
+    v => {
+      v.blocks = {'1<b>': [2]};
+    },
+    v => {
+      v.events = [{name: '<b>', lesson: 'x', faction: 'red'}];
+    },
+    v => {
+      v.play = 1;
+    },
     v => Object.assign(v, JSON.parse('{"__proto__": {"polluted": true}}')),
-    v => { v.players[0].field = [JSON.parse('{"constructor": 1}')]; },
-    v => { v.blocks = JSON.parse('{"prototype": []}'); },
+    v => {
+      v.players[0].field = [JSON.parse('{"constructor": 1}')];
+    },
+    v => {
+      v.blocks = JSON.parse('{"prototype": []}');
+    },
     () => null,
     () => [],
   ];
@@ -206,8 +311,14 @@ test('sanitizeView rejects markup, unknown values, extra fields and prototype ke
   assert.equal({}.polluted, undefined);
   const card = base.players[0].hand[0];
   const ok = structuredClone(base);
-  ok.stack = [{card, p: 0, target: {kind: 'player', p: 1}}, {card, p: 1, target: {kind: 'card', uid: 4}}, {card, p: 1, target: null}];
-  ok.blocks = {12: [3, 4]}; ok.attacks = [12]; ok.winner = 'draw';
+  ok.stack = [
+    {card, p: 0, target: {kind: 'player', p: 1}},
+    {card, p: 1, target: {kind: 'card', uid: 4}},
+    {card, p: 1, target: null},
+  ];
+  ok.blocks = {12: [3, 4]};
+  ok.attacks = [12];
+  ok.winner = 'draw';
   assert.doesNotThrow(() => sanitizeView(ok));
 });
 

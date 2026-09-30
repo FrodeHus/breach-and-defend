@@ -15,7 +15,10 @@ function act(t, g, fn) {
   fn();
   t.observe(g, before);
 }
-function resolve(g) { g.pass(g.priority); g.pass(g.priority); }
+function resolve(g) {
+  g.pass(g.priority);
+  g.pass(g.priority);
+}
 
 test('guidance requires explicit opt-in and exit releases response pauses', () => {
   const g = new Game();
@@ -35,13 +38,15 @@ test('guidance requires explicit opt-in and exit releases response pauses', () =
 
 for (const faction of ['blue', 'red']) {
   test(`${faction}: learns from real actions, including priority, attack and defense`, () => {
-    const g = new Game(faction), t = new Tutorial(true);
+    const g = new Game(faction),
+      t = new Tutorial(true);
     assert.equal(t.step(g).id, 'opening');
     act(t, g, () => g.mulligan());
     assert.equal(t.completed.size, 0);
     act(t, g, () => g.keep([g.players[0].hand[0].uid]));
     assert.ok(t.completed.has('opening'));
-    resolve(g); resolve(g);
+    resolve(g);
+    resolve(g);
     g.players[0].hand = [];
     const land = add(g, 0, 'Infrastructure');
     const unit = add(g, 0, 'Unit');
@@ -65,9 +70,11 @@ for (const faction of ['blue', 'red']) {
     assert.ok(t.completed.has('attack'));
     const enemy = add(g, 1, 'Unit', 'field');
     enemy.sick = false;
-    g.active = 1; g.phase = 'attack';
+    g.active = 1;
+    g.phase = 'attack';
     act(t, g, () => g.attackers(1, [enemy.uid]));
-    g.phase = 'block'; unit.tapped = false;
+    g.phase = 'block';
+    unit.tapped = false;
     assert.equal(t.step(g).id, 'block');
     act(t, g, () => g.blockers(0, {[enemy.uid]: [unit.uid]}));
     assert.equal(t.completed.size, 6);
@@ -76,14 +83,18 @@ for (const faction of ['blue', 'red']) {
 }
 
 test('empty hands, unavailable attackers and computer actions never fabricate progress', () => {
-  const g = new Game(), t = new Tutorial(true);
-  g.phase = 'main1'; g.players[0].hand = [];
+  const g = new Game(),
+    t = new Tutorial(true);
+  g.phase = 'main1';
+  g.players[0].hand = [];
   assert.ok(t.step(g).targets.includes('#advance'));
   assert.equal(t.completed.size, 0);
   g.phase = 'attack';
   act(t, g, () => g.attackers(0, []));
   assert.equal(t.completed.has('attack'), false);
-  g.active = 1; g.phase = 'main1'; g.priority = 1;
+  g.active = 1;
+  g.phase = 'main1';
+  g.priority = 1;
   const land = add(g, 1, 'Infrastructure');
   act(t, g, () => g.play(1, land.uid));
   assert.equal(t.completed.size, 0);
@@ -91,10 +102,14 @@ test('empty hands, unavailable attackers and computer actions never fabricate pr
 });
 
 test('defending without a legal blocker can advance and match end cannot strand the guide', () => {
-  const g = new Game(), t = new Tutorial(true);
-  g.active = 1; g.phase = 'attack';
-  const attacker = add(g, 1, 'Unit', 'field'); attacker.sick = false;
-  g.attackers(1, [attacker.uid]); g.phase = 'block';
+  const g = new Game(),
+    t = new Tutorial(true);
+  g.active = 1;
+  g.phase = 'attack';
+  const attacker = add(g, 1, 'Unit', 'field');
+  attacker.sick = false;
+  g.attackers(1, [attacker.uid]);
+  g.phase = 'block';
   assert.equal(t.step(g).id, 'block');
   assert.ok(t.step(g).targets.includes('#advance'));
   act(t, g, () => g.blockers(0, {}));

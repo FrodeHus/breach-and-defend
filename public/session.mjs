@@ -3,7 +3,17 @@
 import {Match} from './match.mjs';
 import {Seat} from './remote.mjs';
 import {audit} from './audit.mjs';
-import {bottomCommit, canonical, digest, hostBottoms, randomHex, redactEntry, safeKeys, sanitizeView, sha256Hex} from './protocol.mjs';
+import {
+  bottomCommit,
+  canonical,
+  digest,
+  hostBottoms,
+  randomHex,
+  redactEntry,
+  safeKeys,
+  sanitizeView,
+  sha256Hex,
+} from './protocol.mjs';
 
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567';
 export const newMatchId = () => [...crypto.getRandomValues(new Uint8Array(16))].map(b => ALPHABET[b & 31]).join('');
@@ -16,7 +26,10 @@ function retire(conn, msg) {
   const timer = setTimeout(() => conn.close(), 3000);
   /** @type {any} */ (timer).unref?.(); // Node only: tests must not wait on this fallback.
   conn.onmessage = () => {};
-  conn.onclose = (...a) => { clearTimeout(timer); prev?.(...a); };
+  conn.onclose = (...a) => {
+    clearTimeout(timer);
+    prev?.(...a);
+  };
   conn.send(msg);
 }
 const backoff = n => new Promise(r => setTimeout(r, Math.min(10_000, 1000 * 2 ** n)));
@@ -29,7 +42,11 @@ class Session {
   /** @type {(session: Session) => void} */
   onStatus = () => {};
   final = false; // Set once a session has stepped aside for good; later status changes are ignored.
-  set(status, extra = {}) { if (this.final) return; Object.assign(this, extra, {status}); this.onStatus(this); }
+  set(status, extra = {}) {
+    if (this.final) return;
+    Object.assign(this, extra, {status});
+    this.onStatus(this);
+  }
 
   // Messages are handled (and, on the host, sent) through ordered promise chains. `pending` counts the jobs
   // queued on them that have not finished, so callers can tell when a session has nothing left in flight.
@@ -38,7 +55,12 @@ class Session {
   chains = [];
   enqueue(chain, job, onError) {
     this.pending++;
-    this[chain] = this[chain].then(job).catch(onError).finally(() => { this.pending--; });
+    this[chain] = this[chain]
+      .then(job)
+      .catch(onError)
+      .finally(() => {
+        this.pending--;
+      });
   }
   // Resolves once every queued job has finished, including jobs queued by those jobs.
   async settled() {
@@ -54,7 +76,16 @@ export class HostSession extends Session {
   // `random` exists so tests can fix the secrets (and with them the shuffles); the app never passes it.
   static async create({net, store, hostFaction, matchId = newMatchId(), clock, random = randomHex}) {
     const hostSecret = random();
-    const record = {hostFaction, hostSecret, seedCommit: await sha256Hex(hostSecret), guestToken: random(), hostToken: random(), joined: false, match: null, audit: null};
+    const record = {
+      hostFaction,
+      hostSecret,
+      seedCommit: await sha256Hex(hostSecret),
+      guestToken: random(),
+      hostToken: random(),
+      joined: false,
+      match: null,
+      audit: null,
+    };
     return new HostSession({net, store, matchId, record, clock}).open();
   }
 
@@ -66,13 +97,22 @@ export class HostSession extends Session {
 
   constructor({net, store, matchId, record, clock}) {
     super();
-    this.net = net; this.store = store; this.matchId = matchId; this.record = record; this.clockOptions = clock;
-    this.conn = null; this.match = null; this.queue = Promise.resolve(); this.outbox = Promise.resolve();
+    this.net = net;
+    this.store = store;
+    this.matchId = matchId;
+    this.record = record;
+    this.clockOptions = clock;
+    this.conn = null;
+    this.match = null;
+    this.queue = Promise.resolve();
+    this.outbox = Promise.resolve();
     record.bottomCommits ??= {};
     this.faction = record.hostFaction;
     this.audit = record.audit;
     this.seat = new Seat((action, seq) => {
-      const result = this.match ? this.match.submit(0, action, seq) : {ok: false, error: 'The match has not started yet.'};
+      const result = this.match
+        ? this.match.submit(0, action, seq)
+        : {ok: false, error: 'The match has not started yet.'};
       if (!result.ok) this.seat.reject(seq, result.error);
     });
     if (record.match) this.attach(Match.fromJSON(record.match, clock));
@@ -98,20 +138,43 @@ export class HostSession extends Session {
   refresh() {
     if (this.closed || ['cancelled', 'error'].includes(this.status)) return;
     const m = this.match;
-    this.set(!m ? 'waiting' : m.ended ? 'ended' : !m.pledged[0] ? 'pledge' : !m.started ? 'pledged' : m.guestConnected ? 'playing' : 'paused');
+    this.set(
+      !m
+        ? 'waiting'
+        : m.ended
+          ? 'ended'
+          : !m.pledged[0]
+            ? 'pledge'
+            : !m.started
+              ? 'pledged'
+              : m.guestConnected
+                ? 'playing'
+                : 'paused',
+    );
   }
 
   connection(conn) {
-    conn.onmessage = msg => this.enqueue('queue', () => this.fromGuest(conn, msg), () => {});
+    conn.onmessage = msg =>
+      this.enqueue(
+        'queue',
+        () => this.fromGuest(conn, msg),
+        () => {},
+      );
     conn.onclose = () => {
       if (this.closed || this.conn !== conn) return;
       this.conn = null;
-      if (this.match) { this.match.connect(false); this.updateSeat(); this.save(); }
+      if (this.match) {
+        this.match.connect(false);
+        this.updateSeat();
+        this.save();
+      }
       this.refresh();
     };
   }
 
-  send(msg) { this.post(msg); }
+  send(msg) {
+    this.post(msg);
+  }
 
   // Every message to the guest goes through one ordered queue: a host keep entry is redacted to a count plus a
   // hash commitment, and hashing is asynchronous. The message (its view in particular) is captured now; only
@@ -128,7 +191,9 @@ export class HostSession extends Session {
   }
 
   // Runs `job` once every message queued before it has gone out, so a last word or a close never overtakes them.
-  afterSent(job) { this.enqueue('outbox', job, e => console.error('Breach & Defend: could not send to the guest', e)); }
+  afterSent(job) {
+    this.enqueue('outbox', job, e => console.error('Breach & Defend: could not send to the guest', e));
+  }
 
   async redact(entry) {
     const out = redactEntry(entry);
@@ -140,16 +205,31 @@ export class HostSession extends Session {
 
   async fromGuest(conn, msg) {
     if (this.closed || !msg || typeof msg !== 'object') return; // A disposed host only finishes sending.
-    try { safeKeys(msg); } catch { return; } // The guest is untrusted too: no prototype keys or non-plain objects.
+    try {
+      safeKeys(msg);
+    } catch {
+      return;
+    } // The guest is untrusted too: no prototype keys or non-plain objects.
     if (msg.type === 'hello') return this.hello(conn, msg);
     if (conn !== this.conn) return;
     switch (msg.type) {
-      case 'seed': return this.seeded(msg.guestSecret);
-      case 'pledge': this.match?.pledge(1); this.save(); return this.refresh();
-      case 'intent': return this.intent(msg);
-      case 'audit': this.record.audit = this.audit = msg.result ?? null; this.save(); return this.refresh();
+      case 'seed':
+        return this.seeded(msg.guestSecret);
+      case 'pledge':
+        this.match?.pledge(1);
+        this.save();
+        return this.refresh();
+      case 'intent':
+        return this.intent(msg);
+      case 'audit':
+        this.record.audit = this.audit = msg.result ?? null;
+        this.save();
+        return this.refresh();
       case 'leave':
-        if (this.match?.started && !this.match.ended) { this.match.submit(1, {type: 'concede'}); return; }
+        if (this.match?.started && !this.match.ended) {
+          this.match.submit(1, {type: 'concede'});
+          return;
+        }
         this.dispose();
         return this.set('cancelled');
     }
@@ -157,17 +237,27 @@ export class HostSession extends Session {
 
   hello(conn, {guestToken, have}) {
     const r = this.record;
-    if (r.joined && guestToken !== r.guestToken) { retire(conn, {type: 'error', code: 'full'}); return; }
+    if (r.joined && guestToken !== r.guestToken) {
+      retire(conn, {type: 'error', code: 'full'});
+      return;
+    }
     // The same guest again while its old connection is still open: another tab, or a reload the host has not
     // noticed yet. The newest connection wins; the old one is told why, so it stops instead of reconnecting.
     if (this.conn && this.conn !== conn) {
       const old = this.conn;
       this.conn = null;
-      if (r.joined) retire(old, {type: 'error', code: 'replaced'}); else old.close();
+      if (r.joined) retire(old, {type: 'error', code: 'replaced'});
+      else old.close();
     }
     this.conn = conn;
     if (!this.match) {
-      conn.send({type: 'welcome', guestToken: r.guestToken, hostToken: r.hostToken, seedCommit: r.seedCommit, hostFaction: r.hostFaction});
+      conn.send({
+        type: 'welcome',
+        guestToken: r.guestToken,
+        hostToken: r.hostToken,
+        seedCommit: r.seedCommit,
+        hostFaction: r.hostFaction,
+      });
       return;
     }
     const m = this.match;
@@ -176,7 +266,19 @@ export class HostSession extends Session {
     // Send only the log entries the guest lacks. A guest claiming more than the host has gets none and
     // decides for itself (see GuestSession 'resume'); a guest that sent no count gets the whole log.
     const from = Number.isInteger(have) && have > 0 ? Math.min(have, m.log.length) : 0;
-    this.post({...this.viewMessage(), type: 'resume', hostToken: r.hostToken, from, log: m.log.slice(from), started: m.started, pledged: m.pledged[1], reveal: m.ended ? this.reveal() : null}, conn);
+    this.post(
+      {
+        ...this.viewMessage(),
+        type: 'resume',
+        hostToken: r.hostToken,
+        from,
+        log: m.log.slice(from),
+        started: m.started,
+        pledged: m.pledged[1],
+        reveal: m.ended ? this.reveal() : null,
+      },
+      conn,
+    );
     this.save();
     this.refresh();
   }
@@ -185,7 +287,12 @@ export class HostSession extends Session {
     if (this.match || !/^[0-9a-f]{32}$/.test(guestSecret ?? '')) return;
     const r = this.record;
     r.joined = true;
-    this.attach(await Match.create({hostFaction: r.hostFaction, hostSecret: r.hostSecret, guestSecret, seedCommit: r.seedCommit}, this.clockOptions));
+    this.attach(
+      await Match.create(
+        {hostFaction: r.hostFaction, hostSecret: r.hostSecret, guestSecret, seedCommit: r.seedCommit},
+        this.clockOptions,
+      ),
+    );
     this.match.connect(!!this.conn);
     this.save();
     this.refresh();
@@ -193,7 +300,9 @@ export class HostSession extends Session {
 
   intent({seq, action}) {
     if (!Number.isInteger(seq)) return;
-    const result = this.match ? this.match.submit(1, action, seq) : {ok: false, error: 'The match has not started yet.'};
+    const result = this.match
+      ? this.match.submit(1, action, seq)
+      : {ok: false, error: 'The match has not started yet.'};
     if (!result.ok) this.send({type: 'reject', seq, error: result.error});
     else if (result.duplicate) this.send(this.viewMessage(null, seq));
   }
@@ -211,15 +320,24 @@ export class HostSession extends Session {
   }
 
   // What the guest needs to audit: the seed, and the host's mulligan bottoms it was only told the count of.
-  reveal() { return {hostSecret: this.record.hostSecret, bottoms: hostBottoms(this.match.log)}; }
+  reveal() {
+    return {hostSecret: this.record.hostSecret, bottoms: hostBottoms(this.match.log)};
+  }
 
-  pledge() { this.match?.pledge(0); this.save(); this.refresh(); }
+  pledge() {
+    this.match?.pledge(0);
+    this.save();
+    this.refresh();
+  }
 
   leave() {
     if (this.match?.started && !this.match.ended) return this.seat.game.concede(0);
     const ended = !!this.match?.ended;
     const conn = this.conn;
-    if (!ended && conn) { this.conn = null; this.afterSent(() => retire(conn, {type: 'leave'})); }
+    if (!ended && conn) {
+      this.conn = null;
+      this.afterSent(() => retire(conn, {type: 'leave'}));
+    }
     this.dispose();
     if (!ended) this.set('cancelled');
   }
@@ -227,7 +345,8 @@ export class HostSession extends Session {
   dispose(removeRecord = true) {
     if (this.closed) return;
     this.match?.stop();
-    if (removeRecord) this.store.remove(`host:${this.matchId}`); else this.save();
+    if (removeRecord) this.store.remove(`host:${this.matchId}`);
+    else this.save();
     this.closed = true;
     this.listener?.close();
     // Let queued views (and the final reveal) reach the guest before the connection closes.
@@ -250,8 +369,9 @@ export class GuestSession extends Session {
 
   static async join({net, store, matchId, retry = backoff, random = randomHex}) {
     const s = new GuestSession({net, store, matchId, retry, random});
-    try { await s.connect(); }
-    catch (e) {
+    try {
+      await s.connect();
+    } catch (e) {
       if (!s.record.guestToken) throw e;
       s.set('reconnecting');
       s.reconnect();
@@ -261,10 +381,30 @@ export class GuestSession extends Session {
 
   constructor({net, store, matchId, retry, random = randomHex}) {
     super();
-    this.net = net; this.store = store; this.matchId = matchId; this.retry = retry; this.random = random;
-    this.conn = null; this.queue = Promise.resolve(); this.attempts = 0;
+    this.net = net;
+    this.store = store;
+    this.matchId = matchId;
+    this.retry = retry;
+    this.random = random;
+    this.conn = null;
+    this.queue = Promise.resolve();
+    this.attempts = 0;
     const saved = store.get(`guest:${matchId}`);
-    this.record = saved ?? {guestToken: null, hostToken: null, seedCommit: null, hostFaction: null, guestSecret: null, pledged: false, seq: 0, sent: {}, log: [], digests: [], hostSecret: null, bottoms: null, audit: null};
+    this.record = saved ?? {
+      guestToken: null,
+      hostToken: null,
+      seedCommit: null,
+      hostFaction: null,
+      guestSecret: null,
+      pledged: false,
+      seq: 0,
+      sent: {},
+      log: [],
+      digests: [],
+      hostSecret: null,
+      bottoms: null,
+      audit: null,
+    };
     // Each tab has its own owner id. The newest tab to open the match claims the shared record; an older tab
     // that finds someone else's id there (or a record ahead of its own) steps aside instead of playing on.
     this.owner = randomHex(8);
@@ -272,13 +412,16 @@ export class GuestSession extends Session {
     if (saved) store.set(`guest:${matchId}`, this.record);
     this.faction = this.record.hostFaction && other(this.record.hostFaction);
     this.audit = this.record.audit;
-    this.seat = new Seat((action, seq) => {
-      if (!this.conn) return this.seat.reject(seq, 'Reconnecting to your opponent…');
-      this.record.sent[seq] = action;
-      this.record.seq = seq;
-      this.save();
-      this.conn.send({type: 'intent', seq, action});
-    }, {seq: this.record.seq});
+    this.seat = new Seat(
+      (action, seq) => {
+        if (!this.conn) return this.seat.reject(seq, 'Reconnecting to your opponent…');
+        this.record.sent[seq] = action;
+        this.record.seq = seq;
+        this.save();
+        this.conn.send({type: 'intent', seq, action});
+      },
+      {seq: this.record.seq},
+    );
   }
 
   async connect() {
@@ -287,9 +430,19 @@ export class GuestSession extends Session {
     if (this.closed) return conn.close();
     this.conn = conn;
     this.attempts = 0;
-    conn.onmessage = msg => this.enqueue('queue', () => this.fromHost(msg, conn), e => this.failed(e));
+    conn.onmessage = msg =>
+      this.enqueue(
+        'queue',
+        () => this.fromHost(msg, conn),
+        e => this.failed(e),
+      );
     // A close is handled in turn with the messages that arrived before it, never ahead of them.
-    conn.onclose = () => this.enqueue('queue', () => this.lost(conn), e => this.failed(e));
+    conn.onclose = () =>
+      this.enqueue(
+        'queue',
+        () => this.lost(conn),
+        e => this.failed(e),
+      );
     conn.send({type: 'hello', guestToken: this.record.guestToken, have: this.record.log.length});
   }
 
@@ -298,7 +451,10 @@ export class GuestSession extends Session {
     this.conn = null;
     conn.onmessage = () => {}; // Late messages on a dead connection must not act on the session.
     if (this.status === 'ended') return; // Revealed and audited: nothing is left to reconnect for.
-    if (!this.record.guestToken) { this.dispose(); return this.set('error', {error: 'no-connection'}); }
+    if (!this.record.guestToken) {
+      this.dispose();
+      return this.set('error', {error: 'no-connection'});
+    }
     this.seat.dropPending('Connection lost. Reconnecting…');
     this.set('reconnecting');
     this.reconnect();
@@ -307,7 +463,11 @@ export class GuestSession extends Session {
   async reconnect() {
     while (!this.closed && !this.conn) {
       await this.retry(this.attempts++);
-      try { await this.connect(); } catch { /* The host may be reloading; keep trying. */ }
+      try {
+        await this.connect();
+      } catch {
+        /* The host may be reloading; keep trying. */
+      }
     }
   }
 
@@ -324,8 +484,12 @@ export class GuestSession extends Session {
     const r = this.record;
     if (msg?.type === 'view' || msg?.type === 'resume') {
       // The host is untrusted: its view is rendered, so anything but the exact view shape stops the match.
-      try { safeKeys(msg); sanitizeView(msg.view); }
-      catch { return this.impostor(); }
+      try {
+        safeKeys(msg);
+        sanitizeView(msg.view);
+      } catch {
+        return this.impostor();
+      }
     }
     switch (msg?.type) {
       case 'error':
@@ -335,7 +499,12 @@ export class GuestSession extends Session {
         return this.set('error', {error: msg.code});
       case 'welcome':
         if (r.hostToken && msg.hostToken !== r.hostToken) return this.impostor();
-        Object.assign(r, {guestToken: msg.guestToken, hostToken: msg.hostToken, seedCommit: msg.seedCommit, hostFaction: msg.hostFaction});
+        Object.assign(r, {
+          guestToken: msg.guestToken,
+          hostToken: msg.hostToken,
+          seedCommit: msg.seedCommit,
+          hostFaction: msg.hostFaction,
+        });
         r.guestSecret ??= this.random();
         this.faction = other(r.hostFaction);
         this.save();
@@ -350,9 +519,18 @@ export class GuestSession extends Session {
           // in-flight view was recorded may be lower, so overlapping entries must match). A host whose log
           // skips entries, is shorter than what it already sent, or rewrites them has broken its own history:
           // the audit could never pass, so it is treated like an impostor.
-          const from = msg.from ?? 0, have = r.log.length;
-          if (!Number.isInteger(from) || from < 0 || from > have || !Array.isArray(msg.log) || from + msg.log.length < have) return this.impostor();
-          if (msg.log.slice(0, have - from).some((e, i) => canonical(e) !== canonical(r.log[from + i]))) return this.impostor();
+          const from = msg.from ?? 0,
+            have = r.log.length;
+          if (
+            !Number.isInteger(from) ||
+            from < 0 ||
+            from > have ||
+            !Array.isArray(msg.log) ||
+            from + msg.log.length < have
+          )
+            return this.impostor();
+          if (msg.log.slice(0, have - from).some((e, i) => canonical(e) !== canonical(r.log[from + i])))
+            return this.impostor();
           r.started = true;
           for (const entry of msg.log.slice(have - from)) r.log.push(entry);
           r.digests[r.log.length] ??= await digest(msg.view);
@@ -366,7 +544,10 @@ export class GuestSession extends Session {
         r.started = true;
         if (entry) {
           // A missing message means the channel broke; reconnecting resends the entries this guest lacks.
-          if (entry.n !== r.log.length + 1) { this.conn?.close(); return; }
+          if (entry.n !== r.log.length + 1) {
+            this.conn?.close();
+            return;
+          }
           r.log.push(entry);
           r.digests[entry.n] = await digest(msg.view);
         } else if (!r.log.length) r.digests[0] ??= await digest(msg.view);
@@ -375,9 +556,13 @@ export class GuestSession extends Session {
         if (this.status !== 'ended') this.set('playing');
         return;
       }
-      case 'reject': return this.seat.reject(msg.seq, msg.error);
-      case 'reveal': return this.revealed(msg);
-      case 'leave': this.dispose(); return this.set('cancelled');
+      case 'reject':
+        return this.seat.reject(msg.seq, msg.error);
+      case 'reveal':
+        return this.revealed(msg);
+      case 'leave':
+        this.dispose();
+        return this.set('cancelled');
     }
   }
 
@@ -395,7 +580,10 @@ export class GuestSession extends Session {
     this.set('ended');
   }
 
-  impostor() { this.dispose(false); this.set('error', {error: 'impostor'}); }
+  impostor() {
+    this.dispose(false);
+    this.set('error', {error: 'impostor'});
+  }
 
   pledge() {
     this.record.pledged = true;
@@ -409,7 +597,10 @@ export class GuestSession extends Session {
     if (started && this.conn && this.seat.game?.winner === null) return this.seat.game.concede(0);
     const ended = this.status === 'ended';
     const conn = this.conn;
-    if (!ended && !started && conn) { this.conn = null; retire(conn, {type: 'leave'}); }
+    if (!ended && !started && conn) {
+      this.conn = null;
+      retire(conn, {type: 'leave'});
+    }
     this.dispose();
     if (!ended) this.set('cancelled');
   }
@@ -417,7 +608,8 @@ export class GuestSession extends Session {
   dispose(removeRecord = true) {
     if (this.closed) return;
     if (this.superseded()) return this.stepAside();
-    if (removeRecord) this.store.remove(`guest:${this.matchId}`); else this.save();
+    if (removeRecord) this.store.remove(`guest:${this.matchId}`);
+    else this.save();
     this.closed = true;
     this.conn?.close();
   }

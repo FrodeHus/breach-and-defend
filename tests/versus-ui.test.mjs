@@ -25,7 +25,18 @@ test('each lobby state has a way forward', () => {
 });
 
 test('every error code has a message, with a fallback', () => {
-  for (const code of ['server', 'no-connection', 'host-offline', 'unknown-match', 'full', 'id-taken', 'impostor', 'replaced', 'internal']) assert.ok(ui.errorMessage(code).length > 20, code);
+  for (const code of [
+    'server',
+    'no-connection',
+    'host-offline',
+    'unknown-match',
+    'full',
+    'id-taken',
+    'impostor',
+    'replaced',
+    'internal',
+  ])
+    assert.ok(ui.errorMessage(code).length > 20, code);
   const replaced = ui.lobby({status: 'error', error: 'replaced'});
   assert.match(replaced, /open in another tab or window/);
   assert.doesNotMatch(replaced, /versusRetry/, 'another tab owns the match: retrying here would displace it');
@@ -44,8 +55,14 @@ test('the honor dialog explains the audit and asks for the pledge', () => {
 
 test('clock text counts down from when the clock arrived', () => {
   assert.equal(ui.clockText({kind: 'turn', owner: 0, left: 90000, at: 0, paused: false}, 5500), 'Your turn · 1:25');
-  assert.equal(ui.clockText({kind: 'response', owner: 1, left: 20000, at: 0, paused: false}, 0), 'Opponent’s response · 0:20');
-  assert.equal(ui.clockText({kind: 'opening', owner: null, left: 1000, at: 0, paused: false}, 5000), 'Opening hands · 0:00');
+  assert.equal(
+    ui.clockText({kind: 'response', owner: 1, left: 20000, at: 0, paused: false}, 0),
+    'Opponent’s response · 0:20',
+  );
+  assert.equal(
+    ui.clockText({kind: 'opening', owner: null, left: 1000, at: 0, paused: false}, 5000),
+    'Opening hands · 0:00',
+  );
   assert.equal(ui.clockText({kind: null, paused: true}, 0), 'Clock paused');
   assert.equal(ui.clockText(null, 0), '');
   assert.match(ui.matchStatus({status: 'paused', seat: {clock: null}}, 0), /Opponent disconnected/);

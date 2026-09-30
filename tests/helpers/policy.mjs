@@ -17,13 +17,21 @@ export function choose(g, p) {
 // Calls the engine method for an action. Seat games return the intent promise from here.
 export function perform(g, p, a) {
   switch (a.type) {
-    case 'mulligan': return g.mulligan(p);
-    case 'keep': return g.keep(a.bottom, p);
-    case 'play': return g.play(p, a.uid, a.target);
-    case 'pass': return g.pass(p);
-    case 'attackers': return g.attackers(p, a.uids);
-    case 'blockers': return g.blockers(p, a.assignments);
-    case 'discard': return g.discard(a.uids);
-    case 'concede': return g.concede(p);
+    case 'mulligan':
+      return g.mulligan(p);
+    case 'keep':
+      return g.keep(a.bottom, p);
+    case 'play':
+      return g.play(p, a.uid, a.target);
+    case 'pass':
+      return g.pass(p);
+    case 'attackers':
+      return g.attackers(p, a.uids);
+    case 'blockers':
+      return g.blockers(p, a.assignments);
+    case 'discard':
+      return g.discard(a.uids);
+    case 'concede':
+      return g.concede(p);
   }
 }

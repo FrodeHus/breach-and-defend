@@ -5,7 +5,23 @@ import {within, settle} from '../public/motion.mjs';
 const never = () => new Promise(() => {});
 function manualClock() {
   const timers = new Set();
-  return {schedule: (fn, ms) => { const h = {fn, ms}; timers.add(h); return h; }, cancel: h => timers.delete(h), fire() { for (const h of [...timers]) { timers.delete(h); h.fn(); } }, get size() { return timers.size; }};
+  return {
+    schedule: (fn, ms) => {
+      const h = {fn, ms};
+      timers.add(h);
+      return h;
+    },
+    cancel: h => timers.delete(h),
+    fire() {
+      for (const h of [...timers]) {
+        timers.delete(h);
+        h.fn();
+      }
+    },
+    get size() {
+      return timers.size;
+    },
+  };
 }
 
 test('within returns the value when the promise settles before the deadline, and clears its timer', async () => {
@@ -22,7 +38,10 @@ test('within gives up on a promise that never settles', async () => {
 });
 
 test('within passes on a rejection that comes before the deadline', async () => {
-  await assert.rejects(within(Promise.reject(Error('Wait for your turn to act.')), 1000, manualClock()), /Wait for your turn/);
+  await assert.rejects(
+    within(Promise.reject(Error('Wait for your turn to act.')), 1000, manualClock()),
+    /Wait for your turn/,
+  );
 });
 
 // Reproduced in a hidden browser tab: an entry animation reported playState "finished" but its
