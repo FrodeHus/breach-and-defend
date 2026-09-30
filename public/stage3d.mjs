@@ -597,3 +597,33 @@ export function lunge({els, from, to, faces, onImpact, duration = 790}) {
     duration + 400,
   );
 }
+// A destroyed card flashes, then breaks into shards that spill across the board.
+export function shatter({rect, faces, faction}) {
+  const pal = FX[faction] || FX.blue;
+  return standIn(
+    [],
+    ctl =>
+      new Promise(resolve => {
+        const s = slab(rect, {front: faces.from, back: faces.back}),
+          c = center(rect);
+        s.a.material.emissive = new THREE.Color(pal[0]);
+        place(s.group, {x: c.x, y: c.y});
+        let t = 0;
+        frame(dt => {
+          t += dt;
+          s.a.material.emissiveIntensity = Math.min(1, t / 0.18) * 0.8;
+          place(s.group, {x: c.x + rnd(-1.5, 1.5), y: c.y, z: t * 30});
+          if (!ctl.aborted && t < 0.18) return;
+          s.dispose();
+          if (!ctl.aborted) {
+            particles();
+            chip(rect, {x: c.x, y: c.y + rect.height}, [pal[0], pal[1], '#203b4c'], 60, 0.6);
+            startParticles();
+          }
+          setTimeout(resolve, 460);
+          return false;
+        });
+      }),
+    1100,
+  );
+}

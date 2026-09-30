@@ -367,6 +367,19 @@ async function hit3d(r, el, e, game) {
       : null;
   await stage3d.burst({rect: r, faction, amount: e.amount, knock});
 }
+async function leave3d(from, pile, e, game) {
+  const f = await faces({
+    id: from.el.dataset?.card,
+    faction: game.players[e.fromOwner].faction,
+    from: kindOf(e.from),
+    to: kindOf(e.from),
+    width: from.r.width,
+    height: from.r.height,
+    stats: null,
+  });
+  if (e.destroyed) return stage3d.shatter({rect: from.r, faces: f, faction: game.players[e.fromOwner].faction});
+  if (pile) return stage3d.fly({els: [], from: from.r, to: pile, faces: f, flip: 'down', duration: 650});
+}
 export async function transitions(before, game) {
   if (still()) return;
   const after = snapshot(game),
@@ -374,7 +387,13 @@ export async function transitions(before, game) {
   for (const e of changes(before, after)) {
     if (e.type === 'leave') {
       const from = departing(before, e, game);
-      if (from) jobs.push(depart(from, after.graves[e.owner], e.destroyed));
+      const pile = after.graves[e.owner];
+      if (from)
+        jobs.push(
+          stage3d.ready()
+            ? fallback(leave3d(from, pile, e, game), () => depart(from, pile, e.destroyed))
+            : depart(from, pile, e.destroyed),
+        );
     } else if (e.type === 'enter') {
       const item = after.visual.get(e.uid);
       if (item)
