@@ -183,3 +183,155 @@ test('Continuous Validation gains 1 capacity the first time you retire an Indica
   resolveTop(g);
   assert.equal(g.players[0].life, 21);
 });
+
+const castSpell = (g, p, name, options = {}) => {
+  const c = put(g, p, pt(name), 'hand');
+  g.play(p, c.uid, null, options);
+  return c;
+};
+
+test('Reconstruct the Timeline probes 2 then draws; Reuse costs 4 and archives', () => {
+  const g = table();
+  compute(g, 0, 6);
+  const c = castSpell(g, 0, 'Reconstruct the Timeline');
+  resolveTop(g);
+  const [top] = g.pending.options;
+  g.choose(0, {discard: [], order: g.pending.options});
+  assert.deepEqual(
+    g.players[0].hand.map(x => x.uid),
+    [top],
+  );
+  g.play(0, c.uid, null, {reuse: true});
+  resolveTop(g);
+  g.choose(0, g.defaultChoice());
+  assert.ok(g.players[0].archive.some(x => x.uid === c.uid));
+});
+
+test('Preserve the Scene creates two Indicators', () => {
+  const g = table();
+  compute(g, 0, 2);
+  castSpell(g, 0, 'Preserve the Scene');
+  resolveTop(g);
+  assert.equal(count(g, 0, 'pt-indicator'), 2);
+});
+
+test('Scoped Remediation destroys a unit costing 3 or less, or any unit overclocked', () => {
+  const g = table();
+  const small = put(g, 1, 'r1'),
+    big = put(g, 1, 'r11');
+  compute(g, 0, 3);
+  const c = put(g, 0, pt('Scoped Remediation'), 'hand');
+  assert.throws(() => g.play(0, c.uid, null, {targets: {t: ref(big.uid)}}), /legal target/);
+  g.play(0, c.uid, null, {targets: {t: ref(small.uid)}});
+  resolveTop(g);
+  assert.ok(g.players[1].grave.some(x => x.uid === small.uid));
+  g.endTurn();
+  g.endTurn();
+  g.phase = 'main1';
+  compute(g, 0, 2);
+  castSpell(g, 0, 'Scoped Remediation', {overclock: true, targets: {t: ref(big.uid)}});
+  resolveTop(g);
+  assert.ok(g.players[1].grave.some(x => x.uid === big.uid));
+});
+
+test('Restore Trusted State returns a unit costing 3 or less tapped, or ready overclocked, as a new arrival', () => {
+  const g = table();
+  compute(g, 0, 10);
+  const a = put(g, 0, 'r7', 'grave'),
+    b = put(g, 0, 'r7', 'grave'),
+    big = put(g, 0, 'r11', 'grave');
+  const oldA = a.uid;
+  const c = put(g, 0, pt('Restore Trusted State'), 'hand');
+  assert.throws(() => g.play(0, c.uid, null, {targets: {t: ref(big.uid)}}), /legal target/);
+  g.play(0, c.uid, null, {targets: {t: ref(a.uid)}});
+  resolveTop(g);
+  const back = g.players[0].field.find(x => x.id === 'r7');
+  assert.notEqual(back.uid, oldA);
+  assert.deepEqual([back.tapped, back.sick, g.canAttack(0, back)], [true, true, false]);
+  castSpell(g, 0, 'Restore Trusted State', {overclock: true, targets: {t: ref(b.uid)}});
+  resolveTop(g);
+  assert.equal(g.players[0].field.filter(x => x.id === 'r7' && !x.tapped).length, 1);
+});
+
+test('Emergency Segmentation taps and locks down every opposing unit', () => {
+  const g = table();
+  compute(g, 0, 4);
+  const mine = put(g, 0, 'r7'),
+    a = put(g, 1, 'b1'),
+    b = put(g, 1, 'b8');
+  castSpell(g, 0, 'Emergency Segmentation');
+  resolveTop(g);
+  assert.deepEqual([a.tapped, a.locked, b.tapped, b.locked, mine.tapped], [true, true, true, true, false]);
+});
+
+test('Verify Provenance counters unless paid; if paid, it creates an Indicator', () => {
+  const g = table();
+  g.active = 1;
+  g.priority = 1;
+  compute(g, 1, 4);
+  const logs = put(g, 1, fb('Correlate Logs'), 'hand');
+  g.play(1, logs.uid);
+  g.pass(1);
+  compute(g, 0, 2);
+  castSpell(g, 0, 'Verify Provenance', {targets: {t: {kind: 'spell', uid: logs.uid}}});
+  resolveTop(g);
+  g.choose(1, {pay: true});
+  assert.equal(g.stack.length, 1);
+  assert.equal(count(g, 0, 'pt-indicator'), 1);
+});
+
+test('Live Response returns an opposing unit, or untaps yours with +0/+2', () => {
+  const g = table();
+  compute(g, 0, 4);
+  const foe = put(g, 1, 'b8'),
+    mine = put(g, 0, 'r7');
+  mine.tapped = true;
+  castSpell(g, 0, 'Live Response', {mode: 0, targets: {t: ref(foe.uid)}});
+  resolveTop(g);
+  assert.ok(g.players[1].hand.some(x => x.id === 'b8'));
+  castSpell(g, 0, 'Live Response', {mode: 1, targets: {t: ref(mine.uid)}});
+  resolveTop(g);
+  assert.equal(mine.tapped, false);
+  assert.equal(g.stats(mine, 0).toughness, 5);
+});
+
+test('Break the Chain destroys a Tool or Control, and overclocked archives from its controller’s discard', () => {
+  const g = table();
+  compute(g, 0, 4);
+  const tool = put(g, 1, fb('Immutable Backup')),
+    a = put(g, 1, 'b7', 'grave'),
+    mine = put(g, 0, 'r7', 'grave');
+  const c = put(g, 0, pt('Break the Chain'), 'hand');
+  assert.throws(
+    () => g.play(0, c.uid, null, {overclock: true, targets: {t: ref(tool.uid), g: [ref(mine.uid)]}}),
+    /controller’s discard/,
+  );
+  g.play(0, c.uid, null, {overclock: true, targets: {t: ref(tool.uid), g: [ref(a.uid)]}});
+  resolveTop(g);
+  assert.ok(g.players[1].grave.some(x => x.uid === tool.uid));
+  assert.ok(g.players[1].archive.some(x => x.uid === a.uid));
+});
+
+test('Clean-Room Analysis archives up to two cards from one discard and gains 2 capacity', () => {
+  const g = table();
+  compute(g, 0, 1);
+  const a = put(g, 1, 'b7', 'grave'),
+    b = put(g, 1, 'b8', 'grave');
+  castSpell(g, 0, 'Clean-Room Analysis', {targets: {g: [ref(a.uid), ref(b.uid)]}});
+  resolveTop(g);
+  assert.equal(g.players[1].archive.length, 2);
+  assert.equal(g.players[0].life, 22);
+});
+
+test('Continuity Plan gives +0/+3 and an Indicator; Reuse costs 4 and archives', () => {
+  const g = table();
+  compute(g, 0, 6);
+  const u = put(g, 0, 'r7');
+  const c = castSpell(g, 0, 'Continuity Plan', {targets: {t: ref(u.uid)}});
+  resolveTop(g);
+  assert.equal(g.stats(u, 0).toughness, 6);
+  assert.equal(count(g, 0, 'pt-indicator'), 1);
+  g.play(0, c.uid, null, {reuse: true, targets: {t: ref(u.uid)}});
+  resolveTop(g);
+  assert.ok(g.players[0].archive.some(x => x.uid === c.uid));
+});

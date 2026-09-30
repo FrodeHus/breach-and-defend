@@ -395,7 +395,113 @@ export const PERSISTENT_THREATS = [
     keywords: ['alwaysOn'],
     abilities: [trig('mesh', 'Create two Indicators', 'enter', [token(INDICATOR, 2)])],
   }),
-  // pt-b13 … pt-b22 (blue Operations and Responses) are added in Task 5, between these units and the Tools.
+  blue('pt-b13', 'Reconstruct the Timeline', 2, 'Operation', 'Probe 2, then draw a card. Reuse 4.', {
+    steps: [probe(2), {op: 'draw', n: 1}],
+    reuse: 4,
+  }),
+  blue('pt-b14', 'Preserve the Scene', 2, 'Operation', 'Create two Indicators.', {steps: [token(INDICATOR, 2)]}),
+  blue(
+    'pt-b15',
+    'Scoped Remediation',
+    3,
+    'Operation',
+    'Destroy target opposing unit with printed cost 3 or less. Overclock 2: You may target and destroy any opposing unit instead.',
+    {
+      targets: [{...opposingUnit, maxCost: 3}],
+      steps: [{op: 'destroy', to: 't'}],
+      overclock: {cost: 2, instead: true, targets: [opposingUnit], steps: [{op: 'destroy', to: 't'}]},
+    },
+  ),
+  blue(
+    'pt-b16',
+    'Restore Trusted State',
+    4,
+    'Operation',
+    'Return target unit card with printed cost 3 or less from your discard to the battlefield tapped. Overclock 2: Return it ready instead.',
+    {
+      targets: [{key: 't', zone: 'grave', side: 'you', types: ['Unit'], maxCost: 3}],
+      steps: [{op: 'recover', to: 't', zone: 'field', tapped: true}],
+      overclock: {cost: 2, instead: true, steps: [{op: 'recover', to: 't', zone: 'field'}]},
+    },
+  ),
+  blue(
+    'pt-b17',
+    'Emergency Segmentation',
+    4,
+    'Operation',
+    'Tap all opposing units. They don’t untap during their controller’s next untap step.',
+    {steps: [{op: 'tapAll', side: 'opponent', lock: true}]},
+  ),
+  blue(
+    'pt-b18',
+    'Verify Provenance',
+    2,
+    'Response',
+    'Counter target Response or Operation unless its controller pays 2 compute. If they pay, create an Indicator.',
+    {targets: [stackSpell], steps: [{op: 'counterUnlessPay', to: 't', amount: 2, paid: [token(INDICATOR)]}]},
+  ),
+  blue(
+    'pt-b19',
+    'Live Response',
+    2,
+    'Response',
+    'Choose one — Return target opposing unit to its owner’s hand; or untap target unit you control and it gets +0/+2 until end of turn.',
+    {
+      modes: [
+        {
+          label: 'Return an opposing unit to its owner’s hand',
+          targets: [opposingUnit],
+          steps: [{op: 'bounce', to: 't'}],
+        },
+        {
+          label: 'Untap your unit and give it +0/+2',
+          targets: [yourUnit],
+          steps: [
+            {op: 'untap', to: 't'},
+            {op: 'buff', to: 't', toughness: 2},
+          ],
+        },
+      ],
+    },
+  ),
+  blue(
+    'pt-b20',
+    'Break the Chain',
+    2,
+    'Response',
+    'Destroy target Tool or Control. Overclock 2: Also archive up to two target cards from that permanent’s controller’s discard.',
+    {
+      targets: [{key: 't', zone: 'field', side: 'any', types: ['Tool', 'Control']}],
+      steps: [{op: 'destroy', to: 't'}],
+      overclock: {
+        cost: 2,
+        targets: [{key: 'g', zone: 'grave', side: 'any', upTo: 2, sameOwnerAs: 't'}],
+        steps: [{op: 'archive', to: 'g'}],
+      },
+    },
+  ),
+  blue(
+    'pt-b21',
+    'Clean-Room Analysis',
+    1,
+    'Response',
+    'Archive up to two target cards from a single player’s discard. Gain 2 operational capacity.',
+    {
+      targets: [{key: 'g', zone: 'grave', side: 'any', upTo: 2, onePlayer: true}],
+      steps: [
+        {op: 'archive', to: 'g'},
+        {op: 'heal', n: 2},
+      ],
+    },
+  ),
+  blue(
+    'pt-b22',
+    'Continuity Plan',
+    2,
+    'Response',
+    'Target unit you control gets +0/+3 until end of turn. Create an Indicator. Reuse 4.',
+    {targets: [yourUnit], steps: [{op: 'buff', to: 't', toughness: 3}, token(INDICATOR)], reuse: 4},
+  ),
   blue(
     'pt-b23',
     'Analysis Workbench',
