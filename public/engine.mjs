@@ -650,7 +650,8 @@ export class Game {
   createToken(p, id) {
     const c = this.card(id);
     this.players[p].field.push(c);
-    this.note(`${this.label(p)} ${this.verb(p, 'create', 'creates')} a ${this.data(c).name}.`);
+    const name = this.data(c).name;
+    this.note(`${this.label(p)} ${this.verb(p, 'create', 'creates')} ${/^[aeiou]/i.test(name) ? 'an' : 'a'} ${name}.`);
     this.emit({type: 'enter', p, uid: c.uid});
     return c;
   }

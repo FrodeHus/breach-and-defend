@@ -330,12 +330,25 @@ function confirmPrep() {
   action(() => (kind === 'cast' ? game.play(0, uid, null, options) : game.activate(0, uid, way.abilityId, options)));
 }
 // A pending choice opens by itself once; closing it to look at the board is fine, and "Make your choice" reopens it.
-function openChoice() {
+// Re-rendering replaces the controls, so focus returns to the first of `keep` that is still enabled, else Confirm,
+// else the first control.
+function openChoice(...keep) {
   if (!game?.pending || game.pending.actor !== 0) return;
   if (choice?.id !== game.pending.id) choice = startChoice(game.pending);
   dialog(expansion.choiceDialog(ui(), choice));
   choiceShown = true;
-  $('#modalBody button:not([disabled])')?.focus();
+  (
+    keep.map(k => $(`#modalBody ${k}:not([disabled])`)).find(Boolean) ??
+    $('#choiceConfirm:not([disabled])') ??
+    $('#modalBody button:not([disabled])')
+  )?.focus();
+}
+// A choice dialog left open after its choice was answered elsewhere (the versus clock) closes itself.
+function dropStaleChoice() {
+  if (!choiceShown || (choice && game?.pending?.id === choice.id)) return;
+  choice = null;
+  choiceShown = false;
+  modal.close();
 }
 function submitChoice(selection) {
   choice = null;
@@ -348,18 +361,30 @@ $('#modalBody').addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b || b.disabled) return;
   if (choiceShown && choice && game?.pending?.id === choice.id) {
-    const ds = b.dataset;
+    const ds = b.dataset,
+      at = (attr, v) => `[${attr}="${CSS.escape(v)}"]`;
     if (ds.pay) return submitChoice({pay: ds.pay === 'yes'});
     if (ds.optional !== undefined) return submitChoice({uid: ds.optional === '' ? null : Number(ds.optional)});
-    if (ds.choiceToggle) choice = toggleChoice(game, choice, Number(ds.choiceToggle));
-    else if (ds.choiceUp) choice = moveChoice(choice, Number(ds.choiceUp), -1);
-    else if (ds.choiceDown) choice = moveChoice(choice, Number(ds.choiceDown), 1);
-    else if (ds.choicePick) {
-      const [key, i] = ds.choicePick.split(':');
-      choice = pickChoiceTarget(game, choice, key, Number(i));
-    } else if (b.id === 'choiceConfirm') return submitChoice(choiceSelection(game, choice));
-    else return;
-    return openChoice();
+    if (ds.choiceToggle) {
+      choice = toggleChoice(game, choice, Number(ds.choiceToggle));
+      return openChoice(at('data-choice-toggle', ds.choiceToggle));
+    }
+    // At an end the pressed arrow disables itself: focus the other arrow of the same card.
+    if (ds.choiceUp) {
+      choice = moveChoice(choice, Number(ds.choiceUp), -1);
+      return openChoice(at('data-choice-up', ds.choiceUp), at('data-choice-down', ds.choiceUp));
+    }
+    if (ds.choiceDown) {
+      choice = moveChoice(choice, Number(ds.choiceDown), 1);
+      return openChoice(at('data-choice-down', ds.choiceDown), at('data-choice-up', ds.choiceDown));
+    }
+    if (ds.choicePick) {
+      const cut = ds.choicePick.lastIndexOf(':');
+      choice = pickChoiceTarget(game, choice, ds.choicePick.slice(0, cut), Number(ds.choicePick.slice(cut + 1)));
+      return openChoice(at('data-choice-pick', ds.choicePick));
+    }
+    if (b.id === 'choiceConfirm') return submitChoice(choiceSelection(game, choice));
+    return;
   }
   if (!prep) return;
   if (b.dataset.way !== undefined) {
@@ -826,6 +851,7 @@ function leaveVersus() {
 // Plays the computer's moves, and passes for you when you have nothing to respond with (unless paused).
 function schedule() {
   clearTimeout(timer);
+  dropStaleChoice();
   if (versus && versus.status !== 'playing') return;
   if (
     animating ||

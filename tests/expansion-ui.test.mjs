@@ -456,6 +456,9 @@ test('a versus guest sees its own probed cards; nobody sees the other player’s
     g.pending.options,
   );
   assert.equal(theirs.pending.actor, 1);
+  assert.equal(theirs.pending.cards, undefined);
+  assert.deepEqual(theirs.pending.options, []);
+  assert.deepEqual(choiceCards(theirs), []);
   assert.match(arena.hint(state(theirs, {versus: {}})), /opponent is choosing/i);
 });
 
@@ -521,4 +524,55 @@ test('moving a kept Probe card steps over cards set aside for discard', () => {
   let st = toggleChoice(g, startChoice(g.pending), mid.uid);
   st = moveChoice(st, top.uid, -1);
   assert.deepEqual(choiceSelection(g, st).order, [top.uid, bottom.uid]);
+});
+
+test('a card set aside in a Probe keeps its button label and is marked pressed', () => {
+  const g = probing();
+  const [top] = g.pending.options;
+  const html = choiceDialog(state(g), toggleChoice(g, startChoice(g.pending), top));
+  assert.match(
+    html,
+    new RegExp(`<button[^>]*data-choice-toggle="${top}"[^>]*aria-pressed="true"[^>]*>Move to discard</button>`),
+  );
+  assert.doesNotMatch(html, /Keep on top/);
+  assert.match(html, /\(to discard\)/);
+});
+
+test('once enough cards are picked to discard, the others are disabled but picked ones can be unpicked', () => {
+  const g = table();
+  const hand = [put(g, 0, 'r7', 'hand'), put(g, 0, 'r1', 'hand'), put(g, 0, 'r2', 'hand')];
+  g.pending = {id: 9, actor: 0, kind: 'discard', private: true, prompt: 'Discard 1 card.', min: 1, max: 1};
+  g.pending.options = hand.map(c => c.uid);
+  const open = choiceDialog(state(g), startChoice(g.pending));
+  for (const c of hand) assert.match(open, new RegExp(`<button data-choice-toggle="${c.uid}" aria-pressed="false">`));
+  const st = toggleChoice(g, startChoice(g.pending), hand[1].uid);
+  const html = choiceDialog(state(g), st);
+  assert.match(html, new RegExp(`<button data-choice-toggle="${hand[1].uid}" aria-pressed="true">`));
+  for (const c of [hand[0], hand[2]])
+    assert.match(html, new RegExp(`<button data-choice-toggle="${c.uid}" aria-pressed="false" disabled>`));
+});
+
+test('target keys are escaped in the choice dialog', () => {
+  const g = table();
+  const u = put(g, 0, 'r7');
+  g.pending = {
+    id: 9,
+    actor: 0,
+    kind: 'targets',
+    private: false,
+    prompt: 'Choose.',
+    min: 1,
+    max: 1,
+    options: [{key: 'a"b', optional: false, upTo: 0, candidates: [{kind: 'card', uid: u.uid}]}],
+  };
+  const html = choiceDialog(state(g), startChoice(g.pending));
+  assert.match(html, /data-choice-pick="a&quot;b:0"/);
+});
+
+test('the log uses “an” before a token name that starts with a vowel', () => {
+  const g = table();
+  g.createToken(1, 'pt-indicator');
+  g.createToken(0, 'pt-backdoor');
+  assert.ok(g.log.some(l => /creates an Indicator\./.test(l)));
+  assert.ok(g.log.some(l => /create a Backdoor\./.test(l)));
 });

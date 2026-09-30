@@ -121,8 +121,9 @@ export function prepDialog(s, prep) {
   return `<div class="eyebrow">${eyebrow} / ${esc((d.name ?? '').toUpperCase())}</div><h2>${title}</h2><p class="muted">${esc(d.text ?? '')}</p>${ways}${way?.issues.length && prep.kind === 'activate' ? reason('reason-prep', way.issues) : ''}${selectors}<div class="toolbar"><button class="primary" id="prepConfirm" ${canConfirm ? '' : 'disabled'}>Confirm${way ? ` · ${way.totalCost} compute` : ''}</button><button id="prepCancel">Cancel</button></div>`;
 }
 
+// The ↑/↓ pair stays together when a row wraps.
 const move = (value, name, first, last) =>
-  `<button data-choice-up="${value}" aria-label="Move ${esc(name)} up" ${first ? 'disabled' : ''}>↑</button><button data-choice-down="${value}" aria-label="Move ${esc(name)} down" ${last ? 'disabled' : ''}>↓</button>`;
+  `<span class="choice-move"><button data-choice-up="${value}" aria-label="Move ${esc(name)} up" ${first ? 'disabled' : ''}>↑</button><button data-choice-down="${value}" aria-label="Move ${esc(name)} down" ${last ? 'disabled' : ''}>↓</button></span>`;
 // The player's pending choice. Pay and optional answer at once; the others confirm.
 export function choiceDialog(s, st) {
   const {game} = s;
@@ -138,15 +139,17 @@ export function choiceDialog(s, st) {
         const name = cardName(cards.find(x => x.uid === u)?.id),
           out = st.discard.includes(u),
           k = kept.indexOf(u);
-        return `<li class="${out ? 'to-discard' : ''}"><span>${esc(name)}${out ? ' <small>(to discard)</small>' : ''}</span><button data-choice-toggle="${u}" aria-pressed="${out}">${out ? 'Keep on top' : 'Move to discard'}</button>${out ? '' : move(u, name, k === 0, k === kept.length - 1)}</li>`;
+        return `<li class="${out ? 'to-discard' : ''}"><span>${esc(name)}${out ? ' <small>(to discard)</small>' : ''}</span><button data-choice-toggle="${u}" aria-pressed="${out}">Move to discard</button>${out ? '' : move(u, name, k === 0, k === kept.length - 1)}</li>`;
       })
       .join('')}</ol>`;
   } else if (c.kind === 'discard') {
     body = `<div class="choice-grid">${c.options
       .map(u => {
         const f = game.find(u),
-          on = (st.picks.discard ?? []).includes(u);
-        return `<button data-choice-toggle="${u}" aria-pressed="${on}">${esc(cardName(f?.card.id))}</button>`;
+          picked = st.picks.discard ?? [],
+          on = picked.includes(u),
+          full = !on && picked.length >= c.min;
+        return `<button data-choice-toggle="${u}" aria-pressed="${on}"${full ? ' disabled' : ''}>${esc(cardName(f?.card.id))}</button>`;
       })
       .join('')}</div><p class="muted">Selected ${(st.picks.discard ?? []).length} of ${esc(String(c.min))}.</p>`;
   } else if (c.kind === 'pay') {
@@ -176,7 +179,7 @@ export function choiceDialog(s, st) {
           `<fieldset class="prep-selector"><legend>${o.upTo ? `Choose up to ${o.upTo}` : 'Choose a target'}</legend>${o.candidates
             .map(
               (t, i) =>
-                `<button data-choice-pick="${o.key}:${i}" aria-pressed="${(st.picks[o.key] ?? []).includes(i)}">${esc(game.targetName(t))}</button>`,
+                `<button data-choice-pick="${esc(o.key)}:${i}" aria-pressed="${(st.picks[o.key] ?? []).includes(i)}">${esc(game.targetName(t))}</button>`,
             )
             .join('')}</fieldset>`,
       )
