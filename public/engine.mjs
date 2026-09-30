@@ -311,6 +311,15 @@ export class Game {
   legal(p, c) {
     return this.playIssues(p, c).length === 0;
   }
+  // Whether a player has anything to do right now: auto-pass skips their response windows otherwise.
+  canAct(p) {
+    if (this.pending) return this.pending.actor === p;
+    const q = this.players[p];
+    return (
+      q.hand.some(c => this.legal(p, c)) ||
+      q.grave.some(c => this.data(c).reuse != null && !this.playIssues(p, c, {reuse: true}).length)
+    );
+  }
   play(p, uid, target = null, options = {}) {
     const q = this.players[p],
       c = (options.reuse ? q.grave : q.hand).find(c => c.uid === uid),

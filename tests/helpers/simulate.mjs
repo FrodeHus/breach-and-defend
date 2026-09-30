@@ -56,3 +56,16 @@ export function playOut(seed) {
   }
   return g;
 }
+
+// A player's real cards wherever they are: tokens are not cards, and abilities on the stack are not either.
+export function conserved(g, p) {
+  const q = g.players[p];
+  return (
+    q.deck.length +
+    q.hand.length +
+    q.field.filter(c => !BY_ID[c.id].token).length +
+    q.grave.length +
+    q.archive.length +
+    g.stack.filter(s => s.card && s.p === p).length
+  );
+}

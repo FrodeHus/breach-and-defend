@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {Game} from '../public/engine.mjs';
 import {CARDS, BY_ID, POOLS, deck, releasedCards} from '../public/cards.mjs';
 import {seededRandom} from '../public/rng.mjs';
-import {playOut} from './helpers/simulate.mjs';
+import {playOut, conserved} from './helpers/simulate.mjs';
 const id = name => CARDS.find(c => c.name === name).id;
 function setup() {
   const g = new Game();
@@ -248,9 +248,7 @@ test('100 seeded complete matches preserve card counts and finish without deadlo
     const g = playOut(seed);
     assert.notEqual(g.winner, null, `seed ${seed} did not finish`);
     for (let p = 0; p < 2; p++) {
-      const q = g.players[p],
-        total = q.deck.length + q.hand.length + q.field.length + q.grave.length + g.stack.filter(s => s.p === p).length;
-      assert.equal(total, 60, `card conservation seed ${seed}, player ${p}`);
+      assert.equal(conserved(g, p), 60, `card conservation seed ${seed}, player ${p}`);
     }
     wins[g.winner === 'draw' ? 'draw' : g.players[g.winner].faction]++;
     maxTurns = Math.max(maxTurns, g.turn);
