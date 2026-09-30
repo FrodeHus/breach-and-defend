@@ -722,8 +722,7 @@ function schedule() {
   const yourDecision =
     ['attack', 'block', 'cleanup'].includes(game.phase) ||
     (game.active === 0 && ['main1', 'main2'].includes(game.phase));
-  if (!pauseAll && !yourDecision && !game.players[0].hand.some(c => game.legal(0, c)))
-    timer = setTimeout(() => action(() => game.pass(0)), 220);
+  if (!pauseAll && !yourDecision && !game.canAct(0)) timer = setTimeout(() => action(() => game.pass(0)), 220);
 }
 
 if (document.modelContext?.registerTool) {

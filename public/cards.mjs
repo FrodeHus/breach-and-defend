@@ -3,6 +3,7 @@ import {LORE} from './lore.mjs';
 // A set stays out of the library and the start screen until `released`: every card has lore and art by then.
 export const SETS = {
   'first-breach': {name: 'First Breach', code: 'FB1', released: true},
+  'persistent-threats': {name: 'Persistent Threats', code: 'PT1', released: false},
 };
 const cards = [];
 function add(set, faction, name, cost, type, text, extra = {}) {
@@ -140,6 +141,51 @@ B('Phishing-Resistant MFA', 3, 'Control', 'Prevent damage to you from sources wi
 B('Configuration Audit', 2, 'Operation', 'Destroy target Tool or Control.', {effect: 'destroy', target: 'support'});
 export const CARDS = cards;
 export const BY_ID = Object.fromEntries(cards.map(c => [c.id, c]));
+// Tokens are created during play: they are looked up by id like cards, but are never in CARDS or a deck.
+export const TOKENS = {
+  backdoor: {
+    id: 'pt-backdoor',
+    set: 'persistent-threats',
+    faction: 'red',
+    name: 'Backdoor',
+    cost: 0,
+    type: 'Tool',
+    token: true,
+    text: '1 compute, retire this Tool: Target unit you control gets +2/+0 until end of turn. Activate only during your main phase while the stack is empty.',
+    abilities: [
+      {
+        id: 'boost',
+        kind: 'activated',
+        label: 'Boost a unit',
+        cost: {compute: 1, retire: 'self'},
+        targets: [{key: 't', zone: 'field', side: 'you', types: ['Unit']}],
+        steps: [{op: 'buff', to: 't', power: 2}],
+      },
+    ],
+    art: 'cards/backdoor',
+  },
+  indicator: {
+    id: 'pt-indicator',
+    set: 'persistent-threats',
+    faction: 'blue',
+    name: 'Indicator',
+    cost: 0,
+    type: 'Tool',
+    token: true,
+    text: '2 compute, retire this Tool: Draw a card. Activate only during your main phase while the stack is empty.',
+    abilities: [
+      {
+        id: 'analyze',
+        kind: 'activated',
+        label: 'Analyze',
+        cost: {compute: 2, retire: 'self'},
+        steps: [{op: 'draw', n: 1}],
+      },
+    ],
+    art: 'cards/indicator',
+  },
+};
+for (const t of Object.values(TOKENS)) BY_ID[t.id] = t;
 // The shipped starters: 24 infrastructure, two of each unit, one of everything else. Order matters: seeded shuffles
 // start from it, so changing it would change every saved and audited match.
 function starter(faction) {

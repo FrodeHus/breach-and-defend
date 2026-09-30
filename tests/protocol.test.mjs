@@ -369,3 +369,18 @@ test('an expansion view carries its pool, and an unknown pool is rejected', t =>
   assert.throws(() => sanitizeView({...view, pool: '__proto__'}), /Invalid/);
   assert.throws(() => sanitizeView({...view, pool: 7}), /Invalid view: pool/);
 });
+
+test('cast counts flip with the seats, and a view may carry them', t => {
+  mirror(t);
+  const g = versusGame(SEED, 'blue', 'mirror');
+  g.casts = [3, 1];
+  assert.deepEqual(flip(g.toJSON()).casts, [1, 3]);
+  const view = viewFor(g, 1);
+  assert.deepEqual(view.casts, [1, 3]);
+  assert.doesNotThrow(() => sanitizeView(view));
+  for (const bad of [[1], [1, 2, 3], [-1, 0], [1.5, 0], ['1', 0], 4, null, {0: 1, 1: 1, length: 2}])
+    assert.throws(() => sanitizeView({...view, casts: bad}), /Invalid view: casts/, JSON.stringify(bad));
+  const fb = viewFor(versusGame(SEED, 'blue'), 1);
+  assert.equal(Object.hasOwn(fb, 'casts'), false);
+  assert.doesNotThrow(() => sanitizeView(fb));
+});

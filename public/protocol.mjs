@@ -36,6 +36,7 @@ export function flip(state) {
   f.players.reverse();
   f.mulls.reverse();
   f.kept.reverse();
+  f.casts?.reverse();
   for (const k of ['active', 'priority', 'first', 'winner']) f[k] = other(f[k]);
   f.stack = f.stack.map(s => ({...s, p: 1 - s.p, target: flipTarget(s.target)}));
   return f;
@@ -245,7 +246,13 @@ export function sanitizeView(view) {
   safeKeys(view);
   // The default pool is never spelled out (Game.toJSON omits it), so there is one encoding and old digests hold.
   const pooled = !!view && typeof view === 'object' && Object.hasOwn(view, 'pool');
-  obj(view, pooled ? [...VIEW_KEYS, 'pool'].sort() : VIEW_KEYS, 'view');
+  // Cast counts appear only mid-turn in expansion matches; like the pool, they are never spelled out when zero.
+  const counted = !!view && typeof view === 'object' && Object.hasOwn(view, 'casts');
+  obj(view, [...VIEW_KEYS, ...(pooled ? ['pool'] : []), ...(counted ? ['casts'] : [])].sort(), 'view');
+  if (counted) {
+    if (!Array.isArray(view.casts) || view.casts.length !== 2) fail('casts');
+    for (const n of view.casts) int(n, 'casts');
+  }
   if (pooled && (typeof view.pool !== 'string' || !Object.hasOwn(POOLS, view.pool) || view.pool === DEFAULT_POOL))
     fail('pool');
   if (view.mode !== 'versus') fail('mode');
