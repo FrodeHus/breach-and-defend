@@ -27,10 +27,15 @@ export function setupMatch(seed, {red, blue}, first) {
 
 export function playtestMatch(seed, sides, first, maxSteps = 20000) {
   const g = setupMatch(seed, sides, first);
-  const m = {tokens: [0, 0], reuse: [0, 0], overclock: [0, 0], casts: [0, 0], choices: 0};
+  const m = {tokens: [0, 0], retired: [0, 0], reuse: [0, 0], overclock: [0, 0], casts: [0, 0], choices: 0};
   const createToken = g.createToken.bind(g),
     emit = g.emit.bind(g),
-    play = g.play.bind(g);
+    play = g.play.bind(g),
+    retire = g.retire.bind(g);
+  g.retire = (p, c) => {
+    if (BY_ID[c.id].token) m.retired[p]++;
+    return retire(p, c);
+  };
   g.createToken = (p, id) => (m.tokens[p]++, createToken(p, id));
   g.emit = e => {
     if (e.type === 'cast') {
@@ -70,6 +75,7 @@ export function playtest(seeds, matchups = MATCHUPS) {
       firstWins: done.filter(g => g.winner === g.first).length,
       turns: avg(g => g.turns),
       tokensMade: avg(g => sum(g.tokens)),
+      tokensRetired: avg(g => sum(g.retired)),
       tokensUnspent: avg(g => sum(g.unspent)),
       reuseCasts: avg(g => sum(g.reuse)),
       overclocks: avg(g => sum(g.overclock)),
@@ -95,10 +101,10 @@ const pct = (k, n) => {
 };
 export function report(rows) {
   const head =
-    '| Matchup | Games | Stalled | Red wins | First player wins | Turns | Tokens made | Tokens unspent | Reuse casts | Overclocks | Choices |\n|---|---:|---:|---|---|---:|---:|---:|---:|---:|---:|';
+    '| Matchup | Games | Stalled | Red wins | First player wins | Turns (both players) | Tokens made | Tokens retired | Tokens unspent | Reuse casts | Overclocks | Choices |\n|---|---:|---:|---|---|---:|---:|---:|---:|---:|---:|---:|';
   const body = rows.map(r => {
     const n = r.games - r.stalled;
-    return `| ${r.matchup} | ${r.games} | ${r.stalled} | ${pct(r.redWins, n)} | ${pct(r.firstWins, n)} | ${r.turns.toFixed(1)} | ${r.tokensMade.toFixed(1)} | ${r.tokensUnspent.toFixed(1)} | ${r.reuseCasts.toFixed(1)} | ${r.overclocks.toFixed(1)} | ${r.choices.toFixed(1)} |`;
+    return `| ${r.matchup} | ${r.games} | ${r.stalled} | ${pct(r.redWins, n)} | ${pct(r.firstWins, n)} | ${r.turns.toFixed(1)} | ${r.tokensMade.toFixed(1)} | ${r.tokensRetired.toFixed(1)} | ${r.tokensUnspent.toFixed(1)} | ${r.reuseCasts.toFixed(1)} | ${r.overclocks.toFixed(1)} | ${r.choices.toFixed(1)} |`;
   });
   return [head, ...body].join('\n');
 }
