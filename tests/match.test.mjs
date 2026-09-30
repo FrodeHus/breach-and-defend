@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Match} from '../public/match.mjs';
+import {Match, runningClock} from '../public/match.mjs';
 import {CARDS} from '../public/cards.mjs';
 import {applyAction, canonical, seedHex, unflipAction, versusGame} from '../public/protocol.mjs';
 import {choose} from './helpers/policy.mjs';
 import {act, fakeTime, newMatch, openedMatch} from './helpers/versus.mjs';
+import {table} from './helpers/rules.mjs';
 
 test('nothing happens until both players take the pledge', async () => {
   const m = await newMatch(),
@@ -87,4 +88,12 @@ test('a saved match restores its game, log and pledges, and waits for the guest'
   assert.equal(r.lastSeq, m.lastSeq);
   assert.equal(r.started, true);
   assert.equal(r.guestConnected, false);
+});
+
+test('a pending choice runs its chooser’s clock', () => {
+  const g = table();
+  g.pending = {id: 1, actor: 1, kind: 'pay', private: false, prompt: 'Pay 2', min: 1, max: 1, options: [true, false]};
+  assert.equal(runningClock({turn: g.turn, turnLeft: 1, responseLeft: 1}, g, false), 'responseLeft');
+  g.pending.actor = 0;
+  assert.equal(runningClock({turn: g.turn, turnLeft: 1, responseLeft: 1}, g, false), 'turnLeft');
 });
