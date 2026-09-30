@@ -290,7 +290,7 @@
     height: 100%;
     min-height: 0;
     margin: 0;
-    padding: 0 300px 0 10px;
+    padding: 0 340px 0 10px;
     border-radius: 12px 12px 0 0;
     background: linear-gradient(#edf3f74d, #edf3f7db 28%);
     display: grid;
@@ -359,69 +359,51 @@
     height: 22px;
     min-width: 22px;
   }
-  .match-playing .priority-option {
-    position: absolute;
-    bottom: 7px;
-    right: 12px;
-    width: 270px;
-    padding: 0;
-    font-size: 0.75rem;
-    line-height: 18px;
-    z-index: 15;
-  }
-  .match-playing .priority-option input {
-    padding: 0;
-    vertical-align: middle;
-  }
   .match-playing .command-area {
     position: absolute;
-    right: 26px;
-    bottom: 34px;
-    width: 276px;
+    right: 14px;
+    bottom: 10px;
+    width: 316px;
     max-width: none;
-    max-height: none;
     margin: 0;
-    padding: 8px 10px;
     z-index: 15;
-    border-radius: 10px;
-    background: #f7fafcf5;
-    box-shadow: 0 4px 20px #17354420;
-    overflow: visible;
   }
-  .match-playing .phase-bar {
+  .match-playing .term-prompt {
+    display: none;
+  }
+  .match-playing .term-body {
+    gap: 6px;
+    padding: 8px 10px;
+  }
+  .match-playing .command-area .phase-bar {
     flex-wrap: nowrap;
     justify-content: space-between;
-    gap: 1px;
-    margin: 0 0 4px;
-    padding: 0;
+    gap: 2px;
   }
-  .match-playing .phase {
-    padding: 3px 4px;
-    font-size: 0.75rem;
-    white-space: nowrap;
+  .match-playing .command-area .phase {
+    padding: 1px 4px;
+    font-size: 0.625rem;
   }
-  .match-playing .action-bar {
-    display: flex;
+  .match-playing .command-area .action-bar {
     flex-direction: column;
-    gap: 6px;
-    margin: 0;
-    min-height: 0;
     align-items: stretch;
+    gap: 6px;
   }
-  .match-playing .action-bar .hint {
-    font-size: 0.75rem;
-    line-height: 1.35;
-    flex: auto;
-    min-height: 0;
-    max-height: 33px;
+  .match-playing .command-area .action-bar .hint {
+    max-height: 36px;
     overflow: auto;
+    font-size: 0.6875rem;
+    line-height: 1.45;
   }
-  .match-playing .action-bar .primary {
+  .match-playing .term-run {
     min-width: 0;
-    width: 100%;
-    min-height: 36px;
-    padding: 7px 10px;
+    min-height: 38px;
+    padding: 6px 10px;
     font-size: 0.875rem;
+  }
+  .match-playing .command-area .priority-option {
+    padding: 5px 10px;
+    font-size: 0.625rem;
   }
   .match-playing .tutorial-step {
     position: absolute;
@@ -603,11 +585,6 @@
   color: #203b4c;
   text-shadow: none;
   font-weight: 600;
-}
-.table .priority-option {
-  color: #344f60;
-  background: #edf3f7;
-  border-radius: 4px;
 }
 .table .match-top h2 {
   background: #f7fafc;
