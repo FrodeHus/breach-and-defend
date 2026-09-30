@@ -163,7 +163,8 @@ export class Game {
   }
   holds(p, cond) {
     if (cond.control) return this.players[p].field.some(x => x.id === cond.control);
-    return false;
+    if (cond.attackedWith) return p === this.active && this.attacks.length >= cond.attackedWith;
+    throw Error(`Unknown condition: ${JSON.stringify(cond)}.`);
   }
   mana(p) {
     return this.players[p].field.filter(c => this.data(c).type === 'Infrastructure' && !c.tapped).length;
@@ -243,7 +244,10 @@ export class Game {
           message: options.reuse ? 'This card is not in your discard.' : 'This card is not in your hand.',
         },
       ];
-    if (options.reuse && (this.data(c).reuse == null || !['Operation', 'Response'].includes(this.data(c).type)))
+    if (
+      options.reuse &&
+      (this.data(c).reuse == null || !['Operation', 'Response'].includes(this.data(c).type) || !isRule(this.data(c)))
+    )
       return [{code: 'reuse', message: `${this.data(c).name} can’t be cast from your discard.`}];
     if (this.pending) return [{code: 'pending', message: 'Finish the pending choice first.'}];
     const d = this.data(c),
@@ -298,13 +302,21 @@ export class Game {
     return (reuse ? d.reuse : d.cost) + (overclock && d.overclock ? d.overclock.cost : 0);
   }
   // A rule card can be cast when some way of casting it (a mode, with or without Overclock) has its targets.
-  ruleIssues(p, d, {mode = null, overclock = false} = {}) {
+  ruleIssues(p, d, {mode = null, overclock = false, reuse = false} = {}) {
     if (d.modes && mode != null && !(Number.isInteger(mode) && mode >= 0 && mode < d.modes.length))
       return [{code: 'mode', message: 'Choose one of this card’s modes.'}];
     const modes = d.modes ? (mode == null ? d.modes.map((_, i) => i) : [mode]) : [null];
+    // Overclock can widen the targets (a bigger unit), so it counts when the player can afford it.
+    const ways = overclock
+      ? [true]
+      : d.overclock && this.mana(p) >= this.costOf(d, {overclock: true, reuse})
+        ? [false, true]
+        : [false];
     const reachable = modes.some(m =>
-      spellRule(d, {mode: m, overclock}).targets.every(
-        spec => spec.optional || spec.upTo || candidates(this, p, spec).length,
+      ways.some(o =>
+        spellRule(d, {mode: m, overclock: o}).targets.every(
+          spec => spec.optional || spec.upTo || candidates(this, p, spec).length,
+        ),
       ),
     );
     return reachable ? [] : [{code: 'target', message: 'There is no legal target for this card.'}];
@@ -653,6 +665,16 @@ export class Game {
     this.players[p].archive.push(c);
     this.note(`${this.data(c).name} is archived.`);
   }
+  // Leaving the discard makes a new object, like returning to hand.
+  recover(p, c, zone, {tapped = false} = {}) {
+    const q = this.players[p];
+    q.grave = q.grave.filter(x => x.uid !== c.uid);
+    clearTransient(c);
+    Object.assign(c, {uid: ++this.uid, tapped: zone === 'field' && tapped, sick: true, damage: 0, bp: 0, bt: 0});
+    (zone === 'field' ? q.field : q.hand).push(c);
+    this.note(`${this.data(c).name} returns to ${zone === 'field' ? 'the battlefield' : 'its owner’s hand'}.`);
+    if (zone === 'field') this.emit({type: 'enter', p, uid: c.uid});
+  }
   hurt(victim, amount, source, owner) {
     if (
       this.data(source).tags?.includes('phishing') &&
@@ -708,11 +730,13 @@ export class Game {
   }
   triggersFor(e) {
     const found = [];
-    const consider = (c, p) => {
+    const consider = (c, p, onField = true) => {
       for (const a of this.data(c).abilities ?? []) {
         if (a.kind !== 'triggered' || !ON[a.on](e, c, p, a)) continue;
-        // Counted when it triggers, even if the trigger is later countered or removed.
-        if (a.once) {
+        if (a.if && !this.holds(p, a.if)) continue;
+        // Counted when it triggers, even if the trigger is later countered or removed. Only battlefield objects
+        // have a turn to count in; a card triggering from the discard is not marked.
+        if (a.once && onField) {
           if (c.used?.includes(a.id)) continue;
           (c.used ??= []).push(a.id);
         }
@@ -723,7 +747,7 @@ export class Game {
     // A card's own "when this is defeated" ability triggers from the discard it went to.
     if (e.type === 'defeated') {
       const f = this.find(e.uid);
-      if (f?.zone === 'grave') consider(f.card, e.p);
+      if (f?.zone === 'grave') consider(f.card, e.p, false);
     }
     return found;
   }
