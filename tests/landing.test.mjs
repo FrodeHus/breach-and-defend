@@ -9,11 +9,11 @@ test('computer mode: mode pressed, tutorial opt-in, and Play buttons wired to da
   const html = landing({mode: 'solo'});
   assert.match(html, /data-mode="solo" aria-pressed="true"/);
   assert.match(html, /data-mode="friend" aria-pressed="false"/);
-  assert.match(html, /id="guideFirstGame" type="checkbox"  aria-describedby="tutorialOffer"/);
+  assert.match(html, /id="guideFirstGame" type="checkbox" role="switch"  aria-describedby="tutorialOffer"/);
   assert.match(html, /data-start="blue">Play Blue team →/);
   assert.match(html, /data-start="red">Play Red team →/);
   assert.doesNotMatch(html, /data-invite/);
-  assert.match(landing({mode: 'solo', guide: true}), /id="guideFirstGame" type="checkbox" checked/);
+  assert.match(landing({mode: 'solo', guide: true}), /id="guideFirstGame" type="checkbox" role="switch" checked/);
 });
 
 test('friend mode: Invite buttons wired to data-invite and no tutorial opt-in', () => {
@@ -93,15 +93,18 @@ test('a released expansion adds an opt-in in both modes, disabled while the guid
   t.after(() => delete POOLS.mirror);
   const pools = ['first-breach', 'mirror'];
   const off = landing({mode: 'solo', pools});
-  assert.match(off, /<input id="includeExpansion" type="checkbox" value="mirror"\s+aria-describedby="expansionOffer">/);
+  assert.match(
+    off,
+    /<input id="includeExpansion" type="checkbox" role="switch" value="mirror"\s+aria-describedby="expansionOffer">/,
+  );
   assert.match(off, /<strong>Include Mirror<\/strong>/);
   assert.match(off, /Both players use decks that mix First Breach with Mirror\./);
   assert.match(
     landing({mode: 'solo', pools, pool: 'mirror'}),
-    /id="includeExpansion" type="checkbox" value="mirror" checked/,
+    /id="includeExpansion" type="checkbox" role="switch" value="mirror" checked/,
   );
   const guided = landing({mode: 'solo', pools, pool: 'mirror', guide: true});
-  assert.match(guided, /id="includeExpansion" type="checkbox" value="mirror" checked disabled/);
+  assert.match(guided, /id="includeExpansion" type="checkbox" role="switch" value="mirror" checked disabled/);
   assert.match(guided, /Guided games use First Breach cards only\./);
   assert.match(landing({mode: 'friend', pools}), /id="includeExpansion"/);
 });

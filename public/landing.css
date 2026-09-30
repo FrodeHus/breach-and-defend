@@ -171,16 +171,60 @@ body.landing-view main {
   margin: 0 0 0 auto;
 }
 .landing .tutorial-opt-in {
-  padding: 10px 14px;
+  gap: 12px;
+  padding: 8px 12px;
   background: var(--panel);
   border-color: var(--line);
   color: var(--text);
 }
 .landing .tutorial-opt-in small {
+  margin-top: 2px;
   color: var(--muted);
 }
+/* Settings, not choices: the checkboxes are drawn as switches (role="switch" keeps their semantics). */
 .landing .tutorial-opt-in input {
-  accent-color: var(--blue);
+  appearance: none;
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #0c1115;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.landing .tutorial-opt-in input::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition:
+    transform 0.15s,
+    background 0.15s;
+}
+.landing .tutorial-opt-in input:checked {
+  background: color-mix(in srgb, var(--blue) 35%, #0c1115);
+  border-color: var(--blue);
+}
+.landing .tutorial-opt-in input:checked::before {
+  transform: translateX(18px);
+  background: var(--blue);
+}
+.landing .tutorial-opt-in input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing .tutorial-opt-in input,
+  .landing .tutorial-opt-in input::before {
+    transition: none;
+  }
 }
 .step-head .step-options {
   margin: 0 0 0 auto;

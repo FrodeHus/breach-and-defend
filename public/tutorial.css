@@ -10,10 +10,13 @@
   color: #203b4c;
   cursor: pointer;
 }
+/* The global text-input rule (flex: 1, min-width: 180px) would stretch the checkbox and push its label aside. */
 .tutorial-opt-in input {
   width: 21px;
   height: 21px;
-  flex-shrink: 0;
+  min-width: 0;
+  flex: none;
+  margin: 0;
   accent-color: #096b78;
 }
 .tutorial-opt-in strong,
