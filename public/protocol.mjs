@@ -1,7 +1,7 @@
 // @ts-check
 // Shared by the host referee and the guest's audit, so both apply identical rules and redaction.
 import {Game, PHASE_NAMES} from './engine.mjs';
-import {BY_ID, CARDS, DEFAULT_POOL, POOLS} from './cards.mjs';
+import {BY_ID, CARDS, DEFAULT_POOL, KEYWORDS, POOLS} from './cards.mjs';
 import {seededRandom} from './rng.mjs';
 
 export const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -210,7 +210,7 @@ export function safeKeys(value, depth = 0) {
   }
   return value;
 }
-const LESSONS = new Set(CARDS.map(c => JSON.stringify([c.name, c.lesson, c.faction])));
+const LESSONS = new Set(CARDS.map(c => JSON.stringify([c.name, c.lesson ?? '', c.faction])));
 const VIEW_KEYS = [
   'active',
   'attacks',
@@ -274,8 +274,11 @@ export function sanitizeView(view) {
   };
   const isHidden = c =>
     !!c && typeof c === 'object' && !Array.isArray(c) && Object.keys(c).length === 1 && c.hidden === true;
+  const KEY = /^[a-z]{1,16}$/;
+  const OPTIONAL_CARD_KEYS = ['kw', 'locked', 'used'];
   const card = (c, what) => {
-    obj(c, CARD_KEYS, what);
+    if (!c || typeof c !== 'object' || Array.isArray(c)) fail(what);
+    obj(c, [...CARD_KEYS, ...OPTIONAL_CARD_KEYS.filter(k => Object.hasOwn(c, k))].sort(), what);
     if (typeof c.id !== 'string' || !Object.hasOwn(BY_ID, c.id)) fail(`${what} id`);
     int(c.uid, `${what} uid`, 1);
     bool(c.tapped, what);
@@ -283,6 +286,112 @@ export function sanitizeView(view) {
     num(c.damage, what);
     num(c.bp, what);
     num(c.bt, what);
+    if (Object.hasOwn(c, 'kw'))
+      for (const k of arr(c.kw, what, 8)) if (!Object.hasOwn(KEYWORDS, k)) fail(`${what} keyword`);
+    if (Object.hasOwn(c, 'locked') && c.locked !== true) fail(what);
+    if (Object.hasOwn(c, 'used'))
+      for (const k of arr(c.used, what, 8)) if (typeof k !== 'string' || !KEY.test(k)) fail(what);
+  };
+  const ref = (t, what) => {
+    if (t?.kind === 'player') {
+      obj(t, ['kind', 'p'], what);
+      seat(t.p, what);
+    } else if (t?.kind === 'card' || t?.kind === 'spell') {
+      obj(t, ['kind', 'uid'], what);
+      int(t.uid, what, 1);
+    } else fail(what);
+  };
+  const targetMap = (m, what) => {
+    if (!m || typeof m !== 'object' || Array.isArray(m)) fail(what);
+    for (const [k, v] of Object.entries(m)) {
+      if (!KEY.test(k)) fail(what);
+      if (Array.isArray(v)) for (const t of arr(v, what, 4)) ref(t, what);
+      else ref(v, what);
+    }
+  };
+  const opts = (o, what) => {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) fail(what);
+    if (Object.keys(o).some(k => !['targets', 'overclock', 'mode', 'reuse'].includes(k))) fail(`${what} options`);
+    targetMap(o.targets, `${what} targets`);
+    if (Object.hasOwn(o, 'overclock') && o.overclock !== true) fail(what);
+    if (Object.hasOwn(o, 'reuse') && o.reuse !== true) fail(what);
+    if (Object.hasOwn(o, 'mode') && (!Number.isInteger(o.mode) || o.mode < 0 || o.mode > 9)) fail(what);
+  };
+  const abilityRef = (a, what) => {
+    obj(a, ['card', 'id', 'uid'], what);
+    if (typeof a.card !== 'string' || !Object.hasOwn(BY_ID, a.card)) fail(what);
+    if (!BY_ID[a.card].abilities?.some(x => x.id === a.id)) fail(what);
+    int(a.uid, what, 1);
+  };
+  const entry = (s, what) => {
+    if (!s || typeof s !== 'object' || Array.isArray(s)) fail(what);
+    if (Object.hasOwn(s, 'ability')) {
+      obj(s, ['ability', 'opts', 'p', 'target'], what);
+      abilityRef(s.ability, what);
+      opts(s.opts, what);
+      if (s.target !== null) fail(what);
+    } else if (Object.hasOwn(s, 'opts')) {
+      obj(s, ['card', 'opts', 'p', 'target'], what);
+      card(s.card, what);
+      opts(s.opts, what);
+      if (s.target !== null) fail(what);
+    } else {
+      obj(s, ['card', 'p', 'target'], what);
+      card(s.card, what);
+      if (s.target !== null) ref(s.target, `${what} target`);
+    }
+    seat(s.p, `${what} player`);
+  };
+  const KINDS = ['probe', 'discard', 'pay', 'optional', 'order', 'targets'];
+  const pending = c => {
+    const extra = ['data', 'resolving', 'count', 'cards'].filter(
+      k => c && typeof c === 'object' && Object.hasOwn(c, k),
+    );
+    obj(c, ['actor', 'id', 'kind', 'max', 'min', 'options', 'private', 'prompt', ...extra].sort(), 'pending');
+    int(c.id, 'pending', 1);
+    seat(c.actor, 'pending actor');
+    if (!KINDS.includes(c.kind)) fail('pending kind');
+    bool(c.private, 'pending');
+    text(c.prompt, 'pending prompt');
+    int(c.min, 'pending');
+    int(c.max, 'pending');
+    const options = arr(c.options, 'pending options', 60);
+    if (c.kind === 'pay') {
+      if (!options.every(o => typeof o === 'boolean')) fail('pending options');
+    } else if (c.kind === 'optional') {
+      for (const o of options) if (o !== null) int(o, 'pending option', 1);
+    } else if (c.kind === 'targets') {
+      for (const o of options) {
+        obj(o, ['candidates', 'key', 'optional', 'upTo'], 'pending option');
+        if (!KEY.test(o.key)) fail('pending option');
+        bool(o.optional, 'pending option');
+        int(o.upTo, 'pending option');
+        for (const t of arr(o.candidates, 'pending option', 60)) ref(t, 'pending option');
+      }
+    } else for (const o of options) int(o, 'pending option', 1);
+    if (Object.hasOwn(c, 'count')) {
+      int(c.count, 'pending count');
+      if (!c.private || options.length) fail('pending count');
+    }
+    if (Object.hasOwn(c, 'cards')) {
+      if (c.kind !== 'probe') fail('pending cards');
+      for (const x of arr(c.cards, 'pending cards', 10)) {
+        obj(x, ['id', 'uid'], 'pending card');
+        if (typeof x.id !== 'string' || !Object.hasOwn(BY_ID, x.id)) fail('pending card');
+        int(x.uid, 'pending card', 1);
+      }
+    }
+    if (Object.hasOwn(c, 'data')) {
+      if (c.kind === 'pay') {
+        obj(c.data, ['amount', 'uid'], 'pending data');
+        int(c.data.amount, 'pending data');
+        int(c.data.uid, 'pending data', 1);
+      } else if (c.kind === 'targets') {
+        obj(c.data, ['trigger'], 'pending data');
+        int(c.data.trigger, 'pending data', 1);
+      } else fail('pending data');
+    }
+    if (Object.hasOwn(c, 'resolving')) entry(c.resolving, 'resolving entry');
   };
   const hiddenCard = (c, what) => {
     if (!isHidden(c)) fail(what);
@@ -290,16 +399,31 @@ export function sanitizeView(view) {
 
   safeKeys(view);
   // The default pool is never spelled out (Game.toJSON omits it), so there is one encoding and old digests hold.
-  const pooled = !!view && typeof view === 'object' && Object.hasOwn(view, 'pool');
-  // Cast counts appear only mid-turn in expansion matches; like the pool, they are never spelled out when zero.
-  const counted = !!view && typeof view === 'object' && Object.hasOwn(view, 'casts');
-  obj(view, [...VIEW_KEYS, ...(pooled ? ['pool'] : []), ...(counted ? ['casts'] : [])].sort(), 'view');
-  if (counted) {
+  // Cast counts appear only mid-turn in expansion matches; pending and waiting only while a choice or trigger is open.
+  const optionalKeys = ['pool', 'casts', 'pending', 'waiting'].filter(
+    k => !!view && typeof view === 'object' && Object.hasOwn(view, k),
+  );
+  obj(view, [...VIEW_KEYS, ...optionalKeys].sort(), 'view');
+  if (optionalKeys.includes('casts')) {
     if (!Array.isArray(view.casts) || view.casts.length !== 2) fail('casts');
     for (const n of view.casts) int(n, 'casts');
   }
-  if (pooled && (typeof view.pool !== 'string' || !Object.hasOwn(POOLS, view.pool) || view.pool === DEFAULT_POOL))
+  if (
+    optionalKeys.includes('pool') &&
+    (typeof view.pool !== 'string' || !Object.hasOwn(POOLS, view.pool) || view.pool === DEFAULT_POOL)
+  )
     fail('pool');
+  if (optionalKeys.includes('pending')) pending(view.pending);
+  if (optionalKeys.includes('waiting'))
+    for (const w of arr(view.waiting, 'waiting', 20)) {
+      const extra = ['ordered', 'targets'].filter(k => w && typeof w === 'object' && Object.hasOwn(w, k));
+      obj(w, ['ability', 'id', 'p', ...extra].sort(), 'waiting');
+      int(w.id, 'waiting', 1);
+      seat(w.p, 'waiting');
+      abilityRef(w.ability, 'waiting');
+      if (Object.hasOwn(w, 'ordered') && w.ordered !== true) fail('waiting');
+      if (Object.hasOwn(w, 'targets')) targetMap(w.targets, 'waiting targets');
+    }
   if (view.mode !== 'versus') fail('mode');
   seat(view.first, 'first');
   seat(view.active, 'active');
@@ -325,24 +449,15 @@ export function sanitizeView(view) {
     if (!/^[1-9][0-9]{0,8}$/.test(a)) fail('blocked attacker');
     for (const uid of arr(bs, 'blockers')) int(uid, 'blocker', 1);
   }
-  for (const s of arr(view.stack, 'stack')) {
-    obj(s, ['card', 'p', 'target'], 'stack entry');
-    card(s.card, 'stack card');
-    seat(s.p, 'stack player');
-    const t = s.target;
-    if (t === null) continue;
-    if (t?.kind === 'player') {
-      obj(t, ['kind', 'p'], 'target');
-      seat(t.p, 'target');
-    } else if (t?.kind === 'card' || t?.kind === 'spell') {
-      obj(t, ['kind', 'uid'], 'target');
-      int(t.uid, 'target', 1);
-    } else fail('target');
-  }
+  for (const s of arr(view.stack, 'stack')) entry(s, 'stack entry');
   const players = arr(view.players, 'players', 2);
   if (players.length !== 2) fail('players');
   players.forEach((q, i) => {
-    obj(q, PLAYER_KEYS, 'player');
+    obj(
+      q,
+      [...PLAYER_KEYS, ...(q && typeof q === 'object' && Object.hasOwn(q, 'archive') ? ['archive'] : [])].sort(),
+      'player',
+    );
     if (q.faction !== 'red' && q.faction !== 'blue') fail('faction');
     num(q.life, 'life');
     bool(q.landPlayed, 'landPlayed');
@@ -350,6 +465,7 @@ export function sanitizeView(view) {
     for (const c of arr(q.hand, 'hand')) (i === 1 ? hiddenCard : card)(c, 'hand card');
     for (const c of arr(q.field, 'field')) card(c, 'field card');
     for (const c of arr(q.grave, 'grave')) card(c, 'grave card');
+    if (Object.hasOwn(q, 'archive')) for (const c of arr(q.archive, 'archive')) card(c, 'archive card');
   });
   if (players[0].faction === players[1].faction) fail('faction');
   return view;

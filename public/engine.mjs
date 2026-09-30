@@ -368,7 +368,7 @@ export class Game {
     this.pay(p, this.costOf(d, options));
     if (d.extraCost) this.payCost(p, d.extraCost, null, options.costUids ?? []);
     this.stack.push(opts ? {card: c, p, target: null, opts} : {card: c, p, target});
-    this.events.push({name: d.name, lesson: d.lesson, faction: d.faction});
+    this.events.push({name: d.name, lesson: d.lesson ?? '', faction: d.faction});
     this.passes = 0;
     this.casts[p]++;
     this.emit({type: 'cast', p, uid: c.uid, count: this.casts[p], fromGrave: !!options.reuse});

@@ -1,7 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {CARDS, EXPANSION_POOL} from '../public/cards.mjs';
-import {actionFields, applyAction, flip, playOptions, timeoutAction, viewFor} from '../public/protocol.mjs';
+import {
+  actionFields,
+  applyAction,
+  flip,
+  playOptions,
+  sanitizeView,
+  timeoutAction,
+  viewFor,
+} from '../public/protocol.mjs';
 import {Seat} from '../public/remote.mjs';
 import {aiMatch} from './helpers/simulate.mjs';
 import {openedMatch} from './helpers/versus.mjs';
@@ -216,4 +224,40 @@ test('a private choice shows its chooser the cards and the other player only a c
     assert.equal(v.resolving.card.id, pt('Map Trust Relationships'));
   }
   assert.equal(Object.hasOwn(viewFor(g, 0), 'queue'), false);
+});
+
+test('every view of complete expansion matches passes the guest’s check', () => {
+  everyView((g, p, v) => assert.doesNotThrow(() => sanitizeView(v), `turn ${g.turn} view for ${p}`));
+});
+
+test('a host view with a malformed expansion shape is rejected', () => {
+  const g = table();
+  g.mode = 'versus';
+  compute(g, 0, 1);
+  applyAction(g, 0, {type: 'play', uid: put(g, 0, pt('Map Trust Relationships'), 'hand').uid, target: null});
+  resolveTop(g);
+  g.createToken(0, 'pt-backdoor');
+  const good = viewFor(g, 1);
+  assert.doesNotThrow(() => sanitizeView(good));
+  const bad = [
+    v => (v.pending.kind = 'steal'),
+    v => (v.pending.prompt = '<img src=x>'),
+    v => (v.pending.options = Array(100).fill(1)),
+    v => (v.pending.extra = 1),
+    v => (v.pending.count = -1),
+    v => (v.pending.resolving.card.id = 'nope'),
+    v => (v.pending.resolving.opts.overclock = 'yes'),
+    v => (v.pending.resolving.opts.targets = {'<b>': {kind: 'card', uid: 1}}),
+    v => (v.waiting = [{id: 1, p: 0, ability: {card: 'pt-backdoor', uid: 1, id: 'nope'}}]),
+    v => (v.players[0].archive = [{hidden: true}]),
+    v => (v.players[1].field.find(c => c.id === 'pt-backdoor').kw = ['flying']),
+    v => (v.players[1].field.find(c => c.id === 'pt-backdoor').locked = false),
+    v => v.stack.push({ability: {card: 'r1', uid: 1, id: 'x'}, opts: {targets: {}}, p: 0, target: null}),
+    v => (v.queue = []),
+  ];
+  for (const [i, mutate] of bad.entries()) {
+    const v = structuredClone(good);
+    mutate(v);
+    assert.throws(() => sanitizeView(v), /Invalid/, `mutation ${i}`);
+  }
 });
