@@ -294,3 +294,40 @@ test('a disabled ability or Reuse button points at the element that says why', (
   const rid = reuse.match(/id="reuse"[^>]*aria-describedby="([^"]+)"/)[1];
   assert.match(reuse, new RegExp(`<small[^>]*id="${rid}"`));
 });
+
+import {prepDialog} from '../public/expansion-view.mjs';
+
+test('the preparation dialog shows each way with its total cost, rules and reason, and confirms only when complete', () => {
+  const g = table();
+  compute(g, 0, 4);
+  const foe = put(g, 1, 'b8');
+  const c = put(g, 0, pt('Coordinated Pressure'), 'hand');
+  const ways = castWays(g, 0, c);
+  let prep = {kind: 'cast', uid: c.uid, zone: 'hand', ways, way: null, picks: {}};
+  let html = prepDialog(state(g), prep);
+  assert.match(html, /<button[^>]*data-way="0"[^>]*aria-pressed="false"[^>]*>Standard — 3 compute/);
+  assert.match(html, /<button[^>]*data-way="1"[^>]*disabled[^>]*>Overclocked — 5 compute/);
+  assert.match(html, /Needs 5 compute/);
+  assert.match(html, /Deal 4 damage/, 'the rules are visible');
+  assert.match(html, /<button[^>]*id="prepConfirm"[^>]*disabled/);
+  assert.match(html, /<button[^>]*id="prepCancel"/);
+  prep = {...prep, way: 0};
+  html = prepDialog(state(g), prep);
+  assert.match(html, /data-way="0"[^>]*aria-pressed="true"/);
+  assert.match(html, /<button[^>]*data-pick="t:0"[^>]*aria-pressed="false"[^>]*>Forensic Investigator/);
+  prep = {...prep, picks: togglePick(ways[0], {}, 't', 0)};
+  assert.doesNotMatch(prepDialog(state(g), prep), /id="prepConfirm"[^>]*disabled/);
+  assert.equal(foe.damage, 0, 'preparing changes nothing');
+});
+
+test('an ability preparation shows what it costs, including the card it retires', () => {
+  const g = table();
+  compute(g, 0, 2);
+  const w = put(g, 0, pt('Analysis Workbench'));
+  g.createToken(0, 'pt-indicator');
+  const ways = abilityWays(g, 0, w);
+  const html = prepDialog(state(g), {kind: 'activate', uid: w.uid, zone: 'field', ways, way: 0, picks: {}});
+  assert.match(html, /Draw two, then discard one — 2 compute, tap/);
+  assert.match(html, /Retire as a cost/);
+  assert.match(html, /data-pick="retire:0"[^>]*>Indicator/);
+});

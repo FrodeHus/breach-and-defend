@@ -826,3 +826,35 @@
   color: var(--gold);
   border-style: dashed;
 }
+/* Preparing a cast or activation: wrapping grids of ways and choices; the pressed one is marked by border and ✓. */
+.prep-ways,
+.prep-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.prep-selector {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+}
+.prep-selector legend {
+  color: var(--muted);
+  padding: 0 4px;
+}
+.prep-way {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 100%;
+}
+.prep-way button:disabled {
+  opacity: 0.55;
+}
+#modalBody [aria-pressed='true'] {
+  border: 2px solid var(--gold);
+}
+#modalBody [aria-pressed='true']::before {
+  content: '✓ ';
+}

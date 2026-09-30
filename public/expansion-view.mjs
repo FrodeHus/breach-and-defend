@@ -4,7 +4,7 @@
 import {esc} from './html.mjs';
 import {BY_ID} from './cards.mjs';
 import {card} from './card-view.mjs';
-import {abilityWays, castWays} from './prepare.mjs';
+import {abilityWays, castWays, ready} from './prepare.mjs';
 
 const who = (s, p) => (p === 0 ? 'You' : s.versus ? 'Opponent' : 'Computer');
 
@@ -71,4 +71,46 @@ export function archiveDialog(s, p) {
   const {game} = s;
   const cards = game.players[p].archive ?? [];
   return `<h2>${p === 0 ? 'Your' : 'Opponent’s'} archive</h2><p class="muted">Archived cards are out of the game for good. Nothing returns them.</p><div class="grid">${cards.map(c => card(s, c)).join('') || '<p>No archived cards.</p>'}</div>`;
+}
+
+const costText = (way, ability) =>
+  `${way.totalCost} compute${ability?.cost?.tap ? ', tap' : ''}${ability?.cost?.retire === 'self' ? ', retire this' : ''}`;
+// Choosing how to cast or activate: a way, then its targets and cost cards. Nothing is spent until Confirm.
+export function prepDialog(s, prep) {
+  const {game} = s;
+  const found = game.find(prep.uid),
+    d = BY_ID[found?.card.id ?? ''] ?? {};
+  const ability = prep.kind === 'activate' ? d.abilities?.find(a => a.id === prep.ways[0]?.abilityId) : null;
+  const way = prep.way == null ? null : prep.ways[prep.way];
+  const ways =
+    prep.kind === 'activate'
+      ? ''
+      : `<div class="prep-ways" role="group" aria-label="How to cast">${prep.ways
+          .map((w, i) => {
+            const rid = `reason-way-${i}`;
+            return `<div class="prep-way"><button data-way="${i}" aria-pressed="${prep.way === i}" ${w.issues.length ? `disabled aria-describedby="${rid}"` : ''}>${esc(w.label)} — ${w.totalCost} compute</button>${reason(rid, w.issues)}</div>`;
+          })
+          .join('')}</div>`;
+  const selectors = way
+    ? way.selectors
+        .map(
+          sel =>
+            `<fieldset class="prep-selector"><legend>${esc(sel.label)}</legend>${
+              sel.candidates.length
+                ? sel.candidates
+                    .map(
+                      (c, i) =>
+                        `<button data-pick="${esc(sel.key)}:${i}" aria-pressed="${(prep.picks[sel.key] ?? []).includes(i)}">${esc(c.label)}</button>`,
+                    )
+                    .join('')
+                : '<p class="muted">Nothing to choose.</p>'
+            }</fieldset>`,
+        )
+        .join('')
+    : '';
+  const title =
+    prep.kind === 'activate' && way ? `${esc(way.label)} — ${costText(way, ability)}` : `Cast ${esc(d.name ?? '')}`;
+  const canConfirm = way && ready(way, prep.picks, game);
+  const eyebrow = prep.kind === 'activate' ? 'ACTIVATE' : prep.zone === 'grave' ? 'REUSE FROM DISCARD' : 'CAST';
+  return `<div class="eyebrow">${eyebrow} / ${esc((d.name ?? '').toUpperCase())}</div><h2>${title}</h2><p class="muted">${esc(d.text ?? '')}</p>${ways}${way?.issues.length && prep.kind === 'activate' ? reason('reason-prep', way.issues) : ''}${selectors}<div class="toolbar"><button class="primary" id="prepConfirm" ${canConfirm ? '' : 'disabled'}>Confirm${way ? ` · ${way.totalCost} compute` : ''}</button><button id="prepCancel">Cancel</button></div>`;
 }

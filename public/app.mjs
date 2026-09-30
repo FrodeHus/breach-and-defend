@@ -18,6 +18,9 @@ import {guide} from './guide.mjs';
 import {library, libraryGrid} from './library.mjs';
 import {card, hoverCard, label} from './card-view.mjs';
 import * as arena from './arena-view.mjs';
+import * as expansion from './expansion-view.mjs';
+import {abilityWays, castWays, ready, toOptions, togglePick} from './prepare.mjs';
+import {isRule} from './rules.mjs';
 
 // Watchdogs: a stalled animation or an unanswered versus intent must never leave the board locked.
 const ANIMATION_MS = 6000,
@@ -51,6 +54,8 @@ let filter = {q: '', faction: 'all', type: 'all', set: 'all'};
 let versus = null,
   remoteQueue = [],
   versusShown = '';
+// A cast or activation being prepared in the dialog: nothing is spent until it is confirmed.
+let prep = null;
 // The state the views read. They never change it.
 const ui = () => ({
   game,
@@ -134,11 +139,17 @@ function toast(s) {
 }
 
 function close() {
+  prep = null;
   modal.close();
   schedule();
 }
 $('.close').onclick = close;
-modal.addEventListener('cancel', () => setTimeout(schedule, 0));
+modal.addEventListener('cancel', () => {
+  prep = null;
+  setTimeout(schedule, 0);
+});
+// Any other way the modal closes (a new game, a versus prompt) also abandons a preparation.
+modal.addEventListener('close', () => (prep = null));
 modal.addEventListener('click', e => {
   if (e.target === modal) close();
 });
@@ -235,10 +246,23 @@ function showCard(id, uid = null, zone = '') {
   const c = uid ? game?.find(uid)?.card : null;
   dialog(arena.cardDialog(ui(), id, c, zone));
   if ($('#cast')) $('#cast').onclick = () => chooseTarget(uid);
+  document.querySelectorAll('#modalBody [data-ability]').forEach(
+    b =>
+      (b.onclick = () => {
+        const c = game.players[0].field.find(x => x.uid === uid);
+        const way = c && abilityWays(game, 0, c).find(w => w.abilityId === b.dataset.ability);
+        if (way) prepare({kind: 'activate', uid, zone: 'field', ways: [way]});
+      }),
+  );
+  if ($('#reuse')) $('#reuse').onclick = () => chooseTarget(uid, 'grave');
 }
-function chooseTarget(uid) {
-  const c = game.players[0].hand.find(c => c.uid === uid);
+function chooseTarget(uid, zone = 'hand') {
+  const c = game.players[0][zone === 'grave' ? 'grave' : 'hand'].find(c => c.uid === uid);
   if (!c) return;
+  if (isRule(BY_ID[c.id])) {
+    prepare({kind: 'cast', uid, zone, ways: castWays(game, 0, c, zone)});
+    return;
+  }
   const d = BY_ID[c.id],
     ts = game.targets(0, c);
   if (!d.target || d.target === 'opponent') {
@@ -255,6 +279,46 @@ function chooseTarget(uid) {
       }),
   );
 }
+// Preparing a cast or activation: pick a way, then targets and cost cards. Cancelling spends nothing.
+function prepare(p) {
+  const usable = p.ways.map((w, i) => (w.issues.length ? -1 : i)).filter(i => i >= 0);
+  prep = {...p, way: usable.length === 1 ? usable[0] : null, picks: {}};
+  showPrep();
+}
+// Re-rendering replaces the controls, so focus returns to the one just pressed, else Confirm, else the first choice.
+function showPrep(keep = '') {
+  dialog(expansion.prepDialog(ui(), prep));
+  (
+    (keep ? $(`#modalBody ${keep}:not([disabled])`) : null) ??
+    $('#prepConfirm:not([disabled])') ??
+    $('#modalBody button:not([disabled])')
+  )?.focus();
+}
+function confirmPrep() {
+  const way = prep?.ways[prep.way];
+  if (!way || !ready(way, prep.picks, game)) return;
+  const {kind, uid} = prep,
+    options = toOptions(way, prep.picks);
+  prep = null;
+  modal.close();
+  action(() => (kind === 'cast' ? game.play(0, uid, null, options) : game.activate(0, uid, way.abilityId, options)));
+}
+// One delegated listener for the preparation controls: the modal body is replaced on every render.
+$('#modalBody').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b || b.disabled || !prep) return;
+  if (b.dataset.way !== undefined) {
+    prep = {...prep, way: Number(b.dataset.way), picks: {}};
+    return showPrep(`[data-way="${b.dataset.way}"]`);
+  }
+  if (b.dataset.pick !== undefined) {
+    const [key, i] = b.dataset.pick.split(':');
+    prep = {...prep, picks: togglePick(prep.ways[prep.way], prep.picks, key, Number(i))};
+    return showPrep(`[data-pick="${b.dataset.pick}"]`);
+  }
+  if (b.id === 'prepConfirm') return confirmPrep();
+  if (b.id === 'prepCancel') return close();
+});
 function recap() {
   dialog(arena.recapView(ui()));
   if ($('#rematch')) $('#rematch').onclick = () => start(game.players[0].faction);
@@ -466,6 +530,7 @@ const DATA_BUTTONS = {
   },
   invite: f => hostMatch(f),
   grave: p => dialog(arena.graveDialog(ui(), Number(p))),
+  archive: p => dialog(expansion.archiveDialog(ui(), Number(p))),
 };
 app.addEventListener('click', e => {
   const button = e.target.closest('button');
@@ -526,6 +591,7 @@ document.addEventListener('click', e => {
     uid = Number(el.dataset.uid),
     zone = el.dataset.zone;
   inspect = id;
+  if (modal.open && uid && zone === 'grave') return showCard(id, uid, 'grave');
   if (view === 'library' || !uid || modal.open) {
     showCard(id);
     return;
