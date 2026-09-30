@@ -1205,10 +1205,11 @@ export class Game {
     return this.defaultChoice(c);
   }
   // A way to cast a rule card that does something useful now: {mode?, overclock?, targets, costUids}, or null.
+  // Overclock only when the plain cast finds nothing worth doing.
   aiPlan(p, c, main, reuse = false) {
     const d = this.data(c);
     for (const mode of d.modes ? d.modes.map((_, i) => i) : [null])
-      for (const overclock of d.overclock ? [true, false] : [false]) {
+      for (const overclock of d.overclock ? [false, true] : [false]) {
         const o = {mode, overclock, reuse};
         if (this.playIssues(p, c, o).length) continue;
         const rule = spellRule(d, o),
@@ -1216,15 +1217,51 @@ export class Game {
         if (!targets || !this.aiWorthIt(p, d, rule, targets, main)) continue;
         const costUids = [];
         if (d.extraCost?.retire) {
-          const pick = retireOptions(this, p, d.extraCost.retire).sort(
-            (a, b) => !!this.data(b).token - !!this.data(a).token || this.data(a).cost - this.data(b).cost,
-          )[0];
+          const pick = this.aiRetire(p, d.extraCost.retire);
           if (!pick || pickedTargets(targets).includes(pick.uid)) continue;
           costUids.push(pick.uid);
         }
         return {...(d.modes ? {mode} : {}), ...(overclock ? {overclock} : {}), targets, costUids};
       }
     return null;
+  }
+  // The card the computer retires for a cost: a token first, then the cheapest.
+  aiRetire(p, spec, sourceUid = null) {
+    return retireOptions(this, p, spec, sourceUid).sort(
+      (a, b) => !!this.data(b).token - !!this.data(a).token || this.data(a).cost - this.data(b).cost,
+    )[0];
+  }
+  // Uids of p's units the opponent's spell or ability on top of the stack would destroy, bounce or defeat.
+  aiThreatened(p) {
+    const s = this.stack.at(-1),
+      hit = [];
+    if (!s || s.p === p) return hit;
+    const lethal = (uid, amount, tappedAmount) => {
+      const u = this.find(uid);
+      if (u?.p !== p || u.zone !== 'field') return false;
+      const n = tappedAmount != null && u.card.tapped ? tappedAmount : amount;
+      return this.stats(u.card, p).toughness - u.card.damage <= n;
+    };
+    if (s.opts?.targets) {
+      for (const step of ruleOf(s).steps) {
+        if (step.op !== 'destroy' && step.op !== 'damage') continue;
+        for (const t of [s.opts.targets[step.to]].flat())
+          if (
+            t?.uid != null &&
+            (step.op === 'destroy' ? lethal(t.uid, Infinity) : lethal(t.uid, step.amount, step.tappedAmount))
+          )
+            hit.push(t.uid);
+      }
+    } else if (s.card && s.target?.uid != null) {
+      const d = this.data(s.card);
+      if (
+        ['destroy', 'bounce'].includes(d.effect)
+          ? lethal(s.target.uid, Infinity)
+          : d.effect === 'damage' && lethal(s.target.uid, d.amount)
+      )
+        hit.push(s.target.uid);
+    }
+    return hit;
   }
   // Targets chosen by what the steps do to them: harm the opponent's best, help your own units in combat,
   // recover your best card. null when a required target has no sensible choice.
@@ -1243,8 +1280,11 @@ export class Game {
         options = ops.includes('recover') ? options.filter(own).sort(byCost) : options.filter(t => !own(t));
       else if (ops.some(op => op === 'buff' || op === 'untap'))
         options = options.filter(t => own(t) && this.phase === 'afterBlock' && fighting(t));
-      else if (spec.side === 'you') options = [];
-      else {
+      else if (spec.side === 'you') {
+        // Bouncing your own unit is only worth it to save it from the opponent's removal.
+        const threatened = ops.includes('bounce') ? this.aiThreatened(p) : [];
+        options = options.filter(t => threatened.includes(t.uid)).sort(byCost);
+      } else {
         options = options.filter(t => !own(t)).sort(byCost);
         const hit = rule.steps.find(s => s.op === 'damage' && s.to === spec.key);
         if (hit)
@@ -1308,7 +1348,7 @@ export class Game {
         if (!ok) continue;
         const picks = [];
         if (cost.retire && cost.retire !== 'self') {
-          const r = retireOptions(this, p, cost.retire, c.uid)[0];
+          const r = this.aiRetire(p, cost.retire, c.uid);
           if (!r) continue;
           picks.push(r.uid);
         }

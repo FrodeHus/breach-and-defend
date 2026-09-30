@@ -86,3 +86,69 @@ test('the computer never retires its own infrastructure for tokens', () => {
   g.aiAction();
   assert.equal(g.stack.length, 0);
 });
+
+test('the computer returns its own unit to hand to save it from removal', () => {
+  const g = table();
+  compute(g, 0, 4);
+  compute(g, 1, 2);
+  put(g, 1, 'r1');
+  const threatened = put(g, 1, 'r7');
+  const erase = put(g, 0, 'r20', 'hand'); // Erase Evidence: destroy target unit
+  g.play(0, erase.uid, {kind: 'card', uid: threatened.uid});
+  g.pass(0);
+  put(g, 1, pt('Reopened Connection'), 'hand');
+  g.aiAction();
+  assert.equal(g.stack.at(-1).card.id, pt('Reopened Connection'));
+  assert.deepEqual(g.stack.at(-1).opts.targets, {t: {kind: 'card', uid: threatened.uid}});
+});
+
+test('the computer keeps Reopened Connection when nothing threatens its units', () => {
+  const g = computerTurn();
+  compute(g, 1, 2);
+  put(g, 1, 'r7');
+  const kept = put(g, 1, pt('Reopened Connection'), 'hand');
+  g.aiAction();
+  assert.equal(g.stack.length, 0);
+  assert.ok(g.players[1].hand.includes(kept));
+  const h = table();
+  compute(h, 0, 2);
+  compute(h, 1, 2);
+  put(h, 1, 'r7');
+  const draw = put(h, 0, 'r16', 'hand'); // Open Source Recon
+  h.play(0, draw.uid);
+  h.pass(0);
+  const held = put(h, 1, pt('Reopened Connection'), 'hand');
+  h.aiAction();
+  assert.ok(h.players[1].hand.includes(held));
+  assert.ok(!h.stack.some(s => s.card?.uid === held.uid));
+});
+
+test('the computer pays Disposable Cache’s retire cost with a Backdoor before a real Tool', () => {
+  const g = computerTurn();
+  g.phase = 'main2';
+  compute(g, 1, 2);
+  const buffer = put(g, 1, pt('Exfiltration Buffer'));
+  put(g, 1, pt('Disposable Cache'));
+  const b = g.createToken(1, 'pt-backdoor');
+  g.aiAction();
+  assert.equal(g.stack[0]?.ability?.id, 'cycle');
+  assert.ok(g.players[1].field.includes(buffer));
+  assert.ok(!g.players[1].field.includes(b));
+});
+
+test('the computer overclocks only when the plain cast would not defeat the unit', () => {
+  const g = computerTurn();
+  compute(g, 1, 5);
+  put(g, 0, 'r1'); // 1/2
+  put(g, 1, pt('Coordinated Pressure'), 'hand');
+  g.aiAction();
+  assert.equal(g.stack[0].card.id, pt('Coordinated Pressure'));
+  assert.ok(!g.stack[0].opts.overclock);
+  const h = computerTurn();
+  compute(h, 1, 5);
+  const wall = put(h, 0, 'b7'); // 1/5
+  put(h, 1, pt('Coordinated Pressure'), 'hand');
+  h.aiAction();
+  assert.equal(h.stack[0].opts.overclock, true);
+  assert.deepEqual(h.stack[0].opts.targets, {t: {kind: 'card', uid: wall.uid}});
+});
