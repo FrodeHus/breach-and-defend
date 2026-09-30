@@ -2,6 +2,7 @@
 // The state of a pending choice the player is answering (which cards go where, in what order, which targets),
 // and the selection it becomes. Pure: the dialog renders it, and app.mjs sends the selection with game.choose.
 import {BY_ID} from './cards.mjs';
+import {abilityOf, checkTargets} from './rules.mjs';
 
 // The probed cards, top first. A versus view sends them as pending.cards; a local game finds them in the deck.
 export function choiceCards(game) {
@@ -83,7 +84,13 @@ export function choiceSelection(game, st) {
 export function choiceReady(game, st) {
   const c = game.pending;
   if (c.kind === 'discard') return (st.picks.discard ?? []).length === c.min;
-  if (c.kind === 'targets') return c.options.every(o => o.optional || o.upTo || (st.picks[o.key] ?? []).length === 1);
+  if (c.kind === 'targets') {
+    if (!c.options.every(o => o.optional || o.upTo || (st.picks[o.key] ?? []).length === 1)) return false;
+    // The pending options carry only keys and candidates, so the engine's check runs against the trigger's own specs.
+    const t = game.waiting?.find(x => x.id === c.data?.trigger);
+    const specs = t && abilityOf(t.ability)?.targets;
+    return !specs || !checkTargets(game, t.p, specs, choiceSelection(game, st).targets);
+  }
   return ['probe', 'order'].includes(c.kind);
 }
 export const cardName = id => BY_ID[id]?.name ?? 'Hidden card';

@@ -668,3 +668,40 @@ test('identical tokens split by a tapped one still group, with the tapped one al
   assert.match(html, new RegExp(`<\\/div><button class="card tile[^"]*tapped[^"]*"[^>]*data-uid="${i[1].uid}"`));
   assert.ok(html.indexOf(`data-uid="${fb.uid}"`) < html.indexOf('token-group'), 'other cards keep their place first');
 });
+
+test('a pending target choice is ready only when the engine would accept it', t => {
+  define(t, {
+    id: 'x-sweep',
+    type: 'Tool',
+    abilities: [
+      {
+        kind: 'triggered',
+        id: 'sweep',
+        label: 'Sweep',
+        targets: [{key: 'g', zone: 'grave', side: 'any', upTo: 2, onePlayer: true}],
+        steps: [{op: 'archive', to: 'g'}],
+      },
+    ],
+  });
+  const g = table();
+  const src = put(g, 0, 'x-sweep');
+  const mine = put(g, 0, 'r7', 'grave'),
+    theirs = put(g, 1, 'b8', 'grave');
+  g.waiting = [{id: 21, p: 0, ability: {card: 'x-sweep', uid: src.uid, id: 'sweep'}}];
+  g.pending = {
+    id: 9,
+    actor: 0,
+    kind: 'targets',
+    private: false,
+    prompt: 'Choose.',
+    min: 1,
+    max: 1,
+    data: {trigger: 21},
+  };
+  g.pending.options = [{key: 'g', optional: false, upTo: 2, candidates: [ref(mine.uid), ref(theirs.uid)]}];
+  let st = pickChoiceTarget(g, startChoice(g.pending), 'g', 0);
+  assert.equal(choiceReady(g, st), true, 'one card from one discard is fine');
+  st = pickChoiceTarget(g, st, 'g', 1);
+  assert.equal(choiceReady(g, st), false, 'cards from both discards are refused');
+  assert.match(choiceDialog(state(g), st), /<button class="primary" id="choiceConfirm" disabled>/);
+});
