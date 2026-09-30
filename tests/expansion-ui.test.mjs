@@ -739,6 +739,8 @@ test('the Field Guide teaches Persistent Threats once it is released', () => {
   for (const [name] of Object.values(MECHANICS)) assert.match(on, new RegExp(`<strong>${name}\\.</strong>`));
   assert.match(on, /Triggered abilities/);
   assert.match(on, /Make your choice/);
+  assert.match(on, /<strong>Several targets\.<\/strong>/);
+  assert.doesNotMatch(off, /Several targets/);
   assert.doesNotMatch(on, /no exile, token, or sideboard/);
   assert.match(off, /FIELD GUIDE \/ FIRST BREACH/);
   assert.doesNotMatch(off, /Persistent Threats/);
@@ -860,4 +862,51 @@ test('the screen-reader status region sits inside the modal dialog, outside its 
     html,
     /<dialog id="modal">[\s\S]*<div id="modalBody"><\/div>\s*<div id="srStatus"[^>]*aria-live="polite"><\/div>\s*<\/dialog>/,
   );
+});
+
+test('the remaining expansion tips and choice tips each show in their own situation', t => {
+  const g = table();
+  g.pool = EXPANSION_POOL;
+  put(g, 0, pt('Map Trust Relationships'), 'grave');
+  assert.equal(expansionTip(g), null, 'a Reuse card you cannot pay for gives no tip');
+  compute(g, 0, 3);
+  assert.match(expansionTip(g), /Reuse/);
+
+  const o = table();
+  o.pool = EXPANSION_POOL;
+  compute(o, 0, 3);
+  put(o, 0, pt('Coordinated Pressure'), 'hand');
+  put(o, 1, BY_ID[CARDS.find(c => c.set === 'first-breach' && c.type === 'Unit' && c.faction === 'blue').id].id);
+  assert.match(expansionTip(o), /Overclock/);
+
+  const i = table();
+  i.pool = EXPANSION_POOL;
+  i.createToken(0, 'pt-indicator');
+  assert.match(expansionTip(i), /Indicators/);
+
+  const a = table();
+  a.pool = EXPANSION_POOL;
+  a.players[1].archive.push(a.card(pt('Seed Access')));
+  assert.match(expansionTip(a), /Archive/);
+
+  for (const [kind, re] of [
+    ['order', /Order your triggers/],
+    ['pay', /Pay or be countered/],
+  ]) {
+    const c = table();
+    c.pool = EXPANSION_POOL;
+    c.pending = {id: 1, actor: 0, kind};
+    assert.match(choiceTip(c), re);
+    c.pending = {id: 1, actor: 1, kind};
+    assert.equal(choiceTip(c), null, "the opponent's choice gives no tip");
+  }
+});
+
+test('hovering an expansion card shows its glossary entry, and a First Breach card does not', () => {
+  const g = table();
+  g.pool = EXPANSION_POOL;
+  const el = id => ({dataset: {card: id, zone: 'library'}});
+  assert.match(hoverCard(state(g), el(pt('Map Trust Relationships'))), /Probe\./);
+  const fb = CARDS.find(c => c.set === 'first-breach' && c.type === 'Operation');
+  assert.doesNotMatch(hoverCard(state(g), el(fb.id)), /Probe\.|Reuse\.|Overclock\./);
 });
