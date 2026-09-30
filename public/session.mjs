@@ -1,4 +1,5 @@
-// dist/session.mjs
+// @ts-check
+// public/session.mjs
 import {Match} from './match.mjs';
 import {Seat} from './remote.mjs';
 import {audit} from './audit.mjs';
@@ -13,7 +14,7 @@ const other = faction => (faction === 'blue' ? 'red' : 'blue');
 function retire(conn, msg) {
   const prev = conn.onclose;
   const timer = setTimeout(() => conn.close(), 3000);
-  timer.unref?.();
+  /** @type {any} */ (timer).unref?.(); // Node only: tests must not wait on this fallback.
   conn.onmessage = () => {};
   conn.onclose = (...a) => { clearTimeout(timer); prev?.(...a); };
   conn.send(msg);
@@ -25,6 +26,7 @@ class Session {
   error = null;
   audit = null;
   closed = false;
+  /** @type {(session: Session) => void} */
   onStatus = () => {};
   final = false; // Set once a session has stepped aside for good; later status changes are ignored.
   set(status, extra = {}) { if (this.final) return; Object.assign(this, extra, {status}); this.onStatus(this); }
@@ -32,6 +34,8 @@ class Session {
   // Messages are handled (and, on the host, sent) through ordered promise chains. `pending` counts the jobs
   // queued on them that have not finished, so callers can tell when a session has nothing left in flight.
   pending = 0;
+  /** @type {string[]} Names of the promise-chain fields that `enqueue` and `settled` use. */
+  chains = [];
   enqueue(chain, job, onError) {
     this.pending++;
     this[chain] = this[chain].then(job).catch(onError).finally(() => { this.pending--; });
@@ -62,7 +66,8 @@ export class HostSession extends Session {
 
   constructor({net, store, matchId, record, clock}) {
     super();
-    Object.assign(this, {net, store, matchId, record, clockOptions: clock, conn: null, match: null, queue: Promise.resolve(), outbox: Promise.resolve()});
+    this.net = net; this.store = store; this.matchId = matchId; this.record = record; this.clockOptions = clock;
+    this.conn = null; this.match = null; this.queue = Promise.resolve(); this.outbox = Promise.resolve();
     record.bottomCommits ??= {};
     this.faction = record.hostFaction;
     this.audit = record.audit;
@@ -82,7 +87,7 @@ export class HostSession extends Session {
 
   attach(match) {
     this.match = match;
-    match.onChange = ({entry} = {}) => this.changed(entry ?? null);
+    match.onChange = change => this.changed(change?.entry ?? null);
     this.updateSeat();
   }
 
@@ -256,7 +261,8 @@ export class GuestSession extends Session {
 
   constructor({net, store, matchId, retry, random = randomHex}) {
     super();
-    Object.assign(this, {net, store, matchId, retry, random, conn: null, queue: Promise.resolve(), attempts: 0});
+    this.net = net; this.store = store; this.matchId = matchId; this.retry = retry; this.random = random;
+    this.conn = null; this.queue = Promise.resolve(); this.attempts = 0;
     const saved = store.get(`guest:${matchId}`);
     this.record = saved ?? {guestToken: null, hostToken: null, seedCommit: null, hostFaction: null, guestSecret: null, pledged: false, seq: 0, sent: {}, log: [], digests: [], hostSecret: null, bottoms: null, audit: null};
     // Each tab has its own owner id. The newest tab to open the match claims the shared record; an older tab

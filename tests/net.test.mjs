@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {peerId, netError, loadPeer, toFrames, fromFrames, wrap, FRAME_CHARS, MAX_FRAMES} from '../dist/net.mjs';
+import {peerId, netError, loadPeer, toFrames, fromFrames, wrap, FRAME_CHARS, MAX_FRAMES} from '../public/net.mjs';
 import {fakeNet, MESSAGE_LIMIT} from './helpers/fake-net.mjs';
 
 const flush = () => new Promise(r => setImmediate(r));

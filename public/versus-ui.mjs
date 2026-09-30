@@ -1,6 +1,6 @@
-// dist/versus-ui.mjs
+// public/versus-ui.mjs
 // Markup for play-a-friend screens. Pure strings, so it can be tested without a browser.
-const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+import {esc} from './html.mjs';
 
 export const ERRORS = {
   server: 'Couldn’t reach the matchmaking server. Try again, or play the computer.',

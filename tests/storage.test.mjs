@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createStore} from '../dist/storage.mjs';
+import {createStore} from '../public/storage.mjs';
 import {memoryBackend} from './helpers/versus.mjs';
 
 const DAY = 24 * 60 * 60 * 1000;

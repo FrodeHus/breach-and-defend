@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {landing, MODES} from '../dist/landing.mjs';
+import {landing, MODES} from '../public/landing.mjs';
 
 test('computer mode: mode pressed, tutorial opt-in, and Play buttons wired to data-start', () => {
   const html = landing({mode: 'solo'});
@@ -29,9 +29,9 @@ test('the hero serves responsive splash images that exist, with text alternative
   assert.match(html, /srcset="art\/splash-960\.webp 960w, art\/splash-1732\.webp 1732w"/);
   assert.match(html, /<img src="art\/splash-1280\.jpg" alt="Breach &amp; Defend: [^"]+" width="1732" height="908"/);
   for (const file of ['splash-960.webp', 'splash-1732.webp', 'splash-1280.jpg']) {
-    assert.ok(fs.existsSync(new URL(`../dist/art/${file}`, import.meta.url)), file);
+    assert.ok(fs.existsSync(new URL(`../public/art/${file}`, import.meta.url)), file);
   }
-  assert.equal(fs.existsSync(new URL('../dist/art/breach-and-defend-splash.png', import.meta.url)), false, 'the 2.4 MB original must not ship');
+  assert.equal(fs.existsSync(new URL('../public/art/breach-and-defend-splash.png', import.meta.url)), false, 'the 2.4 MB original must not ship');
 });
 
 test('both modes are real buttons with headings for each step, in focusable slots', () => {

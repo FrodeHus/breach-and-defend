@@ -1,6 +1,6 @@
-// In-memory stand-in for dist/net.mjs with the same listen/dial/connection contract. Messages go through
+// In-memory stand-in for public/net.mjs with the same listen/dial/connection contract. Messages go through
 // net.mjs's own framing, so the session tests exercise it.
-import {toFrames, fromFrames} from '../../dist/net.mjs';
+import {toFrames, fromFrames} from '../../public/net.mjs';
 
 // PeerJS 1.5.5's JSON channel refuses a single message of 16,300 bytes or more: it emits an error that
 // closes the sender's end while the receiver hears nothing. The fake enforces a slightly lower limit.

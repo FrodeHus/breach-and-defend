@@ -1,3 +1,4 @@
+// @ts-check
 import {Game} from './engine.mjs';
 
 const INTENTS = {
@@ -15,10 +16,11 @@ const INTENTS = {
 // whose rule queries work locally and whose moves are sent to the host as intents.
 export class Seat {
   constructor(send, {seq = 0, now = Date.now} = {}) {
-    Object.assign(this, {send, seq, now});
+    this.send = send; this.seq = seq; this.now = now;
     this.pending = new Map();
     this.game = null;
     this.clock = null;
+    /** @type {(game: Game, info: {mine: boolean}) => void} */
     this.onUpdate = () => {};
   }
 

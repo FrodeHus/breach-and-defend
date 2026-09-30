@@ -1,3 +1,4 @@
+// @ts-check
 // Shared by the host referee and the guest's audit, so both apply identical rules and redaction.
 import {Game, PHASE_NAMES} from './engine.mjs';
 import {BY_ID, CARDS} from './cards.mjs';

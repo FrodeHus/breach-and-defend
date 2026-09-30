@@ -1,4 +1,4 @@
-// dist/about.mjs
+// public/about.mjs
 // About page: who made the game, how it works, fair play, privacy and where to learn more. Pure strings, testable without a browser.
 export const AUTHOR = {name: 'Frode Hus', url: 'https://www.frodehus.dev', label: 'frodehus.dev'};
 export const REPO = 'https://github.com/FrodeHus/breach-and-defend';

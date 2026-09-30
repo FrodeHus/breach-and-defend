@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "checkJs": false,
+    "allowJs": true,
+    "noEmit": true,
+    "strict": false,
+    "target": "es2023",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": [
+      "es2023",
+      "dom"
+    ],
+    "types": []
+  },
+  "files": [
+    "public/protocol.mjs",
+    "public/session.mjs",
+    "public/net.mjs",
+    "public/match.mjs",
+    "public/remote.mjs",
+    "public/storage.mjs",
+    "public/audit.mjs",
+    "public/html.mjs"
+  ]
+}

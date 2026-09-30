@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const index = fs.readFileSync(new URL('../dist/index.html', import.meta.url), 'utf8');
+const index = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 const meta = (attr, key) => index.match(new RegExp(`<meta ${attr}="${key}" content="([^"]*)">`))?.[1];
 
 test('link previews use the 1200x630 splash with an absolute URL and alt text', () => {
@@ -11,7 +11,7 @@ test('link previews use the 1200x630 splash with an absolute URL and alt text', 
   assert.equal(meta('property', 'og:image:height'), '630');
   assert.ok(meta('property', 'og:image:alt'));
   assert.equal(meta('name', 'twitter:card'), 'summary_large_image');
-  assert.ok(fs.existsSync(new URL('../dist/art/social-preview.jpg', import.meta.url)));
+  assert.ok(fs.existsSync(new URL('../public/art/social-preview.jpg', import.meta.url)));
 });
 
 test('link previews have a title, description, type and canonical URL', () => {
@@ -30,6 +30,6 @@ test('a Content-Security-Policy is declared before any resource loads', () => {
   assert.deepEqual(directives['object-src'], ["'none'"]);
   assert.ok(!directives['script-src'].some(s => s.includes('unsafe')), 'no inline or eval scripts');
   // Every script the game loads must be allowed by script-src.
-  const peer = fs.readFileSync(new URL('../dist/net.mjs', import.meta.url), 'utf8').match(/PEERJS_URL = '([^']+)'/)[1];
+  const peer = fs.readFileSync(new URL('../public/net.mjs', import.meta.url), 'utf8').match(/PEERJS_URL = '([^']+)'/)[1];
   assert.ok(directives['script-src'].some(s => s.endsWith('/') && peer.startsWith(s)));
 });

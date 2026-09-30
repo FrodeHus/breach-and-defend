@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Match, TURN_MS, RESPONSE_MS, OPENING_MS} from '../dist/match.mjs';
-import {BY_ID} from '../dist/cards.mjs';
+import {Match, TURN_MS, RESPONSE_MS, OPENING_MS} from '../public/match.mjs';
+import {BY_ID} from '../public/cards.mjs';
 import {act, fakeTime, openedMatch, startedMatch} from './helpers/versus.mjs';
 
 test('opening hands are kept automatically after 60 s, bottoming the costliest cards', async () => {
