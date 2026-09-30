@@ -315,7 +315,7 @@ export const KEYWORD_NAMES = {
 export const MECHANICS = {
   probe: [
     'Probe',
-    'Look at the top N cards of your deck. Put any of them into your discard and the rest back on top in any order. Only you see them.',
+    'Look at the top N cards of your deck. Put any of them into your discard and the rest back on top in any order. Cards you put into your discard are public; the cards you keep and their order stay hidden from your opponent.',
   ],
   overclock: [
     'Overclock',

@@ -403,9 +403,7 @@ export const LORE = {
     flavor: 'Pull one dependency and watch the whole stack fall.',
     by: 'Disruption specialist',
     learn:
-      'Modern systems depend on each other, so a failure in one shared service, such as sign-in or name resolution, can cascade into many outages at once, sometimes including the attacker' +
-      "'" +
-      's own tools. Mapping dependencies and building redundancy for critical services limit how far a failure spreads. Overclock in the game represents a broader, costlier disruption.',
+      'Modern systems depend on each other, so a failure in one shared service, such as sign-in or name resolution, can cascade into many outages at once, sometimes including the attacker’s own tools. Mapping dependencies and building redundancy for critical services limit how far a failure spreads. Overclock in the game represents a broader, costlier disruption.',
   },
   'Adaptive Payload': {
     flavor: 'Tell me what it runs on. I will ship the right module.',
@@ -568,7 +566,7 @@ export const LORE = {
     flavor: 'Signed, sourced and checked, or it does not run.',
     by: 'Release engineer',
     learn:
-      'Provenance is the verifiable history of where software came from and how it was built. Code signing, software bills of materials and checked build pipelines help confirm that an update really came from its supplier unmodified. Verification can stop a tampered update, and a failed check is itself useful evidence for investigators.',
+      'Provenance is the verifiable history of where software came from and how it was built. Code signing and signed build attestations help confirm that an update really came from its supplier unmodified, and a software bill of materials records what it contains. Verification can stop a tampered update, and a failed check is itself useful evidence for investigators.',
   },
   'Live Response': {
     flavor: 'Connect, collect, contain. Before it moves again.',
