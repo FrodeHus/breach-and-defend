@@ -121,58 +121,104 @@ async function impact(r) {
   );
   ring.remove();
 }
+const factionOf = el => (el?.classList.contains('red') ? 'red' : 'blue');
+async function lungeCss(from, destinations) {
+  const g = ghost(from);
+  from.el.style.visibility = 'hidden';
+  try {
+    for (const target of destinations) {
+      if (!target.r) continue;
+      const a = center(from.r),
+        b = center(target.r),
+        x = b.x - a.x,
+        y = b.y - a.y;
+      await animate(
+        g,
+        [
+          {transform: 'perspective(800px) translate3d(0,0,0) rotateX(0)'},
+          {
+            transform: `perspective(800px) translate3d(${x * 0.9}px,${y * 0.9}px,65px) rotateX(${y > 0 ? -14 : 14}deg) rotateZ(-4deg)`,
+          },
+        ],
+        310,
+      );
+      await Promise.all([
+        impact(target.r),
+        target.el
+          ? animate(
+              target.el,
+              [
+                {transform: 'translateX(0)'},
+                {transform: 'translateX(9px) rotate(4deg)'},
+                {transform: 'translateX(-5px)'},
+                {transform: 'translateX(0)'},
+              ],
+              260,
+            )
+          : Promise.resolve(),
+      ]);
+      await animate(
+        g,
+        [{transform: `translate(${x * 0.9}px,${y * 0.9}px) scale(1.06)`}, {transform: 'translate(0,0) scale(1)'}],
+        220,
+      );
+    }
+  } finally {
+    g.remove();
+    from.el.style.visibility = '';
+  }
+}
+async function lunge3d(from, destinations, uid, game, hits) {
+  const size = {width: from.r.width, height: from.r.height},
+    faction = factionOf(from.el),
+    f = await faces({id: from.el.dataset.card, faction, from: 'tile', to: 'tile', ...size, stats: statsOf(game, uid)});
+  for (const target of destinations) {
+    if (!target.r) continue;
+    const knock = target.el
+      ? {
+          els: [target.el],
+          faces: await faces({
+            id: target.el.dataset.card,
+            faction: factionOf(target.el),
+            from: 'tile',
+            to: 'tile',
+            width: target.r.width,
+            height: target.r.height,
+            stats: statsOf(game, target.uid),
+          }),
+        }
+      : null;
+    let landed = Promise.resolve();
+    await stage3d.lunge({
+      els: [from.el],
+      from: from.r,
+      to: target.r,
+      faces: f,
+      onImpact: () => (landed = stage3d.burst({rect: target.r, faction, amount: hits.get(target.key) || 0, knock})),
+    });
+    await landed;
+  }
+}
 export async function combat(before, game) {
   if (before.phase !== 'afterBlock' || game.phase !== 'endCombat' || still()) return;
+  before.fought = true; // transitions() leaves the damage from this combat to these animations
+  const hits = new Map(
+    changes(before, state(game))
+      .filter(e => e.type === 'damaged' || e.type === 'playerHit')
+      .map(e => [e.type === 'damaged' ? e.uid : `p${e.p}`, e.amount]),
+  );
   await Promise.all(
     before.attacks.map(async uid => {
       const from = before.visual.get(uid);
       if (!from) return;
-      const targets = (before.blocks[uid] || []).map(id => before.visual.get(id)).filter(Boolean);
-      const destinations = targets.length ? targets : [{r: before.players[1 - before.active]}];
-      const g = ghost(from);
-      from.el.style.visibility = 'hidden';
-      try {
-        for (const target of destinations) {
-          if (!target.r) continue;
-          const a = center(from.r),
-            b = center(target.r),
-            x = b.x - a.x,
-            y = b.y - a.y;
-          await animate(
-            g,
-            [
-              {transform: 'perspective(800px) translate3d(0,0,0) rotateX(0)'},
-              {
-                transform: `perspective(800px) translate3d(${x * 0.9}px,${y * 0.9}px,65px) rotateX(${y > 0 ? -14 : 14}deg) rotateZ(-4deg)`,
-              },
-            ],
-            310,
-          );
-          await Promise.all([
-            impact(target.r),
-            target.el
-              ? animate(
-                  target.el,
-                  [
-                    {transform: 'translateX(0)'},
-                    {transform: 'translateX(9px) rotate(4deg)'},
-                    {transform: 'translateX(-5px)'},
-                    {transform: 'translateX(0)'},
-                  ],
-                  260,
-                )
-              : Promise.resolve(),
-          ]);
-          await animate(
-            g,
-            [{transform: `translate(${x * 0.9}px,${y * 0.9}px) scale(1.06)`}, {transform: 'translate(0,0) scale(1)'}],
-            220,
-          );
-        }
-      } finally {
-        g.remove();
-        from.el.style.visibility = '';
-      }
+      const targets = (before.blocks[uid] || [])
+        .map(id => ({...before.visual.get(Number(id)), uid: Number(id), key: Number(id)}))
+        .filter(t => t.r);
+      const defender = 1 - before.active,
+        destinations = targets.length ? targets : [{r: before.players[defender], key: `p${defender}`}];
+      return stage3d.ready()
+        ? fallback(lunge3d(from, destinations, uid, game, hits), () => lungeCss(from, destinations))
+        : lungeCss(from, destinations);
     }),
   );
 }
@@ -301,6 +347,26 @@ async function enter3d(before, e, item, game) {
   });
   await stage3d.fly({els: [item.el], from: origin, to: item.r, faces: f, flip: old ? null : 'up'});
 }
+// Spell damage and damage to a player: the burst without a lunge, in the colours of whoever is not being hit.
+async function hit3d(r, el, e, game) {
+  const victim = e.type === 'damaged' ? game.find?.(e.uid)?.p : e.p,
+    faction = game.players[victim === 0 ? 1 : 0]?.faction || 'blue',
+    knock = el
+      ? {
+          els: [el],
+          faces: await faces({
+            id: el.dataset.card,
+            faction: factionOf(el),
+            from: 'tile',
+            to: 'tile',
+            width: r.width,
+            height: r.height,
+            stats: statsOf(game, e.uid),
+          }),
+        }
+      : null;
+  await stage3d.burst({rect: r, faction, amount: e.amount, knock});
+}
 export async function transitions(before, game) {
   if (still()) return;
   const after = snapshot(game),
@@ -317,6 +383,11 @@ export async function transitions(before, game) {
             ? fallback(enter3d(before, e, item, game), () => enter(before, e, item, game))
             : enter(before, e, item, game),
         );
+    } else if (!before.fought) {
+      const r = e.type === 'damaged' ? after.visual.get(e.uid)?.r : after.players[e.p];
+      if (!r) continue;
+      const el = e.type === 'damaged' ? after.visual.get(e.uid).el : null;
+      jobs.push(stage3d.ready() ? fallback(hit3d(r, el, e, game), () => impact(r)) : impact(r));
     }
   }
   await Promise.all(jobs);

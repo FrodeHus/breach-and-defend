@@ -1,6 +1,18 @@
 // One see-through WebGL canvas over the page. While a card moves, a lit 3D stand-in takes its place;
 // the DOM card is only hidden meanwhile and is always shown again. Loaded lazily; the game never needs it.
-import {arc, cameraDistance, clamp01, ease, lerp, toWorld} from './stage3d-curves.mjs';
+import {
+  arc,
+  budget,
+  cameraDistance,
+  clamp01,
+  ease,
+  IMPACT,
+  knock,
+  lerp,
+  lungeKeys,
+  MAX_PARTICLES,
+  toWorld,
+} from './stage3d-curves.mjs';
 
 export const T = 4; // card thickness, px
 let THREE = null,
@@ -72,6 +84,7 @@ function build() {
   scene.add(sun, sun.target);
   floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShadowMaterial({opacity: 0.32}));
   floor.receiveShadow = true;
+  floor.material.depthWrite = false; // else the floor hides the half of a tilted card that dips below z = 0
   scene.add(floor);
   resize();
 }
@@ -263,6 +276,322 @@ export function fly({els, from, to, faces, flip = null, duration = 620}) {
           s.group.scale.set(lerp(sx, 1, k), lerp(sy, 1, k), 1);
           s.mix(clamp01((t - 0.25) / 0.4));
           if (t >= 1) return done();
+        });
+      }),
+    duration + 400,
+  );
+}
+const FX = {blue: ['#71dfd2', '#3fb8c9', '#eed7a1', '#ffffff'], red: ['#fb827b', '#ff5a50', '#eed7a1', '#ffffff']};
+const rnd = (a, b) => a + Math.random() * (b - a);
+const shards = [],
+  sparks = [];
+let pool = null,
+  glyphTex = null;
+// One shared instanced pool per particle kind keeps many simultaneous bursts to two draw calls.
+function particles() {
+  if (pool) return pool;
+  const mesh = (geo, mat) => {
+    const m = new THREE.InstancedMesh(geo, mat, MAX_PARTICLES);
+    m.count = 0;
+    m.frustumCulled = false;
+    const white = new THREE.Color(1, 1, 1);
+    for (let i = 0; i < MAX_PARTICLES; i++) m.setColorAt(i, white);
+    scene.add(m);
+    return m;
+  };
+  pool = {
+    shard: mesh(
+      new THREE.BoxGeometry(3.5, 3.5, 3.5),
+      new THREE.MeshStandardMaterial({roughness: 0.35, metalness: 0.15}),
+    ),
+    spark: mesh(new THREE.BoxGeometry(1.4, 1.4, 1), new THREE.MeshBasicMaterial()),
+    m: new THREE.Object3D(),
+    col: new THREE.Color(),
+    aim: new THREE.Vector3(),
+    light: new THREE.PointLight(0xffffff, 0, 500, 1),
+    running: false,
+  };
+  pool.shard.castShadow = true;
+  scene.add(pool.light);
+  return pool;
+}
+function stepParticles(dt) {
+  const {shard, spark, m, col, aim} = pool;
+  for (const list of [shards, sparks])
+    for (let i = list.length - 1; i >= 0; i--) if ((list[i].t += dt) >= list[i].life) list.splice(i, 1);
+  shards.forEach((p, i) => {
+    p.vz -= 520 * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.z += p.vz * dt;
+    if (p.z < 2) {
+      p.z = 2;
+      p.vz *= -0.35;
+      p.vx *= 0.7;
+      p.vy *= 0.7;
+      p.vr *= 0.6;
+    }
+    p.r += p.vr * dt;
+    m.position.set(p.x, p.y, p.z);
+    m.rotation.set(p.r, p.r * 0.7, p.r * 0.3);
+    m.scale.setScalar(p.s * Math.min(1, (1 - p.t / p.life) * 3));
+    m.updateMatrix();
+    shard.setMatrixAt(i, m.matrix);
+    shard.setColorAt(i, col.set(p.c));
+  });
+  sparks.forEach((p, i) => {
+    const d = Math.pow(0.03, dt);
+    p.vx *= d;
+    p.vy *= d;
+    p.vz *= d;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.z += p.vz * dt;
+    const v = Math.hypot(p.vx, p.vy, p.vz),
+      f = 1 - p.t / p.life;
+    m.position.set(p.x, p.y, p.z);
+    m.rotation.set(0, 0, 0);
+    m.lookAt(aim.set(p.x + p.vx, p.y + p.vy, p.z + p.vz));
+    m.scale.set(f, f, Math.max(1, v * 0.06) * f);
+    m.updateMatrix();
+    spark.setMatrixAt(i, m.matrix);
+    spark.setColorAt(i, col.set(p.c));
+  });
+  for (const [mesh, list] of [
+    [shard, shards],
+    [spark, sparks],
+  ]) {
+    mesh.count = list.length;
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.instanceColor.needsUpdate = true;
+  }
+  return (pool.running = shards.length + sparks.length > 0);
+}
+function startParticles() {
+  if (pool.running) return;
+  pool.running = true;
+  frame(stepParticles);
+}
+// Shards chipped off a card's face, thrown away from `origin`.
+function chip(rect, origin, pal, wanted, lift = 1) {
+  const c = world(origin.x, origin.y),
+    hw = rect.width / 2,
+    hh = rect.height / 2,
+    mid = center(rect);
+  for (let i = 0, n = budget(shards.length, wanted); i < n; i++) {
+    const w = world(mid.x + rnd(-hw, hw) * 0.9, mid.y + rnd(-hh, hh) * 0.9);
+    shards.push({
+      x: w.x,
+      y: w.y,
+      z: T + 2,
+      vx: (w.x - c.x) * rnd(1.2, 2.6) + rnd(-40, 40),
+      vy: (w.y - c.y) * rnd(0.8, 1.8) + rnd(30, 110),
+      vz: rnd(140, 380) * lift,
+      r: rnd(0, 6),
+      vr: rnd(-14, 14),
+      s: rnd(0.6, 1.4),
+      c: pal[i % 3],
+      life: rnd(1, 1.7),
+      t: 0,
+    });
+  }
+}
+function spray(origin, pal, wanted) {
+  const c = world(origin.x, origin.y);
+  for (let i = 0, n = budget(sparks.length, wanted); i < n; i++) {
+    const a = rnd(0, Math.PI * 2),
+      v = rnd(180, 380);
+    sparks.push({
+      x: c.x,
+      y: c.y,
+      z: 8,
+      vx: Math.cos(a) * v,
+      vy: Math.sin(a) * v,
+      vz: rnd(30, 280),
+      c: i % 4 ? pal[i % 3] : '#ffffff',
+      life: rnd(0.25, 0.6),
+      t: 0,
+    });
+  }
+}
+// A thin shockwave ring with a dark rim so it reads on the light board.
+function ring(origin, color) {
+  const c = world(origin.x, origin.y),
+    glow = new THREE.Mesh(
+      new THREE.RingGeometry(0.965, 1, 96),
+      new THREE.MeshBasicMaterial({color, transparent: true, depthWrite: false}),
+    ),
+    rim = new THREE.Mesh(
+      new THREE.RingGeometry(0.95, 1.02, 96),
+      new THREE.MeshBasicMaterial({color: 0x0c1115, transparent: true, depthWrite: false}),
+    );
+  glow.position.set(c.x, c.y, 1.5);
+  rim.position.set(c.x, c.y, 1);
+  scene.add(rim, glow);
+  let t = 0;
+  frame(dt => {
+    const u = (t += dt) / 0.5;
+    if (u >= 1) {
+      for (const m of [glow, rim]) {
+        scene.remove(m);
+        m.geometry.dispose();
+        m.material.dispose();
+      }
+      return false;
+    }
+    const r = 14 + (1 - Math.pow(1 - u, 3)) * 80;
+    glow.scale.set(r, r * 0.85, 1);
+    rim.scale.set(r, r * 0.85, 1);
+    glow.material.opacity = 1 - u;
+    rim.material.opacity = 0.35 * (1 - u);
+  });
+}
+function glyphs(rect, pal) {
+  glyphTex ??= ['0', '1'].map(ch => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    g.font = "700 52px 'Barlow Condensed', sans-serif";
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.lineWidth = 8;
+    g.strokeStyle = '#0c1115';
+    g.strokeText(ch, 32, 34);
+    g.fillStyle = '#fff';
+    g.fillText(ch, 32, 34);
+    return texture(c);
+  });
+  const mid = center(rect),
+    list = Array.from({length: 8}, (_, i) => {
+      const s = new THREE.Sprite(
+          new THREE.SpriteMaterial({map: glyphTex[i % 2], color: pal[i % 2], transparent: true, depthWrite: false}),
+        ),
+        w = world(mid.x + rnd(-0.35, 0.35) * rect.width, mid.y + rnd(-0.3, 0.3) * rect.height);
+      s.scale.set(15, 15, 1);
+      scene.add(s);
+      return {s, x: w.x, y: w.y, z: rnd(20, 70), vx: rnd(-30, 30), vy: rnd(30, 80), life: rnd(0.6, 1), t: 0};
+    });
+  frame(dt => {
+    for (const g of list) {
+      g.t += dt;
+      g.x += g.vx * dt;
+      g.y += g.vy * dt;
+      g.s.position.set(g.x, g.y, g.z);
+      g.s.material.opacity = Math.max(0, 1 - g.t / g.life) * (Math.random() < 0.2 ? 0.25 : 1);
+    }
+    if (list.some(g => g.t < g.life)) return;
+    for (const g of list) {
+      scene.remove(g.s);
+      g.s.material.dispose();
+    }
+    return false;
+  });
+}
+// One reused light: adding and removing lights would make three.js recompile every material mid-animation.
+function flash(origin, color) {
+  const c = world(origin.x, origin.y),
+    light = pool.light;
+  light.color.set(color);
+  light.position.set(c.x, c.y, 70);
+  let t = 0;
+  frame(dt => {
+    light.intensity = 700 * Math.exp(-(t += dt) * 12);
+    if (t < 0.5) return;
+    light.intensity = 0;
+    return false;
+  });
+}
+// The floating "-N" stays HTML so it is crisp; it is decorative (the tile's own P/T carries the information).
+function floatDamage(rect, amount) {
+  const d = document.createElement('div');
+  d.className = 'damage-float';
+  d.textContent = `-${amount}`;
+  d.setAttribute('aria-hidden', 'true');
+  d.style.left = `${rect.left + rect.width * 0.72}px`;
+  d.style.top = `${rect.top + rect.height * 0.15}px`;
+  document.body.append(d);
+  d.animate(
+    [
+      {transform: 'translateY(8px) scale(.6)', opacity: 0},
+      {transform: 'translateY(-6px) scale(1.15)', opacity: 1, offset: 0.2},
+      {transform: 'translateY(-34px) scale(1)', opacity: 0},
+    ],
+    {duration: 1000, easing: 'ease-out', fill: 'forwards'},
+  );
+  setTimeout(() => d.remove(), 1100);
+}
+function knockBack(rect, {els, faces}, color) {
+  return standIn(
+    els,
+    ctl =>
+      new Promise(resolve => {
+        const s = slab(rect, {front: faces.to, back: faces.back}),
+          c = center(rect);
+        s.a.material.emissive = new THREE.Color(color);
+        let t = 0;
+        frame(dt => {
+          t += dt;
+          if (ctl.aborted || t >= 0.45) {
+            s.dispose();
+            resolve();
+            return false;
+          }
+          const k = knock(t * 2);
+          place(s.group, {
+            x: c.x + (t < 0.1 ? rnd(-2.5, 2.5) : 0),
+            y: c.y - 8 * k,
+            z: 14 * Math.max(k, 0),
+            rx: -0.4 * k,
+            rz: 0.07 * k,
+          });
+          s.a.material.emissiveIntensity = 0.55 * Math.exp(-t * 28);
+        });
+      }),
+    900,
+  );
+}
+// Damage landing on a card or player panel, in the attacker's colours.
+export function burst({rect, faction, amount = 0, knock: struck = null}) {
+  const pal = FX[faction] || FX.blue,
+    mid = center(rect),
+    origin = {x: mid.x, y: mid.y + rect.height * 0.35};
+  particles();
+  chip(rect, origin, pal, 50);
+  spray(origin, pal, 70);
+  startParticles();
+  ring(origin, pal[0]);
+  glyphs(rect, pal);
+  flash(origin, pal[0]);
+  if (amount) floatDamage(rect, amount);
+  return struck ? knockBack(rect, struck, pal[0]) : new Promise(r => setTimeout(r, 360));
+}
+// Attack: wind up, strike toward the target (onImpact fires at the strike), spring home.
+export function lunge({els, from, to, faces, onImpact, duration = 790}) {
+  return standIn(
+    els,
+    ctl =>
+      new Promise(resolve => {
+        const s = slab(from, {front: faces.from, back: faces.back}),
+          a = center(from),
+          b = center(to),
+          tip = {x: lerp(a.x, b.x, 0.6), y: lerp(a.y, b.y, 0.6)},
+          dir = b.y < a.y ? 1 : -1;
+        let t = 0,
+          hit = false;
+        frame(dt => {
+          if (!ctl.aborted) {
+            t = Math.min(1, t + (dt * 1000) / duration);
+            const k = lungeKeys(t);
+            place(s.group, {x: lerp(a.x, tip.x, k.k), y: lerp(a.y, tip.y, k.k), z: k.z, rx: k.rx * dir});
+            if (!hit && t >= IMPACT) {
+              hit = true;
+              onImpact?.();
+            }
+            if (t < 1) return;
+          }
+          s.dispose();
+          resolve();
+          return false;
         });
       }),
     duration + 400,
