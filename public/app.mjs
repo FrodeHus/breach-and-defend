@@ -155,7 +155,7 @@ function toast(s) {
   toastTimer = setTimeout(() => (t.style.display = 'none'), 4000);
 }
 
-// Tells screen-reader users why Confirm is disabled. The region lives outside the dialog, so re-rendering can't drop it.
+// Tells screen-reader users why Confirm is disabled. The region lives in the dialog but outside #modalBody, so re-rendering can't drop it.
 let announced = '';
 function announce(text = '') {
   if (text === announced) return;
@@ -171,6 +171,7 @@ function close() {
 }
 $('.close').onclick = close;
 modal.addEventListener('cancel', () => {
+  announce();
   prep = null;
   closeChoice();
   setTimeout(schedule, 0);
@@ -178,6 +179,7 @@ modal.addEventListener('cancel', () => {
 // Any other way the modal closes (a new game, a versus prompt) also abandons a preparation. Closing a choice
 // dialog (×, Escape, the backdrop) lets the player look at the board: it stays closed until "Make your choice".
 modal.addEventListener('close', () => {
+  announce();
   prep = null;
   // The close event is queued: if a dialog has already opened again, it belongs to that one.
   if (!modal.open) closeChoice();
@@ -357,6 +359,7 @@ function openChoice(...keep) {
 // A choice dialog left open after its choice was answered elsewhere (the versus clock) closes itself.
 function dropStaleChoice() {
   if (!choiceShown || (choice && game?.pending?.id === choice.id)) return;
+  announce();
   choice = null;
   choiceShown = false;
   modal.close();

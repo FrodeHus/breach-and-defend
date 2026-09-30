@@ -852,3 +852,12 @@ test('a choice that cannot be confirmed says why, and Confirm points at the reas
     /<button[^>]*id="choiceConfirm"[^>]*disabled[^>]*aria-describedby="choice-issue"|<button[^>]*id="choiceConfirm"[^>]*aria-describedby="choice-issue"[^>]*disabled/,
   );
 });
+
+test('the screen-reader status region sits inside the modal dialog, outside its body', async () => {
+  const {readFileSync} = await import('node:fs');
+  const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+  assert.match(
+    html,
+    /<dialog id="modal">[\s\S]*<div id="modalBody"><\/div>\s*<div id="srStatus"[^>]*aria-live="polite"><\/div>\s*<\/dialog>/,
+  );
+});
