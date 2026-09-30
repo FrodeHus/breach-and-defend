@@ -179,10 +179,12 @@ modal.addEventListener('cancel', () => {
 // Any other way the modal closes (a new game, a versus prompt) also abandons a preparation. Closing a choice
 // dialog (×, Escape, the backdrop) lets the player look at the board: it stays closed until "Make your choice".
 modal.addEventListener('close', () => {
-  announce();
   prep = null;
   // The close event is queued: if a dialog has already opened again, it belongs to that one.
-  if (!modal.open) closeChoice();
+  if (!modal.open) {
+    announce();
+    closeChoice();
+  }
 });
 modal.addEventListener('click', e => {
   if (e.target === modal) close();
