@@ -97,6 +97,7 @@ The computer uses a local heuristic. It knows its own hand and the public battle
 - `public/tutorial.css`: opt-in panel, lesson checklist, and action highlights.
 - `public/card-preview.mjs` and `public/card-preview.css`: hover/focus preview interactions and positioning.
 - `public/card-drag.mjs` and `public/card-drag.css`: hand-to-battlefield dragging and drop feedback.
+- `public/motion.mjs`, `stage3d.mjs`, `stage3d-curves.mjs`, `card-faces.mjs`: card motion — rules diff, 3D stand-ins and damage effects (three.js, vendored in `public/vendor/`), with CSS fallbacks.
 - `public/style.css`: layout and visual design.
 - `public/art/`: generated artwork used by the cards.
 - `docs/art-prompts/`: exact final prompts used to generate the artwork and logo.
@@ -120,5 +121,6 @@ Bug reports, playtest feedback, card ideas and pull requests are welcome. See [C
 
 - **Code** is licensed under the [MIT License](LICENSE).
 - **Artwork, logo, and card content** are licensed under [CC BY-NC 4.0](LICENSE-ASSETS.md): free to share and adapt with credit, but not for commercial use.
+- **three.js** (`public/vendor/three.module.min.js`) is © three.js authors, [MIT](public/vendor/three.LICENSE).
 
 Breach & Defend is an independent educational game by [Frode Hus](https://www.frodehus.dev), inspired by classic trading-card game mechanics. Card designs are original and illustrations are AI-generated. The source does not include third-party card images, symbols, or frames.
