@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {seededRandom} from '../dist/rng.mjs';
+import {seededRandom} from '../public/rng.mjs';
 
 const seed = Uint8Array.from({length: 16}, (_, i) => i * 7 + 1);
 

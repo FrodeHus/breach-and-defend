@@ -2,8 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {about, LEARN} from '../dist/about.mjs';
-import {landing} from '../dist/landing.mjs';
+import {about, LEARN} from '../public/about.mjs';
+import {landing} from '../public/landing.mjs';
 
 const html = about();
 
@@ -54,22 +54,22 @@ test('credits original designs without naming other games or publishers, and sho
 test('the made-by-AI art is a sized, responsive WebP with a text alternative', () => {
   assert.match(html, /<div class="about-art"><img src="art\/made-by-ai-440\.webp" srcset="art\/made-by-ai-440\.webp 440w, art\/made-by-ai-880\.webp 880w" sizes="\(min-width: 480px\) 440px, 100vw" alt="Made by AI: millions of tokens were burned in the token furnace to make this" width="440" height="293" loading="lazy" decoding="async"><\/div>/);
   for (const file of ['made-by-ai-440.webp', 'made-by-ai-880.webp']) {
-    assert.ok(fs.existsSync(new URL(`../dist/art/${file}`, import.meta.url)), file);
+    assert.ok(fs.existsSync(new URL(`../public/art/${file}`, import.meta.url)), file);
   }
-  assert.equal(fs.existsSync(new URL('../dist/art/made-by-ai.png', import.meta.url)), false, 'the 2.5 MB original must not ship');
+  assert.equal(fs.existsSync(new URL('../public/art/made-by-ai.png', import.meta.url)), false, 'the 2.5 MB original must not ship');
   assert.doesNotMatch(html, /<svg/, 'the old inline SVG plate is gone');
 });
 
 test('the hero uses splash images that exist', () => {
   assert.match(html, /srcset="art\/splash-960\.webp 960w, art\/splash-1732\.webp 1732w"/);
   for (const file of [...html.matchAll(/art\/(splash-[\w.-]+)/g)].map(m => m[1])) {
-    assert.ok(fs.existsSync(new URL(`../dist/art/${file}`, import.meta.url)), file);
+    assert.ok(fs.existsSync(new URL(`../public/art/${file}`, import.meta.url)), file);
   }
 });
 
 test('the landing page and the header link to About', () => {
   for (const mode of ['solo', 'friend']) assert.match(landing({mode}), /<footer class="landing-foot">.*<button type="button" class="about-link" data-view="about">About<\/button>/);
-  const index = fs.readFileSync(new URL('../dist/index.html', import.meta.url), 'utf8');
+  const index = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
   assert.match(index, /<button id="aboutNav" class="nav">About<\/button>/);
   assert.match(index, /href="landing\.css"><link rel="stylesheet" href="about\.css">/);
 });

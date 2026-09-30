@@ -1,4 +1,4 @@
-<p align="center"><img src="dist/art/breach-and-defend-logo.png" alt="Breach & Defend" width="360"></p>
+<p align="center"><img src="public/art/breach-and-defend-logo.png" alt="Breach & Defend" width="360"></p>
 
 <p align="center">
   <a href="https://breach.cards/"><strong>Play now at breach.cards</strong></a>
@@ -37,7 +37,7 @@ Run the rule and tutorial checks with `npm test`.
 
 ## Deployment
 
-The workflow in `.github/workflows/pages.yml` runs all tests using Node.js 24 and publishes only `dist/`. It runs automatically on pushes to `main`, or manually from **Actions → Publish game to GitHub Pages → Run workflow**. Only runs on `main` can deploy.
+The workflow in `.github/workflows/pages.yml` runs all tests using Node.js 24 and publishes only `public/`. It runs automatically on pushes to `main`, or manually from **Actions → Publish game to GitHub Pages → Run workflow**. Only runs on `main` can deploy.
 
 To deploy your own fork, select **Settings → Pages → Build and deployment → Source → GitHub Actions**. No secrets, dependency installation, or build command are required. Relative asset paths support GitHub Pages repository URLs.
 
@@ -78,17 +78,18 @@ The computer uses a local heuristic. It knows its own hand and the public battle
 
 ## Source layout
 
-- `dist/cards.mjs`: card definitions, lessons, deck lists, and keyword glossary.
-- `dist/engine.mjs`: rules and computer strategy, independent of the interface.
-- `dist/app.mjs`: arena, tutorial, library, guide, dialogs, and optional WebMCP tools.
-- `dist/landing.mjs`: start screen with the splash hero and the game-mode selector. The original splash art lives in `art-source/`; `dist/art/splash-*` are the web sizes.
-- `dist/protocol.mjs`, `rng.mjs`, `match.mjs`, `audit.mjs`, `remote.mjs`, `session.mjs`, `net.mjs`, `storage.mjs`, `versus-ui.mjs`: play-a-friend (shared rules, host referee, audit, guest seat, sessions, PeerJS transport, storage, markup).
-- `dist/tutorial.mjs`: lesson progress and contextual guidance, independent of rendering.
-- `dist/tutorial.css`: opt-in panel, lesson checklist, and action highlights.
-- `dist/card-preview.mjs` and `dist/card-preview.css`: hover/focus preview interactions and positioning.
-- `dist/card-drag.mjs` and `dist/card-drag.css`: hand-to-battlefield dragging and drop feedback.
-- `dist/style.css`: layout and visual design.
-- `dist/art/`: generated artwork used by the cards.
+- `public/cards.mjs`: card definitions, lessons, deck lists, and keyword glossary.
+- `public/engine.mjs`: rules and computer strategy, independent of the interface.
+- `public/app.mjs`: UI state, event handling, match flow, and optional WebMCP tools.
+- `public/card-view.mjs`, `arena-view.mjs`, `library.mjs`, `guide.mjs`: card, arena, dialog, library and field-guide markup, as pure functions of the UI state. `html.mjs` holds the shared `esc`.
+- `public/landing.mjs`: start screen with the splash hero and the game-mode selector. The original splash art lives in `art-source/`; `public/art/splash-*` are the web sizes.
+- `public/protocol.mjs`, `rng.mjs`, `match.mjs`, `audit.mjs`, `remote.mjs`, `session.mjs`, `net.mjs`, `storage.mjs`, `versus-ui.mjs`: play-a-friend (shared rules, host referee, audit, guest seat, sessions, PeerJS transport, storage, markup).
+- `public/tutorial.mjs`: lesson progress and contextual guidance, independent of rendering.
+- `public/tutorial.css`: opt-in panel, lesson checklist, and action highlights.
+- `public/card-preview.mjs` and `public/card-preview.css`: hover/focus preview interactions and positioning.
+- `public/card-drag.mjs` and `public/card-drag.css`: hand-to-battlefield dragging and drop feedback.
+- `public/style.css`: layout and visual design.
+- `public/art/`: generated artwork used by the cards.
 - `docs/art-prompts/`: exact final prompts used to generate the artwork and logo.
 - `tests/engine.test.mjs`: rules and match simulation checks.
 - `tests/tutorial.test.mjs`: tutorial progression against the real rules engine.

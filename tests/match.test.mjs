@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Match} from '../dist/match.mjs';
-import {CARDS} from '../dist/cards.mjs';
-import {applyAction, canonical, seedHex, unflipAction, versusGame} from '../dist/protocol.mjs';
+import {Match} from '../public/match.mjs';
+import {CARDS} from '../public/cards.mjs';
+import {applyAction, canonical, seedHex, unflipAction, versusGame} from '../public/protocol.mjs';
 import {choose} from './helpers/policy.mjs';
 import {act, fakeTime, newMatch, openedMatch} from './helpers/versus.mjs';
 

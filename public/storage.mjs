@@ -1,3 +1,4 @@
+// @ts-check
 const PREFIX = 'bnd:', WEEK = 7 * 24 * 60 * 60 * 1000;
 const safe = fn => { try { return fn(); } catch { return undefined; } };
 
