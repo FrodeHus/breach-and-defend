@@ -107,6 +107,8 @@ export class Match {
       (rawAction.type === 'play' || rawAction.type === 'activate') && rawAction.options !== undefined
         ? {...rawAction, options: playOptions(rawAction.options)}
         : rawAction;
+    // A Probe answer names hidden cards: the guest sees the host's only after the match (see redactEntry).
+    const secret = action?.type === 'choose' && this.game.pending?.kind === 'probe';
     const before = this.game.toJSON();
     try {
       applyAction(this.game, by, action);
@@ -114,7 +116,14 @@ export class Match {
       this.game = Game.fromJSON(before);
       return {ok: false, error: e.message};
     }
-    const entry = {...actionFields(action), n: this.log.length + 1, by, seq, timeout};
+    const entry = {
+      ...actionFields(action),
+      n: this.log.length + 1,
+      by,
+      seq,
+      timeout,
+      ...(secret ? {secret: true} : {}),
+    };
     this.log.push(entry);
     this.retime(true);
     this.onChange({entry});

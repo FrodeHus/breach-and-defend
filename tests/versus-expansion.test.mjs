@@ -4,8 +4,12 @@ import {CARDS, EXPANSION_POOL} from '../public/cards.mjs';
 import {
   actionFields,
   applyAction,
+  choiceCommit,
   flip,
+  hostChoices,
   playOptions,
+  redactEntry,
+  restoreChoices,
   sanitizeView,
   timeoutAction,
   viewFor,
@@ -260,4 +264,24 @@ test('a host view with a malformed expansion shape is rejected', () => {
     mutate(v);
     assert.throws(() => sanitizeView(v), /Invalid/, `mutation ${i}`);
   }
+});
+
+test('the host’s Probe answers are redacted in the guest’s log, then restored from the reveal', async () => {
+  const log = [
+    {type: 'pass', n: 1, by: 0, seq: null, timeout: false},
+    {type: 'choose', selection: {discard: [], order: [9, 8]}, n: 2, by: 0, seq: null, timeout: false, secret: true},
+    {type: 'choose', selection: {discard: [7], order: []}, n: 3, by: 1, seq: 4, timeout: false, secret: true},
+    {type: 'choose', selection: {pay: true}, n: 4, by: 0, seq: null, timeout: false},
+  ];
+  const received = log.map(redactEntry);
+  assert.equal(Object.hasOwn(received[1], 'selection'), false);
+  assert.deepEqual(received[2], log[2], 'the guest’s own answers are not redacted');
+  assert.deepEqual(received[3], log[3], 'only Probe answers are secret');
+  assert.deepEqual(hostChoices(log), {2: {discard: [], order: [9, 8]}});
+  assert.deepEqual(restoreChoices(received, hostChoices(log)), log);
+  assert.equal(restoreChoices(received, {}), null);
+  assert.equal(restoreChoices(received, {2: 'x'}), null);
+  const a = await choiceCommit('s', 2, {discard: [], order: [9, 8]}),
+    b = await choiceCommit('s', 2, {discard: [], order: [8, 9]});
+  assert.notEqual(a, b);
 });

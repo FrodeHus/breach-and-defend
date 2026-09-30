@@ -3,17 +3,27 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {audit} from '../public/audit.mjs';
 import {Match} from '../public/match.mjs';
-import {digest, randomHex, sha256Hex, timeoutAction, unflipAction, viewFor} from '../public/protocol.mjs';
+import {
+  choiceCommit,
+  digest,
+  hostChoices,
+  randomHex,
+  redactEntry,
+  sha256Hex,
+  timeoutAction,
+  unflipAction,
+  viewFor,
+} from '../public/protocol.mjs';
 import {OPENING_MS, TURN_MS} from '../public/match.mjs';
-import {choose} from './helpers/policy.mjs';
+import {aiIntent, choose} from './helpers/policy.mjs';
 import {fakeTime} from './helpers/versus.mjs';
-import {POOLS} from '../public/cards.mjs';
+import {EXPANSION_POOL, POOLS} from '../public/cards.mjs';
 
 // Plays a full match the way the guest would record it, including when each entry arrived by the match's fake
 // clock. `tamper` simulates a cheating host, or lets time pass.
 // Fixed secrets per seed, so every run plays the same games.
 const secret = (seed, who) => (seed * 2 + who).toString(16).padStart(32, '0');
-async function record(tamper = () => {}, seed = 1, pool = undefined) {
+async function record(tamper = () => {}, seed = 1, pool = undefined, pick = choose) {
   const hostSecret = secret(seed, 0),
     guestSecret = secret(seed, 1);
   const time = fakeTime();
@@ -37,7 +47,7 @@ async function record(tamper = () => {}, seed = 1, pool = undefined) {
     tamper(m, i, time);
     if (m.ended) break; // a tamper step may itself end the match
     const p = m.game.actor(),
-      a = choose(m.game, p);
+      a = pick(m.game, p);
     if (p === 1) {
       sent[++seq] = unflipAction(a);
       assert.equal(m.submit(1, sent[seq], seq).ok, true);
@@ -231,4 +241,48 @@ test('a record from before card pools audits as First Breach; an unknown pool is
   assert.equal(Object.hasOwn(rec, 'pool'), false);
   assert.deepEqual(await audit(rec), {result: 'verified'});
   assert.equal((await audit({...rec, pool: 'nope'})).result, 'unverified');
+});
+
+// What a guest really holds for an expansion match: the host's Probe answers redacted and committed.
+async function expansionRecord(seed = 1) {
+  const rec = await record(undefined, seed, EXPANSION_POOL, aiIntent);
+  const full = rec.log;
+  rec.log = await Promise.all(
+    full.map(async e =>
+      e.by === 0 && e.secret
+        ? {...redactEntry(e), selectionCommit: await choiceCommit(rec.hostSecret, e.n, e.selection)}
+        : e,
+    ),
+  );
+  rec.choices = hostChoices(full);
+  return rec;
+}
+
+test('an expansion match with secret host Probe answers verifies after the reveal', async () => {
+  const rec = await expansionRecord(2);
+  assert.ok(
+    rec.log.some(e => e.by === 0 && e.secret),
+    'the host probed at least once',
+  );
+  assert.deepEqual(await audit(rec), {result: 'verified'});
+});
+
+test('a host that changes a Probe answer after the match, or never reveals it, is caught', async () => {
+  const rec = await expansionRecord(2);
+  const n = Number(Object.keys(rec.choices)[0]);
+  const changed = structuredClone(rec);
+  const sel = changed.choices[n];
+  changed.choices[n] =
+    sel.order.length > 1 ? {...sel, order: [...sel.order].reverse()} : {discard: sel.order, order: sel.discard};
+  assert.equal((await audit(changed)).result, 'tampered');
+  assert.equal((await audit({...rec, choices: {}})).result, 'tampered');
+});
+
+test('a record from before secret answers audits exactly as before', async () => {
+  const rec = await record();
+  assert.equal(
+    rec.log.some(e => e.secret),
+    false,
+  );
+  assert.deepEqual(await audit(rec), {result: 'verified'});
 });

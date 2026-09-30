@@ -166,10 +166,19 @@ export async function digest(view) {
 // Mulligan bottoms are secret until the match ends: uids follow the public deck lists, so a host keep entry's
 // `bottom` would tell the guest which cards the host put back. The guest gets only the count; `reveal`
 // carries the uids (see hostBottoms), and the audit puts them back before replaying.
+// A host's Probe answer (an entry marked `secret`) is withheld the same way until the reveal (see hostChoices).
 export const redactEntry = e => {
-  if (!e || e.by !== 0 || e.type !== 'keep') return e;
-  const {bottom, ...rest} = e;
-  return {...rest, bottomCount: Array.isArray(bottom) ? bottom.length : 0};
+  if (!e || e.by !== 0) return e;
+  if (e.type === 'keep') {
+    const {bottom, ...rest} = e;
+    return {...rest, bottomCount: Array.isArray(bottom) ? bottom.length : 0};
+  }
+  // A host's Probe answer says which hidden cards it kept and in what order: the guest learns it at the reveal.
+  if (e.secret) {
+    const {selection, ...rest} = e;
+    return rest;
+  }
+  return e;
 };
 // Commits the host to a bottom set before the guest learns it, salted with the still-secret host seed.
 export const bottomCommit = (hostSecret, n, bottom) => sha256Hex(`${hostSecret}:${n}:${canonical(bottom ?? [])}`);
@@ -187,6 +196,26 @@ export function restoreBottoms(log, bottoms) {
     const bottom = bottoms && Object.hasOwn(bottoms, e.n) ? bottoms[e.n] : bottomCount === 0 ? [] : null;
     if (!Array.isArray(bottom) || bottom.length !== bottomCount || !bottom.every(Number.isInteger)) return null;
     out.push({...rest, bottom});
+  }
+  return out;
+}
+// Commits the host to a Probe answer before the guest learns it, salted with the still-secret host seed.
+export const choiceCommit = (hostSecret, n, selection) =>
+  sha256Hex(`${hostSecret}:choice:${n}:${canonical(selection ?? null)}`);
+export const hostChoices = log =>
+  Object.fromEntries(log.filter(e => e.by === 0 && e.secret).map(e => [e.n, e.selection]));
+// Returns the full log, or null when a redacted answer was not revealed.
+export function restoreChoices(log, choices) {
+  const out = [];
+  for (const e of log) {
+    if (!e || e.by !== 0 || !e.secret || Object.hasOwn(e, 'selection')) {
+      out.push(e);
+      continue;
+    }
+    const selection = choices && Object.hasOwn(choices, e.n) ? choices[e.n] : null;
+    if (!selection || typeof selection !== 'object' || Array.isArray(selection)) return null;
+    const {selectionCommit: _, ...rest} = e;
+    out.push({...rest, selection});
   }
   return out;
 }
