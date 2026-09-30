@@ -1,6 +1,18 @@
 import {BY_ID, DEFAULT_POOL, deck} from './cards.mjs';
 import {seededRandom} from './rng.mjs';
-import {OPS, abilityOf, candidates, checkTargets, isRule, recheck, ruleOf, spellRule} from './rules.mjs';
+import {
+  OPS,
+  abilityOf,
+  archiveOptions,
+  candidates,
+  checkTargets,
+  isRule,
+  pickedTargets,
+  recheck,
+  retireOptions,
+  ruleOf,
+  spellRule,
+} from './rules.mjs';
 export const PHASES = [
   'upkeep',
   'draw',
@@ -266,6 +278,7 @@ export class Game {
       }
       if (options.overclock && !d.overclock) add('overclock', `${d.name} has no Overclock.`);
       else if (isRule(d)) issues.push(...this.ruleIssues(p, d, options));
+      if (d.extraCost) issues.push(...this.costIssues(p, d.extraCost));
     }
     return issues;
   }
@@ -299,6 +312,9 @@ export class Game {
       if (d.modes && options.mode == null) throw Error('Choose one of this card’s modes.');
       const problem = checkTargets(this, p, spellRule(d, options).targets, options.targets ?? {});
       if (problem) throw Error(problem);
+      const picks = options.costUids ?? [];
+      const costProblem = d.extraCost ? this.checkPicks(p, d.extraCost, null, picks, options.targets) : null;
+      if (costProblem) throw Error(costProblem);
       opts = {targets: structuredClone(options.targets ?? {})};
       if (options.overclock) opts.overclock = true;
       if (d.modes) opts.mode = options.mode;
@@ -311,12 +327,98 @@ export class Game {
       return;
     }
     this.pay(p, this.costOf(d, options));
+    if (d.extraCost) this.payCost(p, d.extraCost, null, options.costUids ?? []);
     this.stack.push(opts ? {card: c, p, target: null, opts} : {card: c, p, target});
     this.events.push({name: d.name, lesson: d.lesson, faction: d.faction});
     this.passes = 0;
     this.note(
       `${this.label(p)} ${this.verb(p, 'cast', 'casts')} ${d.name}${opts?.overclock ? ', overclocked' : ''}${target ? ` → ${this.targetName(target)}` : ''}.`,
     );
+  }
+  activationIssues(p, uid, abilityId) {
+    if (this.winner !== null) return [{code: 'finished', message: 'This match has ended.'}];
+    const src = this.players[p].field.find(c => c.uid === uid);
+    const a = src && this.data(src).abilities?.find(x => x.id === abilityId && x.kind === 'activated');
+    if (!a) return [{code: 'no-ability', message: 'This card has no such ability.'}];
+    const issues = [],
+      add = (code, message) => issues.push({code, message});
+    if (this.priority !== p || p !== this.active || !['main1', 'main2'].includes(this.phase) || this.stack.length)
+      add('main-phase', 'Abilities can only be activated during your main phase while the stack is empty.');
+    const cost = a.cost ?? {};
+    if (cost.tap && src.tapped) add('tapped', `${this.data(src).name} is tapped.`);
+    // A tap cost on infrastructure uses it up, so its compute has to come from other infrastructure.
+    const ready = this.mana(p) - (cost.tap && !src.tapped && this.data(src).type === 'Infrastructure' ? 1 : 0);
+    if (ready < (cost.compute ?? 0)) add('compute', `Needs ${cost.compute} compute; only ${ready} available.`);
+    issues.push(...this.costIssues(p, cost, uid));
+    if ((a.targets ?? []).some(spec => !spec.optional && !spec.upTo && !candidates(this, p, spec).length))
+      add('target', 'There is no legal target for this ability.');
+    return issues;
+  }
+  costIssues(p, cost, sourceUid = null) {
+    const issues = [];
+    if (cost.retire && cost.retire !== 'self' && !retireOptions(this, p, cost.retire, sourceUid).length)
+      issues.push({code: 'retire', message: 'You have nothing to retire for this cost.'});
+    if (cost.archive && !archiveOptions(this, p, cost.archive).length)
+      issues.push({code: 'archive', message: 'You have no card in your discard to archive for this cost.'});
+    return issues;
+  }
+  activate(p, uid, abilityId, options = {}) {
+    const issues = this.activationIssues(p, uid, abilityId);
+    if (issues.length) throw Error(issues.map(i => i.message).join(' '));
+    const src = this.players[p].field.find(c => c.uid === uid),
+      d = this.data(src),
+      a = d.abilities.find(x => x.id === abilityId),
+      picks = options.costUids ?? [];
+    const problem =
+      checkTargets(this, p, a.targets ?? [], options.targets ?? {}) ??
+      this.checkPicks(p, a.cost ?? {}, uid, picks, options.targets);
+    if (problem) throw Error(problem);
+    this.payCost(p, a.cost ?? {}, src, picks);
+    this.stack.push({
+      ability: {card: d.id, uid, id: abilityId},
+      p,
+      target: null,
+      opts: {targets: structuredClone(options.targets ?? {})},
+    });
+    this.passes = 0;
+    this.note(`${this.label(p)} ${this.verb(p, 'activate', 'activates')} ${d.name}: ${a.label}.`);
+  }
+  // Checks the chosen cost cards: the one to retire, then the one to archive, in that order.
+  checkPicks(p, cost, sourceUid, picks, chosenTargets) {
+    const retiring = cost.retire && cost.retire !== 'self';
+    if (!Array.isArray(picks) || picks.length !== (retiring ? 1 : 0) + (cost.archive ? 1 : 0))
+      return 'Choose the cards this cost needs.';
+    const [toRetire, toArchive] = retiring ? picks : [null, ...picks];
+    if (retiring && !retireOptions(this, p, cost.retire, sourceUid).some(c => c.uid === toRetire))
+      return 'Choose a card you can retire for this cost.';
+    if (cost.archive && !archiveOptions(this, p, cost.archive).some(c => c.uid === toArchive))
+      return 'Choose a card in your discard to archive for this cost.';
+    const targeted = pickedTargets(chosenTargets);
+    if (picks.some(u => targeted.includes(u)) || (cost.retire === 'self' && targeted.includes(sourceUid)))
+      return 'A card paying a cost can\u2019t also be a target.';
+    return null;
+  }
+  // Pays every part of a cost at once, after everything has been checked. A tap cost is paid first, so the
+  // source's own compute can't pay for it.
+  payCost(p, cost, source, picks) {
+    if (cost.tap) source.tapped = true;
+    this.pay(p, cost.compute ?? 0);
+    let i = 0;
+    if (cost.retire === 'self') this.retire(p, source);
+    else if (cost.retire) {
+      const uid = picks[i++];
+      this.retire(
+        p,
+        this.players[p].field.find(c => c.uid === uid),
+      );
+    }
+    if (cost.archive) {
+      const uid = picks[i++];
+      this.archiveCard(
+        p,
+        this.players[p].grave.find(c => c.uid === uid),
+      );
+    }
   }
   targetName(t) {
     if (t.kind === 'player')

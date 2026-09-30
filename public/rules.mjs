@@ -147,3 +147,20 @@ export const OPS = {
     for (const x of refs(g, f, s.to)) if (x.zone === 'grave') g.archiveCard(x.p, x.card);
   },
 };
+
+// Permanents you could retire for a cost: {types?, id?, other?}; `other` excludes the card paying it.
+export const retireOptions = (g, p, spec, sourceUid = null) =>
+  g.players[p].field.filter(
+    c =>
+      (!spec.types || spec.types.includes(data(c).type)) &&
+      (!spec.id || c.id === spec.id) &&
+      !(spec.other && c.uid === sourceUid),
+  );
+export const archiveOptions = (g, p, spec) =>
+  g.players[p].grave.filter(c => !spec.types || spec.types.includes(data(c).type));
+// Every card uid named in a chosen-targets object.
+export const pickedTargets = chosen =>
+  Object.values(chosen ?? {})
+    .flatMap(v => (Array.isArray(v) ? v : [v]))
+    .map(t => t?.uid)
+    .filter(u => u != null);
