@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Game} from '../public/engine.mjs';
 import {CARDS} from '../public/cards.mjs';
-import {dropHandCard} from '../public/card-drag.mjs';
+import {assignBlock, dropHandCard} from '../public/card-drag.mjs';
 
 function setup(name) {
   const game = new Game();
@@ -57,4 +57,38 @@ test('a targeted drop can open selection without paying until a target is chosen
   game.play(0, pending, game.targets(0, card)[0]);
   assert.equal(game.players[0].hand.length, 0);
   assert.equal(game.stack.length, 1);
+});
+
+function blockSetup(blueName, redName) {
+  const game = new Game();
+  game.phase = 'block';
+  const blue = game.card(CARDS.find(c => c.name === blueName).id);
+  const red = game.card(CARDS.find(c => c.name === redName).id);
+  game.players[0].field = [blue];
+  game.players[1].field = [red];
+  game.attacks = [red.uid];
+  return {game, blue, red};
+}
+
+test('assigning a block moves the blocker off its previous attacker', () => {
+  const {game, blue, red} = blockSetup('SOC Trainee', 'Session Hijacker');
+  const other = game.card(CARDS.find(c => c.name === 'Credential Broker').id);
+  game.players[1].field.push(other);
+  game.attacks.push(other.uid);
+  const blocks = {[red.uid]: [blue.uid]};
+  assert.deepEqual(assignBlock(game, blocks, blue.uid, other.uid), []);
+  assert.deepEqual(blocks, {[red.uid]: [], [other.uid]: [blue.uid]});
+});
+
+test('illegal blocks report why and leave assignments untouched', () => {
+  const {game, blue, red} = blockSetup('SOC Trainee', 'Rogue Access Point');
+  const blocks = {};
+  assert.match(assignBlock(game, blocks, blue.uid, red.uid).join(' '), /Stealth/);
+  game.attacks = [];
+  assert.match(assignBlock(game, blocks, blue.uid, red.uid).join(' '), /attacking/);
+  game.attacks = [red.uid];
+  blue.tapped = true;
+  assert.match(assignBlock(game, blocks, blue.uid, red.uid).join(' '), /untapped/);
+  assert.match(assignBlock(game, blocks, red.uid, red.uid).join(' '), /untapped/);
+  assert.deepEqual(blocks, {});
 });
