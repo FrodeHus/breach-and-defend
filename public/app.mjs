@@ -6,7 +6,7 @@ import {Game} from './engine.mjs';
 import {Tutorial} from './tutorial.mjs';
 import {installCardPreview} from './card-preview.mjs';
 import {installLoreFlip} from './lore-panel.mjs';
-import {installCardDrag, dropHandCard} from './card-drag.mjs';
+import {installCardDrag, dropHandCard, assignBlock} from './card-drag.mjs';
 import {snapshot, combat, transitions, arrows, within} from './motion.mjs';
 import {HostSession, GuestSession} from './session.mjs';
 import * as net from './net.mjs';
@@ -83,7 +83,8 @@ installLoreFlip({
 const cardPreview = installCardPreview({
   root: app,
   renderCard: el => hoverCard(ui(), el),
-  canShow: () => !animating && !modal.open && !cardDrag.busy,
+  // While a blocker awaits its target, the preview would cover the attackers it must click.
+  canShow: () => !animating && !modal.open && !cardDrag.busy && !blocker,
 });
 const cardDrag = installCardDrag({
   root: app,
@@ -101,6 +102,18 @@ const cardDrag = installCardDrag({
   onDrop: uid => {
     const issues = dropHandCard(game, uid, chooseTarget);
     if (issues.length) toast(issues.join(' '));
+  },
+  block: {
+    canDrag: uid => game.phase === 'block' && game.actor() === 0 && game.find(uid)?.p === 0,
+    attackers: () => game.attacks,
+    // Check against a scratch copy so hovering never changes the real assignments.
+    check: (b, a) => assignBlock(game, structuredClone(blocks), b, a),
+    onDrop: (b, a) => {
+      const issues = assignBlock(game, blocks, b, a);
+      if (issues.length) return toast(issues.join(' '));
+      blocker = null;
+      render();
+    },
   },
 });
 
@@ -360,6 +373,7 @@ function render() {
   const focusId = focused?.id,
     focusUid = focused?.dataset?.uid;
   document.body.classList.toggle('match-playing', view === 'arena' && !!game && game.phase !== 'opening');
+  document.body.classList.toggle('blocking-step', view === 'arena' && game?.phase === 'block' && game.actor() === 0);
   document.body.classList.toggle('landing-view', view === 'about' || (view === 'arena' && !game && !versus));
   arrows({});
   const key = game ? `${game.turn}:${game.phase}` : '';
@@ -524,12 +538,8 @@ document.addEventListener('click', e => {
         return;
       }
       if (blocker && game.attacks.includes(uid)) {
-        const b = game.find(blocker).card;
-        if (!game.canBlock(b, f.card)) {
-          toast('Stealth attackers need a blocker with Stealth or Detection.');
-          return;
-        }
-        (blocks[uid] ??= []).push(blocker);
+        const issues = assignBlock(game, blocks, blocker, uid);
+        if (issues.length) return toast(issues.join(' '));
         blocker = null;
         render();
         return;

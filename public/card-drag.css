@@ -56,3 +56,30 @@
   pointer-events: none;
   font-size: 14px;
 }
+/* Dragging a battlefield unit onto an attacker assigns it as a blocker. */
+.blocking-step .your-lane [data-card] {
+  cursor: grab;
+  touch-action: pan-x;
+}
+.battle-lane .card-drag-source {
+  opacity: 0.3;
+}
+.card.tile.card-drag-ghost {
+  transform: rotate(-3deg) scale(1.06);
+}
+.opponent-lane .card.card-drop-ready {
+  outline: 3px dashed #0b8a74;
+  outline-offset: 3px;
+}
+.opponent-lane .card.card-drop-blocked {
+  outline: 3px dashed #d08a1c;
+  outline-offset: 3px;
+  opacity: 0.7;
+}
+.opponent-lane .card.card-drop-over {
+  outline-style: solid;
+  box-shadow: 0 0 18px #0b8a74aa;
+}
+.opponent-lane .card.card-drop-blocked.card-drop-over {
+  box-shadow: 0 0 18px #d08a1caa;
+}
