@@ -30,3 +30,10 @@ test('the lore panel escapes expansion lore', () => {
   const html = lorePanel({...TOKENS.backdoor, flavor: '"<b>"', flavorBy: '<i>', lesson: '<script>x</script>'});
   assert.doesNotMatch(html, /<script>|<b>|<i>/);
 });
+
+test('blue Persistent Threats cards and the Indicator token have lore', () => checkFaction('blue'));
+
+test('every flavor quote is its own, across both sets', () => {
+  const quotes = Object.values(LORE).map(l => l.flavor);
+  assert.equal(new Set(quotes).size, quotes.length);
+});

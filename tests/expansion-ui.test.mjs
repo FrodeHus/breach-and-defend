@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CARDS} from '../public/cards.mjs';
+import {CARDS, BY_ID} from '../public/cards.mjs';
 import {Tutorial} from '../public/tutorial.mjs';
 import * as arena from '../public/arena-view.mjs';
 import {stackItem} from '../public/expansion-view.mjs';
@@ -89,11 +89,9 @@ test('animation snapshots and tutorial tracking ignore stack entries without a c
 });
 
 test('a card without lore renders without “undefined”', () => {
-  const g = table();
-  const c = put(g, 0, pt('Seed Access'), 'hand');
-  const el = {dataset: {card: c.id, zone: 'hand', uid: String(c.uid)}};
-  assert.doesNotMatch(hoverCard(state(g), el), /undefined/);
-  assert.doesNotMatch(lorePanel(CARDS.find(x => x.id === c.id)), /undefined/);
+  const bare = {...BY_ID[pt('Seed Access')], flavor: undefined, flavorBy: undefined, lesson: undefined};
+  assert.doesNotMatch(lorePanel(bare), /undefined/);
+  assert.match(lorePanel(bare), /arrive with its release/);
 });
 
 import {abilityWays, castWays, ready, readyIssue, toOptions, togglePick} from '../public/prepare.mjs';
