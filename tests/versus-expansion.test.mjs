@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CARDS} from '../public/cards.mjs';
-import {actionFields, applyAction, playOptions, timeoutAction} from '../public/protocol.mjs';
+import {CARDS, EXPANSION_POOL} from '../public/cards.mjs';
+import {actionFields, applyAction, flip, playOptions, timeoutAction, viewFor} from '../public/protocol.mjs';
 import {Seat} from '../public/remote.mjs';
+import {aiMatch} from './helpers/simulate.mjs';
 import {openedMatch} from './helpers/versus.mjs';
 import {compute, put, resolveTop, table} from './helpers/rules.mjs';
 
@@ -131,4 +132,75 @@ test('a First Breach play still logs exactly its own fields', async () => {
   const r = m.submit(1, {type: 'play', uid: c.uid, target: null}, 5001);
   assert.equal(r.ok, true, r.error);
   assert.deepEqual(Object.keys(r.entry).sort(), ['by', 'n', 'seq', 'target', 'timeout', 'type', 'uid']);
+});
+
+// Every uid a player may not know: the other player's hand, both decks, minus what their own Probe shows them.
+function hiddenUids(g, p) {
+  const out = new Set();
+  for (const q of g.players) for (const c of q.deck) out.add(c.uid);
+  for (const c of g.players[1 - p].hand) out.add(c.uid);
+  if (g.pending?.kind === 'probe' && g.pending.actor === p) for (const u of g.pending.options) out.delete(u);
+  return out;
+}
+// Every uid a view reveals: any `uid` field, and the numbers in a pending choice's options.
+function shownUids(v) {
+  const out = [];
+  const walk = x => {
+    if (Array.isArray(x)) return x.forEach(walk);
+    if (!x || typeof x !== 'object') return;
+    for (const [k, val] of Object.entries(x)) {
+      if (k === 'uid' && Number.isInteger(val)) out.push(val);
+      else walk(val);
+    }
+  };
+  walk(v);
+  for (const o of v.pending?.options ?? []) if (Number.isInteger(o)) out.push(o);
+  return out;
+}
+const everyView = (check, games = 4) => {
+  for (let seed = 1; seed <= games; seed++)
+    aiMatch(seed, {
+      faction: seed % 2 ? 'red' : 'blue',
+      first: seed & 1,
+      pool: EXPANSION_POOL,
+      mode: 'versus',
+      check: g => {
+        for (const p of [0, 1]) check(g, p, viewFor(g, p));
+      },
+    });
+};
+
+test('views of expansion matches never reveal a hidden card', () => {
+  everyView((g, p, v) => {
+    const hidden = hiddenUids(g, p);
+    for (const u of shownUids(v)) assert.ok(!hidden.has(u), `view for ${p} reveals hidden uid ${u}`);
+  });
+});
+
+test('flipping a view twice gives it back, with pending, waiting and ability entries included', () => {
+  everyView((g, p, v) => assert.deepEqual(flip(flip(v)), v));
+});
+
+test('a private choice shows its chooser the cards and the other player only a count', () => {
+  const g = table();
+  compute(g, 0, 1);
+  applyAction(g, 0, {type: 'play', uid: put(g, 0, pt('Map Trust Relationships'), 'hand').uid, target: null});
+  resolveTop(g);
+  const mine = viewFor(g, 0).pending,
+    theirs = viewFor(g, 1).pending;
+  assert.deepEqual(
+    mine.cards.map(c => c.uid),
+    g.pending.options,
+  );
+  assert.equal(
+    mine.cards.every(c => typeof c.id === 'string'),
+    true,
+  );
+  assert.deepEqual([theirs.options, theirs.count, theirs.actor], [[], 2, 1]);
+  assert.equal(Object.hasOwn(theirs, 'cards'), false);
+  for (const v of [mine, theirs]) {
+    assert.equal(Object.hasOwn(v, 'frame'), false);
+    assert.equal(v.resolving.card.id, pt('Map Trust Relationships'));
+  }
+  assert.equal(Object.hasOwn(viewFor(g, 0), 'queue'), false);
 });

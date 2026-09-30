@@ -31,6 +31,7 @@ export function versusGame(seed, hostFaction, pool = DEFAULT_POOL) {
 
 const other = p => (p === 0 || p === 1 ? 1 - p : p);
 export const flipTarget = t => (t?.kind === 'player' ? {...t, p: 1 - t.p} : t);
+const flipEntry = s => ({...s, p: 1 - s.p, target: flipTarget(s.target)});
 export function flip(state) {
   const f = structuredClone(state);
   f.players.reverse();
@@ -38,15 +39,39 @@ export function flip(state) {
   f.kept.reverse();
   f.casts?.reverse();
   for (const k of ['active', 'priority', 'first', 'winner']) f[k] = other(f[k]);
-  f.stack = f.stack.map(s => ({...s, p: 1 - s.p, target: flipTarget(s.target)}));
+  f.stack = f.stack.map(flipEntry);
+  if (f.pending) {
+    f.pending.actor = 1 - f.pending.actor;
+    if (f.pending.resolving) f.pending.resolving = flipEntry(f.pending.resolving);
+  }
+  if (f.waiting) f.waiting = f.waiting.map(w => ({...w, p: 1 - w.p}));
   return f;
 }
 
 // Deck lists are public and uids follow deck-list order, so hidden cards must never carry a uid.
 const hidden = () => ({hidden: true});
+
+// What a player may see of the open choice. Never the other player's private options (they are hidden card
+// uids), and never the resolving frame's internals: the host resumes it, and a view only needs the card.
+function pendingView(state, p) {
+  const {frame, data, ...c} = state.pending;
+  if (frame?.entry) c.resolving = frame.entry;
+  if (data && c.kind === 'pay') c.data = {uid: data.uid, amount: data.amount};
+  if (data && c.kind === 'targets') c.data = {trigger: data.trigger};
+  if (c.private && c.actor !== p) {
+    c.count = c.options.length;
+    c.options = [];
+  } else if (c.kind === 'probe') {
+    const deck = state.players[c.actor].deck;
+    c.cards = c.options.map(u => ({id: deck.find(d => d.uid === u).id, uid: u}));
+  }
+  return c;
+}
+
 export function viewFor(game, p) {
-  const {rng, uid, ...state} = game.toJSON();
+  const {rng, uid, queue, ...state} = game.toJSON();
   state.uid = 0; // Sentinel: cards start at 1, never a card uid; allows Game.fromJSON to mint new cards.
+  if (state.pending) state.pending = pendingView(state, p);
   state.players = state.players.map((q, i) => ({
     ...q,
     deck: q.deck.map(hidden),
