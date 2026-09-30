@@ -1383,3 +1383,13 @@ Play three turns of a plain First Breach match (checkbox off). Its hand, battlef
 - [ ] Run `npm test && npm run typecheck` and the Prettier check on the branch tip.
 - [ ] Append a "Follow-ups" section to this plan for Plan 6 (lore, art prompts, the Field Guide, lessons and release), including anything the reviews defer.
 - [ ] Use superpowers:finishing-a-development-branch.
+
+## Walkthrough
+
+Played in the in-app browser on 2026-09-30, with the set temporarily marked released (reverted; never committed).
+
+**Verified.** A red training match to turn 17 and a blue match to a result (turn 10), with no stalls and no console errors. Every interaction was used at least once: a mode cast (Live Response), Overclock (Coordinated Pressure, including the unaffordable way disabled with its reason), Burn the Channel's retire cost, Reuse from the discard, a Backdoor boost, Indicator analysis (which raised a trigger-order choice and Incident Commander's target choice), tap-and-retire Tools (Disposable Cache, Analysis Workbench) with the discard after drawing, Probe (discard, reorder, close and reopen with **Make your choice**, no auto-pass), Lockdown (auto-targeted, "skips next untap"), paying for Verify Provenance, and the archive cost and viewer. Keyboard-only preparation and Probe answers, focus rings, ✓ and text for pressed state, and the 375px width. Three turns of plain First Breach look and play as before.
+
+**Fixed.** Token stacks overlapped neighbours and floated their count; tokens in different states were grouped; the card dialog said FIRST BREACH for every set; blocked activations opened an empty dialog; Reuse was titled "Cast"; choice dialogs reset focus to the first button and the Probe toggle read "✓ Keep on top"; a choice answered elsewhere left its dialog open; the discard grid ignored extra picks silently; ↑/↓ wrapped apart on phones; the log said "a Indicator"; the ⚡ badge covered tile names; the stack didn't name a chosen mode; the order dialog repeated its instruction.
+
+**Not verified here.** The two-browser Play a friend check: the PeerJS broker (0.peerjs.com) was unreachable from the corporate network (CORS failure under TLS inspection). The protocol and hidden-choice logic are covered by unit tests; run the live check off that network before release.
