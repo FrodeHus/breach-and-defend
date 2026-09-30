@@ -2756,3 +2756,31 @@ Plan 3 writes the 50 cards in this schema. Where a card needs a step or trigger 
 - returning the source card to hand.
 
 The stack-entry shapes, pending kinds and `defaultChoice` defined here are what Plan 4 carries over the network.
+
+## Follow-ups found while building this plan
+
+Recorded by the task and whole-branch reviews. Each belongs to a later plan.
+
+**Plan 3 (cards and the computer opponent)**
+- `holds()` returns false for an unknown condition key. Make it throw, so a typo in card data fails loudly.
+- `playIssues` allows `{reuse: true}` on any card with `reuse`. Require `isRule(d)` too, or a non-rule card with `reuse` would go back to the discard and be reusable forever.
+- `extraCost` supports only `retire`/`archive`. `compute`/`tap` there are unvalidated, and `payCost` would touch a null source.
+- Distributed Command needs an end-step condition ("if you attacked with at least two units this turn"). `g.attacks` is still intact at the end step.
+- Break the Chain's Overclock archive targets must come from the targeted permanent's controller's discard: a dependent target that `onePlayer` doesn't express.
+- Triggers are matched when events are collected, not when they happen. A watcher that enters mid-resolution sees earlier events, and one that leaves misses them. Also, `check()` during a paused effect removes lethally damaged units before the remaining steps run. No planned card is affected. Keep it in mind when writing cards.
+- `ruleIssues` checks reachability only for the requested Overclock flag. A card castable only when overclocked (the Scoped Remediation pattern) reports "not castable". Also try `overclock: true` when it wasn't requested.
+- `used` written by a once-per-turn trigger that fires from the discard stays on that card.
+- The computer's default choices pick the lowest uid, possibly its own unit. Give it real preferences.
+- Test gaps to close alongside real cards: modal spells with targets, non-`instead` Overclock, `refs('self')`, archive costs, `retire: 'self'` self-target rejection, activation atomicity, `canAct` with an unaffordable Reuse card, and dynamic `firewall`/`stealth`/`alwaysOn`/`recharge`.
+
+**Plan 4 (multiplayer)**
+- `sanitizeView` rejects views with `archive`, `pending`, `queue`, `waiting` or ability stack entries. `flip` must also flip `pending.actor`, `waiting[].p` and nested targets.
+- Probe choices are private and must be redacted in the other player's view and log, committed and revealed like mulligan bottoms.
+- `pending.data` carries step lists (`paid`/`then`) copied from card data. Either derive them from `ruleOf(frame.entry)` on resume, or validate them strictly.
+- Timeouts use `defaultChoice()`. A test already asserts `choose` accepts it for every pending kind; keep that invariant.
+- Validate every peer-supplied option (mode, targets, costUids) with the same checks as local play. Mode validation is already strict.
+
+**Plan 5 (interface)**
+- `motion.mjs`, `tutorial.mjs` and `arena-view.mjs` still read `s.card` on stack entries. Ability entries have no card and would crash rendering.
+- A human player with a pending choice has no interface for it yet.
+- `counter(-1)` isn't guarded, and discards aren't logged.
