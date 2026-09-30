@@ -19,7 +19,14 @@ export function stackItem(s, e) {
     : e.target
       ? [game.targetName(e.target)]
       : [];
-  const tags = [e.ability && 'Ability', e.opts?.overclock && 'Overclocked', e.opts?.reuse && 'Reuse'].filter(Boolean);
+  // The chosen mode is public once cast, so the opponent's modal spell names it too.
+  const mode = e.card && e.opts?.mode != null ? BY_ID[e.card.id]?.modes?.[e.opts.mode]?.label : null;
+  const tags = [
+    e.ability && 'Ability',
+    mode && `Mode: ${esc(mode)}`,
+    e.opts?.overclock && 'Overclocked',
+    e.opts?.reuse && 'Reuse',
+  ].filter(Boolean);
   return `<div class="stack-item${e.ability ? ' ability' : ''}"${e.card ? ` data-motion-uid="${e.card.uid}"` : ''}><strong>${esc(game.entryName(e))}</strong>${who(s, e.p)}${tags.length ? ` · ${tags.join(' · ')}` : ''}${targets.length ? ' → ' + targets.map(esc).join(', ') : ''}</div>`;
 }
 

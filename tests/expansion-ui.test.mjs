@@ -52,6 +52,28 @@ test('the stack shows abilities, Overclock and Reuse, and First Breach entries e
   assert.match(stackItem(state(g), g.stack.at(-1)), /Overclocked/);
 });
 
+test('the stack names the chosen mode of a modal spell, for either player', () => {
+  const g = table();
+  compute(g, 0, 8);
+  const foe = put(g, 1, 'b8'),
+    mine = put(g, 0, 'r7');
+  const bounce = put(g, 0, pt('Live Response'), 'hand');
+  g.play(0, bounce.uid, null, {mode: 0, targets: {t: ref(foe.uid)}});
+  const first = stackItem(state(g), g.stack.at(-1));
+  assert.match(first, /Mode: Return an opposing unit to its owner’s hand/);
+  assert.doesNotMatch(first, /Untap your unit/);
+  const buff = put(g, 0, pt('Live Response'), 'hand');
+  g.play(0, buff.uid, null, {mode: 1, targets: {t: ref(mine.uid)}});
+  const second = stackItem(state(g), g.stack.at(-1));
+  assert.match(second, /Mode: Untap your unit and give it \+0\/\+2/);
+  assert.doesNotMatch(second, /Return an opposing unit/);
+  // In versus the opponent's entry arrives as plain view data; the mode is public once cast.
+  const theirs = {...structuredClone(g.stack.at(-1)), p: 1};
+  assert.match(stackItem(state(g, {versus: {}}), theirs), /Opponent · Mode: Untap your unit and give it \+0\/\+2/);
+  // A mode the card does not have names nothing rather than breaking the stack.
+  assert.doesNotMatch(stackItem(state(g), {...theirs, opts: {...theirs.opts, mode: 7}}), /Mode:/);
+});
+
 test('animation snapshots and tutorial tracking ignore stack entries without a card', async () => {
   const g = table();
   compute(g, 0, 1);
