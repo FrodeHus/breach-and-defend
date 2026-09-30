@@ -153,3 +153,16 @@ test('a modal spell needs a mode; each mode has its own targets', t => {
   resolveTop(g);
   assert.equal(g.players[0].hand.length, 1);
 });
+
+test('a mode that is not an index of the card’s modes is refused before anything is paid', t => {
+  define(t, twin);
+  const g = table();
+  compute(g, 0, 2);
+  const c = put(g, 0, 'x-twin', 'hand');
+  for (const mode of ['length', 'constructor', -1, 1.5, '0']) {
+    assert.deepEqual(codes(g, c, {mode}), ['mode'], String(mode));
+    assert.throws(() => g.play(0, c.uid, null, {mode}), /modes/);
+    assert.equal(g.mana(0), 2);
+    assert.equal(g.stack.length, 0);
+  }
+});

@@ -254,3 +254,28 @@ test('a trigger fires even when its source dies in the same action', t => {
   resolveTop(g);
   assert.ok(ids(g, 0).includes('pt-backdoor'));
 });
+
+test('a trigger whose required target has no candidates is removed even when an earlier optional target has some', t => {
+  define(t, {
+    id: 'x-mixed',
+    type: 'Unit',
+    cost: 0,
+    power: 1,
+    toughness: 1,
+    abilities: [
+      trig('e', 'enter', [{op: 'heal', n: 1}], {
+        targets: [
+          {key: 'a', zone: 'grave', side: 'any', optional: true},
+          {key: 'b', zone: 'field', side: 'opponent', types: ['Tool']},
+        ],
+      }),
+    ],
+  });
+  const g = table();
+  put(g, 0, 'r1', 'grave');
+  g.play(0, put(g, 0, 'x-mixed', 'hand').uid);
+  resolveTop(g);
+  assert.equal(g.pending, null);
+  assert.equal(g.stack.length, 0);
+  assert.deepEqual(g.waiting, []);
+});

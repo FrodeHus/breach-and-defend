@@ -258,17 +258,25 @@ export const ON = {
 
 // Targets a trigger can take without asking: none needed, or exactly one choice for each required target.
 export function autoTargets(g, p, specs) {
+  const optional = spec => spec.optional || spec.upTo;
+  // A required target with nothing to pick removes the trigger, whatever the other targets offer.
+  if (specs.some(spec => !optional(spec) && !candidates(g, p, spec).length)) return 'none';
   const targets = {};
   for (const spec of specs) {
     const options = candidates(g, p, spec);
-    if (spec.optional || spec.upTo) {
+    if (optional(spec)) {
       if (options.length) return 'choose';
       if (spec.upTo) targets[spec.key] = [];
-    } else if (!options.length) return 'none';
-    else if (options.length > 1) return 'choose';
+    } else if (options.length > 1) return 'choose';
     else targets[spec.key] = options[0];
   }
   return targets;
+}
+
+// Steps that follow a choice can't open another one: that is a card-data bug, not something to lose silently.
+function runSteps(g, frame, steps) {
+  for (const step of steps)
+    if (OPS[step.op](g, frame, step)) throw Error(`The ${step.op} step can't ask for a choice inside another choice.`);
 }
 
 // Applies a selection to the pending choice `c`. Each throws before changing anything if the selection is wrong.
@@ -334,7 +342,7 @@ export const CHOICES = {
     if (!sel.pay) return g.counter(i);
     g.pay(c.actor, c.data.amount);
     g.note(`${g.label(c.actor)} ${g.verb(c.actor, 'pay', 'pays')} ${c.data.amount} compute.`);
-    for (const step of c.data.paid) OPS[step.op](g, c.frame, step);
+    runSteps(g, c.frame, c.data.paid);
   },
   optional(g, c, sel) {
     if (!Object.hasOwn(sel, 'uid') || !c.options.includes(sel.uid)) throw Error('Choose a card to retire, or none.');
@@ -343,6 +351,6 @@ export const CHOICES = {
       c.actor,
       g.players[c.actor].field.find(x => x.uid === sel.uid),
     );
-    for (const step of c.data.then) OPS[step.op](g, c.frame, step);
+    runSteps(g, c.frame, c.data.then);
   },
 };

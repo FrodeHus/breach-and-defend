@@ -299,7 +299,8 @@ export class Game {
   }
   // A rule card can be cast when some way of casting it (a mode, with or without Overclock) has its targets.
   ruleIssues(p, d, {mode = null, overclock = false} = {}) {
-    if (d.modes && mode != null && !d.modes[mode]) return [{code: 'mode', message: 'Choose one of this card’s modes.'}];
+    if (d.modes && mode != null && !(Number.isInteger(mode) && mode >= 0 && mode < d.modes.length))
+      return [{code: 'mode', message: 'Choose one of this card’s modes.'}];
     const modes = d.modes ? (mode == null ? d.modes.map((_, i) => i) : [mode]) : [null];
     const reachable = modes.some(m =>
       spellRule(d, {mode: m, overclock}).targets.every(
@@ -597,6 +598,14 @@ export class Game {
         };
     }
   }
+  // The match is over: a card still being resolved goes where it would have, and nothing stays open or waiting.
+  abandon() {
+    const entry = this.pending?.frame?.entry;
+    if (entry?.card) this.leaveStack(entry);
+    this.pending = null;
+    this.queue = [];
+    this.waiting = [];
+  }
   leaveStack(entry) {
     const q = this.players[entry.p];
     // A card cast with Reuse is archived however it leaves the stack: resolved, countered or without targets.
@@ -687,9 +696,7 @@ export class Game {
     this.check();
     // Nothing triggers once the match is decided; drop it so a finished match saves no expansion state.
     if (this.winner !== null) {
-      this.queue = [];
-      this.waiting = [];
-      this.pending = null;
+      this.abandon();
       return;
     }
     this.collect();
@@ -1001,7 +1008,7 @@ export class Game {
     if (this.winner !== null) throw Error('The match has already ended.');
     this.winner = 1 - p;
     this.reason = `${this.label(p)} left the match.`;
-    this.pending = null;
+    this.abandon();
     this.note(this.reason);
   }
   toJSON() {

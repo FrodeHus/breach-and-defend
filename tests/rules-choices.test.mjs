@@ -234,3 +234,164 @@ test('conceding clears a pending choice; running out of cards mid-effect ends th
   assert.equal(h.winner, 1);
   assert.equal(h.players[0].life, 20, 'the heal after the failed draw never happened');
 });
+
+test('conceding mid-resolution puts the card being resolved in its owner’s discard and clears everything pending', t => {
+  define(t, peek);
+  const g = table();
+  const c = put(g, 0, 'x-peek', 'hand');
+  g.play(0, c.uid);
+  resolveTop(g);
+  assert.equal(g.pending.kind, 'probe');
+  g.concede(0);
+  assert.ok(g.players[0].grave.some(x => x.uid === c.uid));
+  assert.ok(!g.players[0].hand.some(x => x.uid === c.uid));
+  assert.equal(g.pending, null);
+  assert.deepEqual(g.queue, []);
+  assert.deepEqual(g.waiting, []);
+});
+
+test('conceding with a trigger order choice pending saves no waiting triggers', t => {
+  define(t, {
+    id: 'x-two',
+    type: 'Unit',
+    power: 1,
+    toughness: 1,
+    abilities: [
+      {id: 'a', kind: 'triggered', label: 'a', on: 'enter', steps: [{op: 'draw', n: 1}]},
+      {id: 'b', kind: 'triggered', label: 'b', on: 'enter', steps: [{op: 'heal', n: 1}]},
+    ],
+  });
+  const g = table();
+  g.play(0, put(g, 0, 'x-two', 'hand').uid);
+  resolveTop(g);
+  assert.equal(g.pending.kind, 'order');
+  g.concede(1);
+  assert.equal(g.pending, null);
+  assert.ok(!('waiting' in g.toJSON()));
+});
+
+test('a pay or optional step list that pauses for a new choice is a card-data bug and throws', t => {
+  define(
+    t,
+    {
+      id: 'x-badoptional',
+      type: 'Unit',
+      power: 1,
+      toughness: 1,
+      abilities: [
+        {
+          id: 'd',
+          kind: 'triggered',
+          label: 'Bad',
+          on: 'defeated',
+          steps: [{op: 'optionalRetire', what: {id: 'pt-backdoor'}, ifSelfIn: 'grave', then: [{op: 'probe', n: 1}]}],
+        },
+      ],
+    },
+    {
+      id: 'x-badspoof',
+      type: 'Response',
+      cost: 0,
+      targets: [{key: 't', zone: 'stack', types: ['Response', 'Operation']}],
+      steps: [{op: 'counterUnlessPay', to: 't', amount: 2, paid: [{op: 'probe', n: 1}]}],
+    },
+    heal,
+  );
+  const g = table();
+  const h = put(g, 0, 'x-badoptional');
+  g.createToken(0, 'pt-backdoor');
+  h.damage = 5;
+  g.settle();
+  resolveTop(g);
+  assert.equal(g.pending.kind, 'optional');
+  assert.throws(() => g.choose(0, {uid: g.pending.options[0]}), /probe/);
+
+  const s = table();
+  compute(s, 1, 2);
+  s.active = 1;
+  s.priority = 1;
+  s.play(1, put(s, 1, 'x-heal', 'hand').uid);
+  s.pass(1);
+  s.play(0, put(s, 0, 'x-badspoof', 'hand').uid, null, {targets: {t: {kind: 'spell', uid: s.stack[0].card.uid}}});
+  resolveTop(s);
+  assert.equal(s.pending.kind, 'pay');
+  assert.throws(() => s.choose(1, {pay: true}), /probe/);
+});
+
+test('the automatic answer to every kind of pending choice is accepted', t => {
+  define(
+    t,
+    peek,
+    loot,
+    spoof,
+    heal,
+    handler,
+    {
+      id: 'x-two',
+      type: 'Unit',
+      power: 1,
+      toughness: 1,
+      abilities: [
+        {id: 'a', kind: 'triggered', label: 'a', on: 'enter', steps: [{op: 'draw', n: 1}]},
+        {id: 'b', kind: 'triggered', label: 'b', on: 'enter', steps: [{op: 'heal', n: 1}]},
+      ],
+    },
+    {
+      id: 'x-cuff2',
+      type: 'Unit',
+      power: 1,
+      toughness: 1,
+      abilities: [
+        {
+          id: 'e',
+          kind: 'triggered',
+          label: 'e',
+          on: 'enter',
+          steps: [{op: 'tap', to: 't', lock: true}],
+          targets: [{key: 't', zone: 'field', side: 'opponent', types: ['Unit']}],
+        },
+      ],
+    },
+  );
+  const seen = new Set();
+  const check = g => {
+    seen.add(g.pending.kind);
+    g.choose(g.pending.actor, g.defaultChoice());
+  };
+  let g = table();
+  g.play(0, put(g, 0, 'x-peek', 'hand').uid);
+  resolveTop(g);
+  check(g);
+  g = table();
+  put(g, 0, 'r13', 'hand');
+  g.play(0, put(g, 0, 'x-loot', 'hand').uid);
+  resolveTop(g);
+  check(g);
+  g = table();
+  compute(g, 1, 2);
+  g.active = 1;
+  g.priority = 1;
+  g.play(1, put(g, 1, 'x-heal', 'hand').uid);
+  g.pass(1);
+  g.play(0, put(g, 0, 'x-spoof', 'hand').uid, null, {targets: {t: {kind: 'spell', uid: g.stack[0].card.uid}}});
+  resolveTop(g);
+  check(g);
+  g = table();
+  const h = put(g, 0, 'x-handler');
+  g.createToken(0, 'pt-backdoor');
+  h.damage = 5;
+  g.settle();
+  resolveTop(g);
+  check(g);
+  g = table();
+  g.play(0, put(g, 0, 'x-two', 'hand').uid);
+  resolveTop(g);
+  check(g);
+  g = table();
+  put(g, 1, 'b7');
+  put(g, 1, 'b8');
+  g.play(0, put(g, 0, 'x-cuff2', 'hand').uid);
+  resolveTop(g);
+  check(g);
+  assert.deepEqual([...seen].sort(), ['discard', 'optional', 'order', 'pay', 'probe', 'targets']);
+});
