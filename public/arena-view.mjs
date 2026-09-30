@@ -46,7 +46,7 @@ export function phaseGroup(s) {
           : 4;
 }
 export function hint(s) {
-  const {game, versus, selected, blocker} = s;
+  const {game, versus, selected, blocker, blocks} = s;
   if (game.winner !== null) return 'Match complete. Review the lessons from your cards.';
   if (game.actor() === 1) return versus ? 'Waiting for your opponent…' : 'Computer is considering its next move…';
   if (game.phase === 'attack')
@@ -54,7 +54,9 @@ export function hint(s) {
   if (game.phase === 'block')
     return blocker
       ? 'Now select an opposing attacker to block.'
-      : 'Select one of your untapped units, then select the attacker it should block. You may assign multiple blockers.';
+      : Object.values(blocks).flat().length
+        ? 'Select or drag more blockers, or confirm. Click a blocking unit (or drag it off) to remove its block.'
+        : 'Select one of your untapped units, then select the attacker it should block — or drag it onto the attacker. You may assign multiple blockers.';
   if (game.phase === 'cleanup')
     return `Select ${game.players[0].hand.length - 7} cards from your hand to discard. ${selected.size} selected.`;
   if (game.stack.length) return 'An effect is on the stack. Cast a Response, or pass priority to let it resolve.';
