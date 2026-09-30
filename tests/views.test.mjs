@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Game} from '../public/engine.mjs';
-import {CARDS} from '../public/cards.mjs';
+import {BY_ID, CARDS, POOLS, SETS, releasedCards} from '../public/cards.mjs';
 import {Tutorial} from '../public/tutorial.mjs';
 import {card} from '../public/card-view.mjs';
 import * as arena from '../public/arena-view.mjs';
@@ -39,7 +39,7 @@ test('the library filters by faction, type and text, and says when nothing match
     libraryGrid(state(null, {filter: {q: 'no such card', faction: 'all', type: 'all'}})),
     /No matching cards/,
   );
-  assert.equal((libraryGrid(state(null)).match(/data-card=/g) || []).length, CARDS.length);
+  assert.equal((libraryGrid(state(null)).match(/data-card=/g) || []).length, releasedCards().length);
   assert.match(
     library(state(null, {filter: {q: '"><img>', faction: 'all', type: 'all'}})),
     /value="&quot;&gt;&lt;img&gt;"/,
@@ -75,4 +75,41 @@ test('a card in hand shows whether it can be played', () => {
   const c = game.players[0].hand[0];
   assert.match(card(state(game), c, {zone: 'hand'}), new RegExp(`data-uid="${c.uid}"`));
   assert.match(arena.cardDialog(state(game), c.id, c, 'hand'), /id="cast"/);
+});
+
+test('cards show their set code', t => {
+  assert.match(card(state(null), 'r1'), /RED \/ FB1/);
+  assert.match(card(state(null), 'b1'), /BLUE \/ FB1/);
+  SETS.extra = {name: 'Extra', code: 'EX1', released: true};
+  BY_ID.x1 = {...BY_ID.r1, id: 'x1', set: 'extra'};
+  t.after(() => {
+    delete SETS.extra;
+    delete BY_ID.x1;
+  });
+  assert.match(card(state(null), 'x1'), /RED \/ EX1/);
+});
+
+test('the library shows released sets only, with counts from the catalog and a set filter once there are two', t => {
+  const html = library(state(null));
+  assert.match(html, new RegExp(`${releasedCards().length} cards · 2 starter decks`));
+  assert.doesNotMatch(html, /id="setFilter"/);
+  assert.doesNotMatch(html, /shared by thematic card families/);
+  SETS.extra = {name: 'Extra', code: 'EX1', released: true};
+  t.after(() => delete SETS.extra);
+  const two = library(state(null));
+  assert.match(two, /id="setFilter"/);
+  assert.match(two, /<option value="extra" >Extra<\/option>/);
+  const fb = CARDS.find(c => c.set === 'first-breach');
+  assert.equal(matches(fb, {q: '', faction: 'all', type: 'all', set: 'extra'}), false);
+  assert.equal(matches(fb, {q: '', faction: 'all', type: 'all', set: 'first-breach'}), true);
+  assert.equal(matches(fb, {q: '', faction: 'all', type: 'all'}), true);
+});
+
+test('the match eyebrow names the card pool', t => {
+  assert.match(arena.battlefield(state(new Game())), /FIRST BREACH \/ TRAINING MATCH/);
+  POOLS.mirror = {name: 'First Breach + Mirror', sets: ['first-breach'], deck: POOLS['first-breach'].deck};
+  t.after(() => delete POOLS.mirror);
+  const g = new Game('blue', Math.random, {pool: 'mirror'});
+  assert.equal(arena.poolEyebrow(g), 'FIRST BREACH + MIRROR');
+  assert.equal(arena.poolEyebrow(new Game()), 'FIRST BREACH');
 });

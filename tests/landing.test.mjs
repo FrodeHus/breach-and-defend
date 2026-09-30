@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {landing, MODES} from '../public/landing.mjs';
+import {BY_ID, CARDS, releasedCards} from '../public/cards.mjs';
 
 test('computer mode: mode pressed, tutorial opt-in, and Play buttons wired to data-start', () => {
   const html = landing({mode: 'solo'});
@@ -65,4 +66,11 @@ test('each side button sits in an unclipped cta-slot so its focus glow is visibl
       mode,
     );
   }
+});
+
+test('the hero counts the released cards', t => {
+  assert.match(landing(), new RegExp(`${releasedCards().length} cards · every card teaches`));
+  CARDS.push({...BY_ID.r1, id: 'x1'});
+  t.after(() => CARDS.pop());
+  assert.match(landing(), /51 cards · every card teaches/);
 });

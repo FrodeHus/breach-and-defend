@@ -45,7 +45,7 @@ let inspect = 'b3',
 let guidance = new Tutorial(),
   guideChoice = false,
   startMode = 'solo';
-let filter = {q: '', faction: 'all', type: 'all'};
+let filter = {q: '', faction: 'all', type: 'all', set: 'all'};
 let versus = null,
   remoteQueue = [],
   versusShown = '';
@@ -481,6 +481,10 @@ const FIELDS = {
   },
   typeFilter: e => {
     filter.type = e.target.value;
+    libraryCards();
+  },
+  setFilter: e => {
+    filter.set = e.target.value;
     libraryCards();
   },
   guideFirstGame: e => {
