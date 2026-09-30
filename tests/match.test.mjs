@@ -7,7 +7,8 @@ import {choose} from './helpers/policy.mjs';
 import {act, fakeTime, newMatch, openedMatch} from './helpers/versus.mjs';
 
 test('nothing happens until both players take the pledge', async () => {
-  const m = await newMatch(), changes = [];
+  const m = await newMatch(),
+    changes = [];
   m.onChange = c => changes.push(c);
   assert.match(m.submit(0, {type: 'keep'}).error, /pledge/);
   m.pledge(0);
@@ -21,7 +22,9 @@ test('nothing happens until both players take the pledge', async () => {
 });
 
 test('players cannot act out of turn, and a rejected action changes nothing', async () => {
-  const m = await openedMatch(), a = m.game.actor(), b = 1 - a;
+  const m = await openedMatch(),
+    a = m.game.actor(),
+    b = 1 - a;
   const before = canonical(m.game.toJSON());
   assert.match(act(m, b, {type: 'pass'}).error, /Wait for your turn/);
   assert.equal(act(m, a, {type: 'blockers', assignments: {1: 5}}).ok, false);
@@ -31,7 +34,8 @@ test('players cannot act out of turn, and a rejected action changes nothing', as
 });
 
 test('guest targets are stored in host indices', async () => {
-  const m = await openedMatch(), g = m.game;
+  const m = await openedMatch(),
+    g = m.game;
   Object.assign(g, {phase: 'main1', active: 1, priority: 1});
   const id = name => CARDS.find(c => c.name === name).id;
   for (let i = 0; i < 10; i++) g.players[1].field.push(g.card(id('Relay Node')));
@@ -65,7 +69,8 @@ test('while the guest is away only concede is accepted', async () => {
 test('the log replays to the same state from the seed', async () => {
   const m = await openedMatch();
   for (let i = 0; i < 200 && !m.ended; i++) {
-    const p = m.game.actor(), a = choose(m.game, p);
+    const p = m.game.actor(),
+      a = choose(m.game, p);
     assert.equal(act(m, p, p === 1 ? unflipAction(a) : a).ok, true);
   }
   const replay = versusGame(await seedHex('a'.repeat(32), 'b'.repeat(32)), 'blue');

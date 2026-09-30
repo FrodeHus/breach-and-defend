@@ -1,1 +1,75 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net/npm/peerjs@1.5.5/; style-src 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://0.peerjs.com wss://0.peerjs.com; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Breach & Defend — Cybersecurity Card Game</title><meta name="description" content="Learn cybersecurity through a tactical red versus blue card game. Play either faction against a computer opponent or a friend."><link rel="canonical" href="https://breach.cards/"><meta property="og:type" content="website"><meta property="og:url" content="https://breach.cards/"><meta property="og:site_name" content="Breach &amp; Defend"><meta property="og:title" content="Breach & Defend — Cybersecurity Card Game"><meta property="og:description" content="Learn cybersecurity through a tactical red versus blue card game. Play either faction against a computer opponent or a friend."><meta property="og:image" content="https://breach.cards/art/social-preview.jpg"><meta property="og:image:type" content="image/jpeg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Breach &amp; Defend: the red team and the blue team face off across a card table"><meta name="twitter:card" content="summary_large_image"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2365ddd1' d='M3 3h13v26L3 21z'/%3E%3Cpath fill='%23f7756c' d='M18 3h11v18l-11 8z'/%3E%3C/svg%3E"><link rel="preload" as="image" href="art/blue-card-back.png"><link rel="preload" as="image" href="art/red-card-back.png"><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="arena.css"><link rel="stylesheet" href="header.css"><link rel="stylesheet" href="tutorial.css"><link rel="stylesheet" href="card-preview.css"><link rel="stylesheet" href="card-drag.css"><link rel="stylesheet" href="lore.css"><link rel="stylesheet" href="card-shape.css"><link rel="stylesheet" href="battlefield-tile.css"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap"><link rel="stylesheet" href="landing.css"><link rel="stylesheet" href="about.css"><link rel="stylesheet" href="versus.css"></head><body><header><a class="brand wordmark" href="./" aria-label="Breach & Defend home">BREACH <span>&amp;</span> DEFEND</a><nav aria-label="Main"><button id="arenaNav" class="nav active">Arena</button><button id="libraryNav" class="nav">Card library <span>50</span></button><button id="guideNav" class="nav">Field guide</button><button id="aboutNav" class="nav">About</button></nav><span class="edition">FIRST BREACH / 01</span></header><main id="app"></main><dialog id="modal"><button class="close" aria-label="Close dialog">×</button><div id="modalBody"></div></dialog><div id="toast" role="status" aria-live="polite"></div><script type="module" src="app.mjs"></script></body></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net/npm/peerjs@1.5.5/; style-src 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://0.peerjs.com wss://0.peerjs.com; base-uri 'none'; form-action 'none'; object-src 'none'"
+    />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Breach & Defend — Cybersecurity Card Game</title>
+    <meta
+      name="description"
+      content="Learn cybersecurity through a tactical red versus blue card game. Play either faction against a computer opponent or a friend."
+    />
+    <link rel="canonical" href="https://breach.cards/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://breach.cards/" />
+    <meta property="og:site_name" content="Breach &amp; Defend" />
+    <meta property="og:title" content="Breach & Defend — Cybersecurity Card Game" />
+    <meta
+      property="og:description"
+      content="Learn cybersecurity through a tactical red versus blue card game. Play either faction against a computer opponent or a friend."
+    />
+    <meta property="og:image" content="https://breach.cards/art/social-preview.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Breach &amp; Defend: the red team and the blue team face off across a card table"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%2365ddd1' d='M3 3h13v26L3 21z'/%3E%3Cpath fill='%23f7756c' d='M18 3h11v18l-11 8z'/%3E%3C/svg%3E"
+    />
+    <link rel="preload" as="image" href="art/blue-card-back.png" />
+    <link rel="preload" as="image" href="art/red-card-back.png" />
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="arena.css" />
+    <link rel="stylesheet" href="header.css" />
+    <link rel="stylesheet" href="tutorial.css" />
+    <link rel="stylesheet" href="card-preview.css" />
+    <link rel="stylesheet" href="card-drag.css" />
+    <link rel="stylesheet" href="lore.css" />
+    <link rel="stylesheet" href="card-shape.css" />
+    <link rel="stylesheet" href="battlefield-tile.css" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap"
+    />
+    <link rel="stylesheet" href="landing.css" />
+    <link rel="stylesheet" href="about.css" />
+    <link rel="stylesheet" href="versus.css" />
+  </head>
+  <body>
+    <header>
+      <a class="brand wordmark" href="./" aria-label="Breach & Defend home">BREACH <span>&amp;</span> DEFEND</a>
+      <nav aria-label="Main">
+        <button id="arenaNav" class="nav active">Arena</button
+        ><button id="libraryNav" class="nav">Card library <span>50</span></button
+        ><button id="guideNav" class="nav">Field guide</button><button id="aboutNav" class="nav">About</button>
+      </nav>
+      <span class="edition">FIRST BREACH / 01</span>
+    </header>
+    <main id="app"></main>
+    <dialog id="modal">
+      <button class="close" aria-label="Close dialog">×</button>
+      <div id="modalBody"></div>
+    </dialog>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="app.mjs"></script>
+  </body>
+</html>

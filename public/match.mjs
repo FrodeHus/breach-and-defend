@@ -2,8 +2,16 @@
 import {Game} from './engine.mjs';
 import {actionFields, applyAction, seedHex, timeoutAction, unflipAction, versusGame, viewFor} from './protocol.mjs';
 
-export const TURN_MS = 90_000, RESPONSE_MS = 20_000, OPENING_MS = 60_000;
-const freshClock = () => ({turn: 1, turnLeft: TURN_MS, responseLeft: RESPONSE_MS, openingLeft: OPENING_MS, running: null});
+export const TURN_MS = 90_000,
+  RESPONSE_MS = 20_000,
+  OPENING_MS = 60_000;
+const freshClock = () => ({
+  turn: 1,
+  turnLeft: TURN_MS,
+  responseLeft: RESPONSE_MS,
+  openingLeft: OPENING_MS,
+  running: null,
+});
 
 // Host-side referee: every change to a versus match, from either player, goes through here.
 export class Match {
@@ -11,12 +19,19 @@ export class Match {
     const game = versusGame(await seedHex(hostSecret, guestSecret), hostFaction);
     return new Match({hostFaction, hostSecret, guestSecret, seedCommit, game: game.toJSON()}, options);
   }
-  static fromJSON(json, options) { return new Match(json, options); }
+  static fromJSON(json, options) {
+    return new Match(json, options);
+  }
 
   constructor(state, {now = Date.now, schedule = (fn, ms) => setTimeout(fn, ms), cancel = h => clearTimeout(h)} = {}) {
     const {hostFaction, hostSecret, guestSecret, seedCommit} = state;
-    this.hostFaction = hostFaction; this.hostSecret = hostSecret; this.guestSecret = guestSecret; this.seedCommit = seedCommit;
-    this.now = now; this.schedule = schedule; this.cancel = cancel;
+    this.hostFaction = hostFaction;
+    this.hostSecret = hostSecret;
+    this.guestSecret = guestSecret;
+    this.seedCommit = seedCommit;
+    this.now = now;
+    this.schedule = schedule;
+    this.cancel = cancel;
     this.game = Game.fromJSON(state.game);
     this.log = state.log ?? [];
     this.lastSeq = state.lastSeq ?? 0;
@@ -28,13 +43,20 @@ export class Match {
     this.onChange = () => {};
   }
 
-  get started() { return this.pledged[0] && this.pledged[1]; }
-  get ended() { return this.game.winner !== null; }
+  get started() {
+    return this.pledged[0] && this.pledged[1];
+  }
+  get ended() {
+    return this.game.winner !== null;
+  }
 
   pledge(p) {
     if (this.pledged[p]) return;
     this.pledged[p] = true;
-    if (this.started) { this.retime(); this.onChange({}); }
+    if (this.started) {
+      this.retime();
+      this.onChange({});
+    }
   }
 
   connect(on) {
@@ -44,11 +66,15 @@ export class Match {
 
   submit(by, action, seq = null) {
     if (by === 1 && seq !== null && seq <= this.lastSeq) return {ok: true, duplicate: true};
-    const error = !this.started ? 'Both players must take the pledge first.'
-      : this.ended ? 'The match has ended.'
-      : !this.guestConnected && action?.type !== 'concede' ? 'Your opponent is disconnected. The match is paused until they return.'
-      : !action || typeof action !== 'object' ? 'Unknown action.'
-      : null;
+    const error = !this.started
+      ? 'Both players must take the pledge first.'
+      : this.ended
+        ? 'The match has ended.'
+        : !this.guestConnected && action?.type !== 'concede'
+          ? 'Your opponent is disconnected. The match is paused until they return.'
+          : !action || typeof action !== 'object'
+            ? 'Unknown action.'
+            : null;
     if (error) return {ok: false, error};
     const result = this.apply(by, by === 1 ? unflipAction(action) : action, seq, false);
     if (result.ok && by === 1 && seq !== null) this.lastSeq = seq;
@@ -58,8 +84,12 @@ export class Match {
   // Applies atomically: an engine error restores the exact previous state.
   apply(by, action, seq, timeout) {
     const before = this.game.toJSON();
-    try { applyAction(this.game, by, action); }
-    catch (e) { this.game = Game.fromJSON(before); return {ok: false, error: e.message}; }
+    try {
+      applyAction(this.game, by, action);
+    } catch (e) {
+      this.game = Game.fromJSON(before);
+      return {ok: false, error: e.message};
+    }
     const entry = {...actionFields(action), n: this.log.length + 1, by, seq, timeout};
     this.log.push(entry);
     this.retime(true);
@@ -67,12 +97,15 @@ export class Match {
     return {ok: true, entry};
   }
 
-  view(p) { return viewFor(this.game, p); }
+  view(p) {
+    return viewFor(this.game, p);
+  }
 
   // Banks the time used so far, then starts whichever clock now applies.
   retime(fresh = false) {
     this.stop();
-    const g = this.game, c = this.clock;
+    const g = this.game,
+      c = this.clock;
     if (!this.started || !this.guestConnected || this.ended) return;
     let kind = 'openingLeft';
     if (g.phase !== 'opening') {
@@ -85,7 +118,8 @@ export class Match {
   }
 
   stop() {
-    const c = this.clock, r = c.running;
+    const c = this.clock,
+      r = c.running;
     if (r) c[r.kind] = Math.max(0, c[r.kind] - (this.now() - r.since));
     c.running = null;
     this.cancel(this.timer);
@@ -100,16 +134,34 @@ export class Match {
   }
 
   clockFor(p) {
-    const c = this.clock, r = c.running;
+    const c = this.clock,
+      r = c.running;
     if (!r) return {kind: null, owner: null, left: null, paused: this.started && !this.ended && !this.guestConnected};
     const actor = this.game.phase === 'opening' ? null : this.game.actor();
-    return {kind: r.kind.replace('Left', ''), owner: actor === null ? null : p === 0 ? actor : 1 - actor, left: Math.max(0, c[r.kind] - (this.now() - r.since)), paused: false};
+    return {
+      kind: r.kind.replace('Left', ''),
+      owner: actor === null ? null : p === 0 ? actor : 1 - actor,
+      left: Math.max(0, c[r.kind] - (this.now() - r.since)),
+      paused: false,
+    };
   }
 
   toJSON() {
     const {hostFaction, hostSecret, guestSecret, seedCommit, log, lastSeq, pledged} = this;
-    const clock = {...this.clock, running: null}, r = this.clock.running;
+    const clock = {...this.clock, running: null},
+      r = this.clock.running;
     if (r) clock[r.kind] = Math.max(0, clock[r.kind] - (this.now() - r.since));
-    return structuredClone({v: 1, hostFaction, hostSecret, guestSecret, seedCommit, log, lastSeq, pledged, clock, game: this.game.toJSON()});
+    return structuredClone({
+      v: 1,
+      hostFaction,
+      hostSecret,
+      guestSecret,
+      seedCommit,
+      log,
+      lastSeq,
+      pledged,
+      clock,
+      game: this.game.toJSON(),
+    });
   }
 }

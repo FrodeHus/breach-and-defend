@@ -40,23 +40,29 @@ test('versus: both players keep, in any order, before the first turn', () => {
 
 test('versus: the first player skips their first draw', () => {
   const g = versus(1);
-  g.keep([], 0); g.keep([], 1);
+  g.keep([], 0);
+  g.keep([], 1);
   const hand = g.players[1].hand.length;
-  g.pass(1); g.pass(0);
+  g.pass(1);
+  g.pass(0);
   assert.equal(g.phase, 'draw');
   assert.equal(g.players[1].hand.length, hand);
 });
 
 test('versus log text names factions instead of You/Computer', () => {
   const g = versus(0);
-  g.keep([], 0); g.keep([], 1);
+  g.keep([], 0);
+  g.keep([], 1);
   g.phase = 'main1';
   const land = g.card(CARDS.find(c => c.faction === 'blue' && c.type === 'Infrastructure').id);
   g.players[0].hand.push(land);
   g.play(0, land.uid);
   assert.match(g.log[0], /^Blue team plays /);
   assert.equal(g.targetName({kind: 'player', p: 1}), 'Red team capacity');
-  assert.ok(g.log.every(line => !/\b(You|Computer)\b/.test(line)), g.log.join('\n'));
+  assert.ok(
+    g.log.every(line => !/\b(You|Computer)\b/.test(line)),
+    g.log.join('\n'),
+  );
 });
 
 test('concede ends the match for the other player', () => {
@@ -70,25 +76,44 @@ test('concede ends the match for the other player', () => {
 test('60 seeded versus matches finish and conserve cards with either first player', () => {
   for (let n = 1; n <= 60; n++) {
     const g = new Game(n % 2 ? 'blue' : 'red', seeded(n), {mode: 'versus', first: n % 2});
-    for (let i = 0; i < 10000 && g.winner === null; i++) { const p = g.actor(); perform(g, p, choose(g, p)); }
+    for (let i = 0; i < 10000 && g.winner === null; i++) {
+      const p = g.actor();
+      perform(g, p, choose(g, p));
+    }
     assert.notEqual(g.winner, null, `seed ${n} did not finish`);
     for (let p = 0; p < 2; p++) {
       const q = g.players[p];
-      assert.equal(q.deck.length + q.hand.length + q.field.length + q.grave.length + g.stack.filter(s => s.p === p).length, 60, `seed ${n} player ${p}`);
+      assert.equal(
+        q.deck.length + q.hand.length + q.field.length + q.grave.length + g.stack.filter(s => s.p === p).length,
+        60,
+        `seed ${n} player ${p}`,
+      );
     }
   }
 });
 
 test('toJSON/fromJSON restores a match mid-turn and continues identically', () => {
   const g = new Game('blue', seeded(9), {mode: 'versus', first: 1});
-  for (let i = 0; i < 120 && g.winner === null; i++) { const p = g.actor(); perform(g, p, choose(g, p)); }
-  g.stack.push({card: g.card(CARDS.find(c => c.type === 'Operation').id), p: g.active, target: {kind: 'player', p: 1 - g.active}});
+  for (let i = 0; i < 120 && g.winner === null; i++) {
+    const p = g.actor();
+    perform(g, p, choose(g, p));
+  }
+  g.stack.push({
+    card: g.card(CARDS.find(c => c.type === 'Operation').id),
+    p: g.active,
+    target: {kind: 'player', p: 1 - g.active},
+  });
   const json = JSON.parse(JSON.stringify(g.toJSON()));
   const r = Game.fromJSON(json);
   assert.ok(r instanceof Game);
   assert.deepEqual(r.toJSON(), g.toJSON());
   assert.equal(r.mulligans, g.mulligans);
-  for (let i = 0; i < 300 && g.winner === null; i++) { const p = g.actor(), a = choose(g, p); perform(g, p, a); perform(r, p, a); }
+  for (let i = 0; i < 300 && g.winner === null; i++) {
+    const p = g.actor(),
+      a = choose(g, p);
+    perform(g, p, a);
+    perform(r, p, a);
+  }
   assert.deepEqual(r.toJSON(), g.toJSON());
   r.players[0].life = -5;
   assert.notEqual(json.players[0].life, -5, 'a restored game must not share objects with its source');

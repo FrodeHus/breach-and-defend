@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const index = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
-const meta = (attr, key) => index.match(new RegExp(`<meta ${attr}="${key}" content="([^"]*)">`))?.[1];
+// Tolerates the formatter's line breaks and self-closing slashes.
+const meta = (attr, key) => index.match(new RegExp(`<meta\\s+${attr}="${key}"\\s+content="([^"]*)"\\s*/?>`))?.[1];
 
 test('link previews use the 1200x630 splash with an absolute URL and alt text', () => {
   assert.equal(meta('property', 'og:image'), 'https://breach.cards/art/social-preview.jpg');
@@ -22,14 +23,21 @@ test('link previews have a title, description, type and canonical URL', () => {
 });
 
 test('a Content-Security-Policy is declared before any resource loads', () => {
-  const csp = index.match(/<meta http-equiv="Content-Security-Policy" content="([^"]*)">/)?.[1];
+  const csp = index.match(/<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]*)"\s*\/?>/)?.[1];
   assert.ok(csp);
   assert.ok(index.indexOf('Content-Security-Policy') < index.indexOf('<link'));
-  const directives = Object.fromEntries(csp.split(';').map(d => d.trim().split(/\s+/)).map(([k, ...v]) => [k, v]));
+  const directives = Object.fromEntries(
+    csp
+      .split(';')
+      .map(d => d.trim().split(/\s+/))
+      .map(([k, ...v]) => [k, v]),
+  );
   assert.deepEqual(directives['default-src'], ["'none'"]);
   assert.deepEqual(directives['object-src'], ["'none'"]);
   assert.ok(!directives['script-src'].some(s => s.includes('unsafe')), 'no inline or eval scripts');
   // Every script the game loads must be allowed by script-src.
-  const peer = fs.readFileSync(new URL('../public/net.mjs', import.meta.url), 'utf8').match(/PEERJS_URL = '([^']+)'/)[1];
+  const peer = fs
+    .readFileSync(new URL('../public/net.mjs', import.meta.url), 'utf8')
+    .match(/PEERJS_URL = '([^']+)'/)[1];
   assert.ok(directives['script-src'].some(s => s.endsWith('/') && peer.startsWith(s)));
 });

@@ -1,6 +1,7 @@
 import {esc} from './html.mjs';
-const FLIP_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M4 9a8 8 0 0 1 14-3l2 2M20 4v4h-4M20 15a8 8 0 0 1-14 3l-2-2M4 20v-4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const LABELS = {flavor:'Show learning text', learn:'Show flavor text'};
+const FLIP_ICON =
+  '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M4 9a8 8 0 0 1 14-3l2 2M20 4v4h-4M20 15a8 8 0 0 1-14 3l-2-2M4 20v-4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const LABELS = {flavor: 'Show learning text', learn: 'Show flavor text'};
 
 // Both faces are rendered so a flip only swaps visibility; the chosen side is remembered across cards and re-renders.
 export function lorePanel(d, side = 'flavor') {
@@ -24,15 +25,28 @@ export function installLoreFlip({onFlip}) {
       button.querySelector('span').textContent = next === 'learn' ? 'Flavor' : 'Learn';
     };
     const inner = panel.querySelector('.lore-inner');
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches || !inner.animate) { swap(); return; }
-    panel.dataset.flipping = '1';
-    const half = {duration:140, easing:'ease-in', fill:'forwards'};
-    const out = inner.animate([{transform:'rotateY(0)'}, {transform:'rotateY(90deg)'}], half);
-    let back = null;
-    out.finished.then(() => {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches || !inner.animate) {
       swap();
-      back = inner.animate([{transform:'rotateY(-90deg)'}, {transform:'rotateY(0)'}], {...half, easing:'ease-out'});
-      return back.finished;
-    }).catch(swap).finally(() => { out.cancel(); back?.cancel(); delete panel.dataset.flipping; });
+      return;
+    }
+    panel.dataset.flipping = '1';
+    const half = {duration: 140, easing: 'ease-in', fill: 'forwards'};
+    const out = inner.animate([{transform: 'rotateY(0)'}, {transform: 'rotateY(90deg)'}], half);
+    let back = null;
+    out.finished
+      .then(() => {
+        swap();
+        back = inner.animate([{transform: 'rotateY(-90deg)'}, {transform: 'rotateY(0)'}], {
+          ...half,
+          easing: 'ease-out',
+        });
+        return back.finished;
+      })
+      .catch(swap)
+      .finally(() => {
+        out.cancel();
+        back?.cancel();
+        delete panel.dataset.flipping;
+      });
   });
 }

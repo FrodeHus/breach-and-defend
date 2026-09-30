@@ -8,7 +8,21 @@ import * as arena from '../public/arena-view.mjs';
 import {library, libraryGrid, matches} from '../public/library.mjs';
 import {esc} from '../public/html.mjs';
 
-const state = (game, extra = {}) => ({game, versus: null, selected: new Set(), blocks: {}, blocker: null, inspect: 'b3', inspectorOpen: false, loreSide: 'flavor', pauseAll: false, tutorial: false, guidance: new Tutorial(), filter: {q: '', faction: 'all', type: 'all'}, ...extra});
+const state = (game, extra = {}) => ({
+  game,
+  versus: null,
+  selected: new Set(),
+  blocks: {},
+  blocker: null,
+  inspect: 'b3',
+  inspectorOpen: false,
+  loreSide: 'flavor',
+  pauseAll: false,
+  tutorial: false,
+  guidance: new Tutorial(),
+  filter: {q: '', faction: 'all', type: 'all'},
+  ...extra,
+});
 
 test('esc covers every character that can break out of text or an attribute', () => {
   assert.equal(esc(`<a href="x" title='y'>&</a>`), '&lt;a href=&quot;x&quot; title=&#39;y&#39;&gt;&amp;&lt;/a&gt;');
@@ -17,10 +31,19 @@ test('esc covers every character that can break out of text or an attribute', ()
 test('the library filters by faction, type and text, and says when nothing matches', () => {
   const blueUnits = CARDS.filter(c => matches(c, {q: '', faction: 'blue', type: 'Unit'}));
   assert.ok(blueUnits.length > 0 && blueUnits.every(c => c.faction === 'blue' && c.type === 'Unit'));
-  assert.equal(CARDS.filter(c => matches(c, {q: CARDS[0].name.toUpperCase(), faction: 'all', type: 'all'}))[0], CARDS[0]);
-  assert.match(libraryGrid(state(null, {filter: {q: 'no such card', faction: 'all', type: 'all'}})), /No matching cards/);
+  assert.equal(
+    CARDS.filter(c => matches(c, {q: CARDS[0].name.toUpperCase(), faction: 'all', type: 'all'}))[0],
+    CARDS[0],
+  );
+  assert.match(
+    libraryGrid(state(null, {filter: {q: 'no such card', faction: 'all', type: 'all'}})),
+    /No matching cards/,
+  );
   assert.equal((libraryGrid(state(null)).match(/data-card=/g) || []).length, CARDS.length);
-  assert.match(library(state(null, {filter: {q: '"><img>', faction: 'all', type: 'all'}})), /value="&quot;&gt;&lt;img&gt;"/);
+  assert.match(
+    library(state(null, {filter: {q: '"><img>', faction: 'all', type: 'all'}})),
+    /value="&quot;&gt;&lt;img&gt;"/,
+  );
 });
 
 test('the opening hand and battlefield render from state alone', () => {

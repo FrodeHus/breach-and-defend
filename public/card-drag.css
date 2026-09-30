@@ -1,19 +1,58 @@
-.hand [data-card] { cursor: grab; touch-action: pan-x; }
-.card-dragging, .card-dragging * { cursor: grabbing !important; user-select: none; }
-.hand .card-drag-source { opacity: .3; }
-.card.card-drag-ghost {
-  position: fixed; z-index: 100; margin: 0; pointer-events: none;
-  transform: rotate(-3deg) scale(1.06); box-shadow: 0 16px 40px #0009;
-  transition: none; overflow: hidden;
+.hand [data-card] {
+  cursor: grab;
+  touch-action: pan-x;
 }
-.card-drag-ghost .card-text, .card-drag-ghost .card-type { display: none; }
-.your-lane.card-drop-ready { outline: 2px dashed #51d8ba; outline-offset: -3px; background: #51d8ba12; }
-.your-lane.card-drop-blocked { outline: 2px dashed #f4b861; outline-offset: -3px; }
-.your-lane.card-drop-over { outline-style: solid; background: #51d8ba25; }
-.your-lane.card-drop-blocked.card-drop-over { background: #f4b86118; }
+.card-dragging,
+.card-dragging * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+.hand .card-drag-source {
+  opacity: 0.3;
+}
+.card.card-drag-ghost {
+  position: fixed;
+  z-index: 100;
+  margin: 0;
+  pointer-events: none;
+  transform: rotate(-3deg) scale(1.06);
+  box-shadow: 0 16px 40px #0009;
+  transition: none;
+  overflow: hidden;
+}
+.card-drag-ghost .card-text,
+.card-drag-ghost .card-type {
+  display: none;
+}
+.your-lane.card-drop-ready {
+  outline: 2px dashed #51d8ba;
+  outline-offset: -3px;
+  background: #51d8ba12;
+}
+.your-lane.card-drop-blocked {
+  outline: 2px dashed #f4b861;
+  outline-offset: -3px;
+}
+.your-lane.card-drop-over {
+  outline-style: solid;
+  background: #51d8ba25;
+}
+.your-lane.card-drop-blocked.card-drop-over {
+  background: #f4b86118;
+}
 .card-drag-status {
-  position: fixed; z-index: 101; left: 50%; top: 78px; transform: translateX(-50%);
-  max-width: min(600px, 90vw); padding: 12px 18px; border: 1px solid #51d8ba;
-  border-radius: 8px; background: #101c29; color: #f0f6fc;
-  box-shadow: 0 6px 24px #0006; pointer-events: none; font-size: 14px;
+  position: fixed;
+  z-index: 101;
+  left: 50%;
+  top: 78px;
+  transform: translateX(-50%);
+  max-width: min(600px, 90vw);
+  padding: 12px 18px;
+  border: 1px solid #51d8ba;
+  border-radius: 8px;
+  background: #101c29;
+  color: #f0f6fc;
+  box-shadow: 0 6px 24px #0006;
+  pointer-events: none;
+  font-size: 14px;
 }
