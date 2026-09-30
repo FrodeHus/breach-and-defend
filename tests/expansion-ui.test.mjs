@@ -9,6 +9,7 @@ import * as arena from '../public/arena-view.mjs';
 import {stackItem} from '../public/expansion-view.mjs';
 import {hoverCard} from '../public/card-view.mjs';
 import {lorePanel} from '../public/lore-panel.mjs';
+import {esc} from '../public/html.mjs';
 import {compute, define, put, resolveTop, table} from './helpers/rules.mjs';
 
 const pt = name => CARDS.find(c => c.name === name).id;
@@ -347,7 +348,7 @@ test('the preparation dialog shows each way with its total cost, rules and reaso
   prep = {...prep, way: 0};
   html = prepDialog(state(g), prep);
   assert.match(html, /data-way="0"[^>]*aria-pressed="true"/);
-  assert.match(html, /<button[^>]*data-pick="t:0"[^>]*aria-pressed="false"[^>]*>Forensic Investigator/);
+  assert.match(html, /<button[^>]*data-pick="t:0"[^>]*aria-pressed="false"[^>]*>(?:<[^>]*>)*Forensic Investigator/);
   prep = {...prep, picks: togglePick(ways[0], {}, 't', 0)};
   assert.doesNotMatch(prepDialog(state(g), prep), /id="prepConfirm"[^>]*disabled/);
   assert.equal(foe.damage, 0, 'preparing changes nothing');
@@ -362,7 +363,7 @@ test('an ability preparation shows what it costs, including the card it retires'
   const html = prepDialog(state(g), {kind: 'activate', uid: w.uid, zone: 'field', ways, way: 0, picks: {}});
   assert.match(html, /Draw two, then discard one — 2 compute, tap/);
   assert.match(html, /Retire as a cost/);
-  assert.match(html, /data-pick="retire:0"[^>]*>Indicator/);
+  assert.match(html, /data-pick="retire:0"[^>]*>(?:<[^>]*>)*Indicator/);
 });
 
 test('an ability preparation whose one way cannot be used names it and says why', () => {
@@ -526,7 +527,7 @@ test('discard, pay, optional, order and targets each have their own controls', (
   const b = g.createToken(0, 'pt-backdoor');
   g.pending = pend('optional', {options: [b.uid, null]});
   const opt = choiceDialog(state(g), startChoice(g.pending));
-  assert.match(opt, new RegExp(`data-optional="${b.uid}"[^>]*>Retire Backdoor`));
+  assert.match(opt, new RegExp(`data-optional="${b.uid}"[^>]*>(?:<[^>]*>)*Retire Backdoor`));
   assert.match(opt, /data-optional=""[^>]*>Don’t retire/);
   g.pending = pend('order', {
     options: [21, 22],
@@ -592,12 +593,22 @@ test('once enough cards are picked to discard, the others are disabled but picke
   g.pending = {id: 9, actor: 0, kind: 'discard', private: true, prompt: 'Discard 1 card.', min: 1, max: 1};
   g.pending.options = hand.map(c => c.uid);
   const open = choiceDialog(state(g), startChoice(g.pending));
-  for (const c of hand) assert.match(open, new RegExp(`<button data-choice-toggle="${c.uid}" aria-pressed="false">`));
+  for (const c of hand)
+    assert.match(
+      open,
+      new RegExp(`<button class="choice-card-button" data-choice-toggle="${c.uid}" aria-pressed="false">`),
+    );
   const st = toggleChoice(g, startChoice(g.pending), hand[1].uid);
   const html = choiceDialog(state(g), st);
-  assert.match(html, new RegExp(`<button data-choice-toggle="${hand[1].uid}" aria-pressed="true">`));
+  assert.match(
+    html,
+    new RegExp(`<button class="choice-card-button" data-choice-toggle="${hand[1].uid}" aria-pressed="true">`),
+  );
   for (const c of [hand[0], hand[2]])
-    assert.match(html, new RegExp(`<button data-choice-toggle="${c.uid}" aria-pressed="false" disabled>`));
+    assert.match(
+      html,
+      new RegExp(`<button class="choice-card-button" data-choice-toggle="${c.uid}" aria-pressed="false" disabled>`),
+    );
 });
 
 test('target keys are escaped in the choice dialog', () => {
@@ -636,11 +647,14 @@ test('target candidates name whose they are and where, and cost candidates show 
   assert.match(labels.join('|'), /[^|]+ · Yours · Discard/);
   assert.match(labels.join('|'), /[^|]+ · Opponent’s · Discard/);
   const html = prepDialog(state(g), {kind: 'cast', uid: c.uid, zone: 'hand', ways, way: 0, picks: {}});
-  assert.match(html, /data-pick="g:0"[^>]*>[^<]+ · Yours · Discard</);
+  assert.match(html, /data-pick="g:0"[^>]*>(?:<[^>]*>)*[^<]+ · Yours · Discard</);
   const mine = g.players[0].grave[0];
   g.pending = {id: 9, actor: 0, kind: 'targets', private: false, prompt: 'Choose.', min: 1, max: 1};
   g.pending.options = [{key: 'g', optional: false, upTo: 2, candidates: [ref(mine.uid)]}];
-  assert.match(choiceDialog(state(g), startChoice(g.pending)), /data-choice-pick="g:0"[^>]*>[^<]+ · Yours · Discard</);
+  assert.match(
+    choiceDialog(state(g), startChoice(g.pending)),
+    /data-choice-pick="g:0"[^>]*>(?:<[^>]*>)*[^<]+ · Yours · Discard</,
+  );
   g.pending = null;
   const w = put(g, 0, pt('Analysis Workbench'));
   const tapped = g.createToken(0, 'pt-indicator');
@@ -919,4 +933,19 @@ test('hovering an expansion card shows its glossary entry, and a First Breach ca
   assert.match(hoverCard(state(g), el(pt('Map Trust Relationships'))), /Probe\./);
   const fb = CARDS.find(c => c.set === 'first-breach' && c.type === 'Operation');
   assert.doesNotMatch(hoverCard(state(g), el(fb.id)), /Probe\.|Reuse\.|Overclock\./);
+});
+
+test('choice dialogs show each card with its art, cost, type and rules text, not only its name', () => {
+  const g = table();
+  const hand = [put(g, 0, 'b3', 'hand'), put(g, 0, 'b1', 'hand')];
+  g.pending = {id: 9, actor: 0, kind: 'discard', private: true, prompt: 'Discard 1 card.', min: 1, max: 1};
+  g.pending.options = hand.map(c => c.uid);
+  const html = choiceDialog(state(g), startChoice(g.pending));
+  for (const c of hand) {
+    const d = BY_ID[c.id];
+    assert.match(html, new RegExp(`art/${d.art}\\.webp`));
+    assert.match(html, new RegExp(`class="choice-cost"[^>]*>${d.type === 'Infrastructure' ? '◇' : d.cost}<`));
+    assert.match(html, new RegExp(`class="choice-type">${d.type}`));
+    if (d.text) assert.ok(html.includes(`class="choice-text">${esc(d.text)}`));
+  }
 });
