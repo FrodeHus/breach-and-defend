@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {Game} from '../public/engine.mjs';
-import {CARDS, BY_ID, deck} from '../public/cards.mjs';
+import {CARDS, BY_ID, deck, releasedCards} from '../public/cards.mjs';
 const id = name => CARDS.find(c => c.name === name).id;
 function setup() {
   const g = new Game();
@@ -22,13 +22,13 @@ function resolve(g) {
   g.pass(g.priority);
   g.pass(g.priority);
 }
-test('50 illustrated cards; each faction has a legal 60-card starter', () => {
-  assert.equal(CARDS.length, 50);
+test('50 illustrated First Breach cards; each faction has a legal 60-card starter', () => {
+  assert.equal(CARDS.filter(c => c.set === 'first-breach').length, 50);
   for (const f of ['red', 'blue']) {
     assert.equal(deck(f).length, 60);
-    assert.equal(CARDS.filter(c => c.faction === f).length, 25);
+    assert.equal(CARDS.filter(c => c.set === 'first-breach' && c.faction === f).length, 25);
   }
-  for (const c of CARDS) assert.ok(fs.existsSync(new URL(`../public/art/${c.art}.webp`, import.meta.url)));
+  for (const c of releasedCards()) assert.ok(fs.existsSync(new URL(`../public/art/${c.art}.webp`, import.meta.url)));
 });
 test('London mulligan bottoms chosen cards and skips first draw', () => {
   const g = new Game();

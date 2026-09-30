@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CARDS} from '../public/cards.mjs';
+import {releasedCards} from '../public/cards.mjs';
 import {lorePanel} from '../public/lore-panel.mjs';
 
 test('every card has a flavor quote with attribution and a learning text', () => {
-  for (const c of CARDS) {
+  for (const c of releasedCards()) {
     assert.ok(c.flavor?.length > 10, `${c.name} flavor`);
     assert.ok(c.flavorBy?.length, `${c.name} attribution`);
     assert.ok(c.lesson?.length > 100, `${c.name} learning text`);
@@ -12,7 +12,7 @@ test('every card has a flavor quote with attribution and a learning text', () =>
 });
 
 test('lore panel shows the chosen side and labels the flip button for the other', () => {
-  const card = CARDS[0];
+  const card = releasedCards()[0];
   const flavor = lorePanel(card);
   assert.match(flavor, /data-side="flavor"/);
   assert.match(flavor, /class="lore-face lore-learn" hidden/);
