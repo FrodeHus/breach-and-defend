@@ -18,9 +18,10 @@ const KEYWORD_ICONS = {
   firewall: 'M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z',
 };
 const icon = path => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${path}"/></svg>`;
-function tile(d, c, p, {game, stats, status, attacking, blocking, chosen}) {
+// Outside the battlefield (the opening hand) a tile also shows its cost, since that is what the player plans around.
+function tile(d, c, p, {game, stats, status, attacking, blocking, chosen, zone = 'field'}) {
   const kws = game && p !== null ? [...game.keywords(c)] : (d.keywords ?? []);
-  const sick = d.type === 'Unit' && c.sick && !kws.includes('rapid');
+  const sick = zone === 'field' && d.type === 'Unit' && c.sick && !kws.includes('rapid');
   const readyAbility =
     p === 0 &&
     game &&
@@ -37,8 +38,9 @@ function tile(d, c, p, {game, stats, status, attacking, blocking, chosen}) {
     readyAbility && 'ability ready',
   ].filter(Boolean);
   const combat = status.filter(s => /^↳|blocker/.test(s));
-  const label = `${d.name}${d.type === 'Unit' ? `, ${stats.power} power, ${left} of ${stats.toughness} toughness` : `, ${d.type}`}${kws.map(k => `, ${k}`).join('')}${states.length ? `, ${states.join(', ')}` : ''}`;
-  return `<button class="card tile ${d.faction} ${p === 0 ? 'mine' : 'theirs'} ${attacking ? 'attack-selected' : ''} ${blocking ? 'block-selected' : ''} ${c.tapped ? 'tapped' : ''} ${chosen ? 'selected' : ''} ${sick ? 'sick' : ''}${readyAbility ? ' can-activate' : ''}" data-motion-uid="${c.uid}" data-card="${d.id}" data-uid="${c.uid}" data-zone="field" aria-label="${esc(label)}"><div class="art" style="background-image:url('${art(d)}')"></div><div class="tile-name">${d.name}</div>${kws.length ? `<div class="tile-keywords">${kws.map(k => `<span title="${esc(KEYWORD_NAMES[k])}: ${esc(KEYWORDS[k])}">${icon(KEYWORD_ICONS[k])}</span>`).join('')}</div>` : ''}${d.type === 'Unit' ? `<span class="stats tile-pt">${stats.power}/<span class="${damage ? 'hurt' : ''}">${left}</span></span>` : `<span class="tile-kind">${d.token ? 'Token' : d.type}</span>`}${readyAbility ? '<span class="tile-ready" aria-hidden="true">⚡</span>' : ''}${sick ? '<span class="tile-sick" title="New arrival: cannot attack this turn">z<small>z</small></span>' : ''}${combat.length ? `<div class="card-status">${combat.join(' · ')}</div>` : ''}</button>`;
+  const field = zone === 'field';
+  const label = `${d.name}${field ? '' : `, ${d.type === 'Infrastructure' ? 'infrastructure' : `cost ${d.cost}`}`}${d.type === 'Unit' ? `, ${stats.power} power, ${left} of ${stats.toughness} toughness` : `, ${d.type}`}${kws.map(k => `, ${k}`).join('')}${states.length ? `, ${states.join(', ')}` : ''}`;
+  return `<button class="card tile ${d.faction} ${field ? (p === 0 ? 'mine' : 'theirs') : zone} ${attacking ? 'attack-selected' : ''} ${blocking ? 'block-selected' : ''} ${c.tapped ? 'tapped' : ''} ${chosen ? 'selected' : ''} ${sick ? 'sick' : ''}${readyAbility ? ' can-activate' : ''}" data-motion-uid="${c.uid}" data-card="${d.id}" data-uid="${c.uid}" data-zone="${zone}" aria-label="${esc(label)}"><div class="art" style="background-image:url('${art(d)}')"></div><div class="tile-name">${d.name}</div>${field ? '' : `<span class="tile-cost" aria-hidden="true">${d.type === 'Infrastructure' ? '◇' : d.cost}</span>`}${kws.length ? `<div class="tile-keywords">${kws.map(k => `<span title="${esc(KEYWORD_NAMES[k])}: ${esc(KEYWORDS[k])}">${icon(KEYWORD_ICONS[k])}</span>`).join('')}</div>` : ''}${d.type === 'Unit' ? `<span class="stats tile-pt">${stats.power}/<span class="${damage ? 'hurt' : ''}">${left}</span></span>` : `<span class="tile-kind">${d.token ? 'Token' : d.type}</span>`}${readyAbility ? '<span class="tile-ready" aria-hidden="true">⚡</span>' : ''}${sick ? '<span class="tile-sick" title="New arrival: cannot attack this turn">z<small>z</small></span>' : ''}${combat.length ? `<div class="card-status">${combat.join(' · ')}</div>` : ''}</button>`;
 }
 export function card(s, c, {zone = '', p = null, detail = false} = {}) {
   const {game, selected, blocks, blocker} = s;
@@ -76,6 +78,7 @@ export function card(s, c, {zone = '', p = null, detail = false} = {}) {
       Object.values(game.blocks).flat().includes(c.uid));
   const stats = live && p !== null && zone === 'field' ? game.stats(c, p) : {power: d.power, toughness: d.toughness};
   if (live && zone === 'field' && !detail) return tile(d, c, p, {game, stats, status, attacking, blocking, chosen});
+  if (live && zone === 'opening' && !detail) return tile(d, c, null, {game, stats, status, chosen, zone});
   const reusable =
     game &&
     zone === 'grave' &&

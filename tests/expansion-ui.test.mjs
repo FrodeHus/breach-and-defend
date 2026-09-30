@@ -247,6 +247,16 @@ test('ready with the game refuses picks the engine would refuse', t => {
 import {archiveDialog, cardActions} from '../public/expansion-view.mjs';
 import {card} from '../public/card-view.mjs';
 
+test('the opening hand shows compact tiles with cost, leaving details to the hover preview', () => {
+  const g = table();
+  const unit = {...put(g, 0, 'b3'), sick: true};
+  const html = card(state(g), unit, {zone: 'opening'});
+  assert.match(html, /class="card tile[^"]*opening/);
+  assert.match(html, /data-zone="opening"/);
+  assert.match(html, new RegExp(`class="tile-cost"[^>]*>${BY_ID.b3.cost}<`));
+  assert.match(html, new RegExp(`aria-label="${BY_ID.b3.name}, cost ${BY_ID.b3.cost}`));
+  assert.doesNotMatch(html, /tile-sick|card-text/);
+});
 test('battlefield tiles show live keywords, lockdown, token identity and ready abilities, never by colour alone', () => {
   const g = table();
   compute(g, 0, 1);
