@@ -374,3 +374,20 @@ test('a Persistent Threats card dialog names its own set', () => {
   const fb = put(g, 0, 'r3', 'hand');
   assert.match(arena.cardDialog(state(g), fb.id, fb, 'hand'), /<div class="eyebrow">FIRST BREACH \/ RED TEAM<\/div>/);
 });
+
+test('tokens group only while they look the same, so a tapped one is never hidden in a stack', () => {
+  const g = table();
+  const a = [g.createToken(0, 'pt-backdoor'), g.createToken(0, 'pt-backdoor'), g.createToken(0, 'pt-backdoor')];
+  a[1].tapped = true;
+  let html = arena.zone(state(g), 0);
+  assert.doesNotMatch(html, /class="token-group"/, 'untapped, tapped, untapped are three separate runs');
+  for (const t of a) assert.match(html, new RegExp(`data-uid="${t.uid}"`));
+  a[1].tapped = false;
+  a[2].tapped = true;
+  html = arena.zone(state(g), 0);
+  assert.match(html, /class="token-group" role="group" aria-label="2 Backdoor tokens"/);
+  assert.doesNotMatch(html, /aria-label="3 Backdoor tokens"/);
+  const group = html.match(/<div class="token-group"[\s\S]*?<\/button><\/div>/)[0];
+  assert.doesNotMatch(group, new RegExp(`data-uid="${a[2].uid}"`), 'the tapped one stands alone');
+  assert.match(html, new RegExp(`class="card tile[^"]*tapped[^"]*"[^>]*data-uid="${a[2].uid}"`));
+});

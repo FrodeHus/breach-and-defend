@@ -22,6 +22,9 @@ export function stackItem(s, e) {
   return `<div class="stack-item${e.ability ? ' ability' : ''}"${e.card ? ` data-motion-uid="${e.card.uid}"` : ''}><strong>${esc(game.entryName(e))}</strong>${who(s, e.p)}${tags.length ? ` · ${tags.join(' · ')}` : ''}${targets.length ? ' → ' + targets.map(esc).join(', ') : ''}</div>`;
 }
 
+// Identical means the same token in the same visible state, so a tapped, locked or damaged one is never hidden.
+const sameLook = (x, c) =>
+  x.id === c.id && !!x.tapped === !!c.tapped && !!x.locked === !!c.locked && (x.damage || 0) === (c.damage || 0);
 // The battlefield row: identical tokens in a labelled group with a count; every card keeps its own button.
 export function tokenGroups(s, cards, p) {
   const out = [];
@@ -29,7 +32,7 @@ export function tokenGroups(s, cards, p) {
     const c = cards[i],
       d = BY_ID[c.id];
     let j = i + 1;
-    if (d.token) while (j < cards.length && cards[j].id === c.id) j++;
+    if (d.token) while (j < cards.length && sameLook(cards[j], c)) j++;
     const run = cards.slice(i, j);
     out.push(
       run.length > 1
