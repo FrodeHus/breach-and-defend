@@ -41,7 +41,8 @@ export function tokenGroups(s, cards, p) {
   return out.join('');
 }
 
-const reason = issues => (issues.length ? `<small class="action-reason">${esc(issues[0].message)}</small>` : '');
+const reason = (id, issues) =>
+  issues.length ? `<small class="action-reason" id="${id}">${esc(issues[0].message)}</small>` : '';
 // Buttons for what the player can do with this card beyond casting it from hand: abilities, and Reuse.
 export function cardActions(s, c, zone) {
   const {game} = s;
@@ -49,19 +50,19 @@ export function cardActions(s, c, zone) {
   if (zone === 'field' && game.players[0].field.some(x => x.uid === c.uid)) {
     const ways = abilityWays(game, 0, c);
     if (!ways.length) return '';
-    return `<div class="card-actions" aria-label="Abilities">${ways
-      .map(
-        w =>
-          `<button class="primary" data-ability="${w.abilityId}" ${w.issues.length ? 'disabled' : ''}>${esc(w.label)} · ${w.totalCost} compute</button>${reason(w.issues)}`,
-      )
+    return `<div class="card-actions" role="group" aria-label="Abilities">${ways
+      .map(w => {
+        const rid = `reason-${w.abilityId}`;
+        return `<button class="primary" data-ability="${w.abilityId}" ${w.issues.length ? `disabled aria-describedby="${rid}"` : ''}>${esc(w.label)} · ${w.totalCost} compute</button>${reason(rid, w.issues)}`;
+      })
       .join('')}</div>`;
   }
   if (zone === 'grave' && game.players[0].grave.some(x => x.uid === c.uid)) {
     const ways = castWays(game, 0, c, 'grave');
     if (!ways.length || BY_ID[c.id].reuse == null) return '';
-    const cheapest = Math.min(...ways.map(w => w.totalCost)),
+    const cheapest = ways.reduce((a, w) => (w.totalCost < a.totalCost ? w : a)),
       usable = ways.some(w => !w.issues.length);
-    return `<div class="card-actions"><button class="primary" id="reuse" ${usable ? '' : 'disabled'}>Reuse · ${cheapest} compute</button>${usable ? '' : reason(ways[0].issues)}</div>`;
+    return `<div class="card-actions"><button class="primary" id="reuse" ${usable ? '' : 'disabled aria-describedby="reason-reuse"'}>Reuse · ${cheapest.totalCost} compute</button>${usable ? '' : reason('reason-reuse', cheapest.issues)}</div>`;
   }
   return '';
 }

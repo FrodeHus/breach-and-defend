@@ -280,3 +280,17 @@ test('your discard marks castable Reuse cards and lets you open them', () => {
   put(g, 0, pt('Map Trust Relationships'), 'grave');
   assert.match(arena.graveDialog(state(g), 0), /class="card red[^"]*playable[^"]*"[^>]*data-zone="grave"/);
 });
+
+test('a disabled ability or Reuse button points at the element that says why', () => {
+  const g = table();
+  compute(g, 0, 1);
+  const i = g.createToken(0, 'pt-indicator');
+  const html = cardActions(state(g), i, 'field');
+  assert.match(html, /role="group" aria-label="Abilities"/);
+  const id = html.match(/data-ability="analyze"[^>]*aria-describedby="([^"]+)"/)[1];
+  assert.match(html, new RegExp(`<small[^>]*id="${id}"[^>]*>Needs 2 compute`));
+  const map = put(g, 0, pt('Map Trust Relationships'), 'grave');
+  const reuse = cardActions(state(g), map, 'grave');
+  const rid = reuse.match(/id="reuse"[^>]*aria-describedby="([^"]+)"/)[1];
+  assert.match(reuse, new RegExp(`<small[^>]*id="${rid}"`));
+});
