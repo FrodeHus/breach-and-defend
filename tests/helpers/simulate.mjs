@@ -73,18 +73,22 @@ export function conserved(g, p) {
   );
 }
 
-// A complete seeded match with the computer playing both seats. `check(g, step)` runs every 25 actions.
-export function aiMatch(seed, {faction = 'red', first = 0, pool = 'first-breach', check = () => {}} = {}) {
+// A complete seeded match with the computer playing both seats. `check(g, step)` runs every `every` actions (25 by default).
+export function aiMatch(
+  seed,
+  {faction = 'red', first = 0, pool = 'first-breach', mode = 'solo', every = 25, check = () => {}} = {},
+) {
   let s = seed;
   const rng = () => {
     s = (s * 1664525 + 1013904223) >>> 0;
     return s / 4294967296;
   };
-  const g = new Game(faction, rng, {first, pool});
-  g.keep();
+  const g = new Game(faction, rng, {first, pool, mode});
+  g.keep([], 0);
+  if (mode === 'versus') g.keep([], 1);
   for (let step = 0; step < 20000 && g.winner === null; step++) {
     g.aiAction(g.actor());
-    if (step % 25 === 0) check(g, step);
+    if (step % every === 0) check(g, step);
   }
   return g;
 }

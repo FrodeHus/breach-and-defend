@@ -4,7 +4,9 @@ import {Game} from './engine.mjs';
 const INTENTS = {
   mulligan: () => ({type: 'mulligan'}),
   keep: (bottom = []) => ({type: 'keep', bottom}),
-  play: (p, uid, target = null) => ({type: 'play', uid, target}),
+  play: (p, uid, target = null, options) => ({type: 'play', uid, target, ...(options ? {options} : {})}),
+  activate: (p, uid, abilityId, options = {}) => ({type: 'activate', uid, abilityId, options}),
+  choose: (p, selection) => ({type: 'choose', selection}),
   pass: () => ({type: 'pass'}),
   attackers: (p, uids) => ({type: 'attackers', uids}),
   blockers: (p, assignments) => ({type: 'blockers', assignments}),

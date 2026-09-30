@@ -5,11 +5,11 @@ import {HostSession, GuestSession, newMatchId, validMatchId} from '../public/ses
 import {createStore} from '../public/storage.mjs';
 import {fakeNet} from './helpers/fake-net.mjs';
 import {fakeTime, memoryBackend} from './helpers/versus.mjs';
-import {choose, perform} from './helpers/policy.mjs';
+import {aiIntent, choose, perform} from './helpers/policy.mjs';
 import {redactEntry, timeoutAction} from '../public/protocol.mjs';
-import {OPENING_MS} from '../public/match.mjs';
+import {OPENING_MS, RESPONSE_MS} from '../public/match.mjs';
 import {audit} from '../public/audit.mjs';
-import {POOLS, SETS} from '../public/cards.mjs';
+import {EXPANSION_POOL, POOLS, SETS} from '../public/cards.mjs';
 
 const flush = async (n = 5) => {
   for (let i = 0; i < n; i++) await new Promise(r => setImmediate(r));
@@ -557,6 +557,7 @@ test('a host mulligan never shows its bottom cards to the guest, live or on resu
   assert.deepEqual(hostKeepsWithUids(seen), []);
   const reveal = seen.find(m => m.type === 'reveal');
   assert.deepEqual(reveal.bottoms[keep.n], bottom, 'the bottoms are revealed at the end');
+  assert.equal(Object.hasOwn(reveal, 'choices'), false, 'a First Breach reveal is unchanged: it has no choices');
   assert.deepEqual(ctx.guest.audit, {result: 'verified'});
   assert.deepEqual(ctx.host.audit, {result: 'verified'});
 });
@@ -577,6 +578,41 @@ test('a host timeout keep after a mulligan is redacted too and the match audits 
   await finish(ctx);
   assert.deepEqual(hostKeepsWithUids(seen), []);
   assert.deepEqual(ctx.guest.audit, {result: 'verified'});
+});
+
+test('a guest choice that runs out of time is answered with its default, and the match audits verified', async t => {
+  SETS['persistent-threats'].released = true;
+  t.after(() => (SETS['persistent-threats'].released = false));
+  const clock = fakeTime();
+  const ctx = await start(await pair({pool: EXPANSION_POOL, clock, seed: 3}));
+  const seats = () => [ctx.host.seat, ctx.guest.seat];
+  const m = ctx.host.match;
+  // A choice on the host's turn runs the guest's response clock, which restarts after the answer. (On the guest's
+  // own turn it would run the turn clock, and a spent turn clock times out the guest's next move too.)
+  for (let i = 0; i < 6000 && m.game.winner === null && !(m.game.pending?.actor === 1 && m.game.active === 0); i++)
+    await drive(ctx, seats, 1, aiIntent);
+  assert.equal(m.game.pending?.actor, 1, 'the guest has a pending choice');
+  const expected = m.game.defaultChoice(),
+    before = m.log.length,
+    running = m.clockFor(0);
+  assert.equal(running.owner, 1, "the guest's clock runs");
+  assert.equal(running.kind, 'response');
+  assert.ok(running.left <= RESPONSE_MS);
+  clock.advance(running.left); // the chooser's clock runs out: the referee answers for the guest
+  await settle(ctx);
+  assert.equal(m.log.length, before + 1);
+  const entry = m.log.at(-1);
+  assert.equal(entry.timeout, true);
+  assert.equal(entry.type, 'choose');
+  assert.equal(entry.by, 1);
+  assert.deepEqual(entry.selection, expected);
+  assert.equal(m.game.winner, null, 'the match continues');
+  assert.equal(ctx.guest.status, 'playing');
+  await drive(ctx, seats, 6000, aiIntent);
+  if (ctx.host.seat.game.winner === null) await ctx.host.seat.game.concede(0);
+  await settle(ctx);
+  assert.deepEqual(ctx.guest.audit, {result: 'verified'});
+  assert.deepEqual(ctx.host.audit, {result: 'verified'});
 });
 
 test('revealed bottoms that do not fit the count, or are not what the host did, are caught', async () => {
@@ -941,4 +977,24 @@ test('a repeated welcome that changes the seed commitment or faction is refused'
     assert.equal(ctx.guest.error, 'impostor');
     assert.equal(ctx.guest.record.seedCommit, commit, 'the audit still checks the original commitment');
   }
+});
+
+test('a complete expansion match between two browsers ends verified for both', async t => {
+  SETS['persistent-threats'].released = true;
+  t.after(() => (SETS['persistent-threats'].released = false));
+  const ctx = await start(await pair({pool: EXPANSION_POOL}));
+  await drive(ctx, () => [ctx.host.seat, ctx.guest.seat], 6000, aiIntent);
+  assert.notEqual(ctx.host.seat.game.winner, null, 'the match finished');
+  await settle(ctx);
+  assert.equal(ctx.guest.status, 'ended');
+  assert.ok(
+    ctx.host.match.log.some(e => e.type === 'choose'),
+    'choices crossed the wire',
+  );
+  assert.ok(
+    ctx.host.match.log.some(e => e.type === 'choose' && e.by === 1),
+    'a guest-authored choice crossed the wire',
+  );
+  assert.deepEqual(ctx.guest.audit, {result: 'verified'});
+  assert.deepEqual(ctx.host.audit, {result: 'verified'});
 });

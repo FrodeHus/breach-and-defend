@@ -9,6 +9,7 @@ import {
   autoTargets,
   candidates,
   checkTargets,
+  chosenTargets,
   isRule,
   pickedTargets,
   recheck,
@@ -349,7 +350,7 @@ export class Game {
       const picks = options.costUids ?? [];
       const costProblem = d.extraCost ? this.checkPicks(p, d.extraCost, null, picks, options.targets) : null;
       if (costProblem) throw Error(costProblem);
-      opts = {targets: structuredClone(options.targets ?? {})};
+      opts = {targets: chosenTargets(options.targets)};
       if (options.overclock) opts.overclock = true;
       if (d.modes) opts.mode = options.mode;
       if (options.reuse) opts.reuse = true;
@@ -368,7 +369,7 @@ export class Game {
     this.pay(p, this.costOf(d, options));
     if (d.extraCost) this.payCost(p, d.extraCost, null, options.costUids ?? []);
     this.stack.push(opts ? {card: c, p, target: null, opts} : {card: c, p, target});
-    this.events.push({name: d.name, lesson: d.lesson, faction: d.faction});
+    this.events.push({name: d.name, lesson: d.lesson ?? '', faction: d.faction});
     this.passes = 0;
     this.casts[p]++;
     this.emit({type: 'cast', p, uid: c.uid, count: this.casts[p], fromGrave: !!options.reuse});
@@ -421,7 +422,7 @@ export class Game {
       ability: {card: d.id, uid, id: abilityId},
       p,
       target: null,
-      opts: {targets: structuredClone(options.targets ?? {})},
+      opts: {targets: chosenTargets(options.targets)},
     });
     this.passes = 0;
     this.note(`${this.label(p)} ${this.verb(p, 'activate', 'activates')} ${d.name}: ${a.label}.`);

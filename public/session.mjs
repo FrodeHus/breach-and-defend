@@ -7,8 +7,10 @@ import {DEFAULT_POOL, poolReleased} from './cards.mjs';
 import {
   bottomCommit,
   canonical,
+  choiceCommit,
   digest,
   hostBottoms,
+  hostChoices,
   randomHex,
   redactEntry,
   safeKeys,
@@ -118,6 +120,7 @@ export class HostSession extends Session {
     this.queue = Promise.resolve();
     this.outbox = Promise.resolve();
     record.bottomCommits ??= {};
+    record.choiceCommits ??= {};
     this.faction = record.hostFaction;
     // Records saved before card pools existed are First Breach matches.
     this.pool = record.pool ?? DEFAULT_POOL;
@@ -210,10 +213,17 @@ export class HostSession extends Session {
 
   async redact(entry) {
     const out = redactEntry(entry);
-    if (!out?.bottomCount) return out;
-    const commits = this.record.bottomCommits;
-    commits[entry.n] ??= await bottomCommit(this.record.hostSecret, entry.n, entry.bottom);
-    return {...out, bottomCommit: commits[entry.n]};
+    if (out?.bottomCount) {
+      const commits = this.record.bottomCommits;
+      commits[entry.n] ??= await bottomCommit(this.record.hostSecret, entry.n, entry.bottom);
+      return {...out, bottomCommit: commits[entry.n]};
+    }
+    if (out?.secret && out.by === 0) {
+      const commits = this.record.choiceCommits;
+      commits[entry.n] ??= await choiceCommit(this.record.hostSecret, entry.n, entry.selection);
+      return {...out, selectionCommit: commits[entry.n]};
+    }
+    return out;
   }
 
   async fromGuest(conn, msg) {
@@ -333,9 +343,16 @@ export class HostSession extends Session {
     return {type: 'view', entry, ackSeq, view: this.match.view(1), clock: this.match.clockFor(1)};
   }
 
-  // What the guest needs to audit: the seed, and the host's mulligan bottoms it was only told the count of.
+  // What the guest needs to audit: the seed, the host's mulligan bottoms it was only told the count of, and the
+  // host's Probe answers it was only given commitments to (sent only when there were any, so a First Breach reveal
+  // is exactly what it was before).
   reveal() {
-    return {hostSecret: this.record.hostSecret, bottoms: hostBottoms(this.match.log)};
+    const choices = hostChoices(this.match.log);
+    return {
+      hostSecret: this.record.hostSecret,
+      bottoms: hostBottoms(this.match.log),
+      ...(Object.keys(choices).length ? {choices} : {}),
+    };
   }
 
   pledge() {
@@ -626,6 +643,7 @@ export class GuestSession extends Session {
       const secret = typeof reveal === 'string' ? reveal : reveal?.hostSecret; // A string: a host from before bottoms were redacted.
       r.hostSecret = typeof secret === 'string' ? secret : null;
       r.bottoms = reveal?.bottoms && typeof reveal.bottoms === 'object' ? reveal.bottoms : null;
+      r.choices = reveal?.choices && typeof reveal.choices === 'object' ? reveal.choices : null;
       r.audit = await audit(r);
       this.save();
     }

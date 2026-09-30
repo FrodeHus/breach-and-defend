@@ -81,6 +81,11 @@ export function checkTargets(g, p, specs, chosen) {
   return null;
 }
 
+// What is stored for checked targets: a null or missing target means none was chosen, so it is left out and the
+// stack, views and log carry only real targets (the guest's view check allows no null target).
+export const chosenTargets = chosen =>
+  structuredClone(Object.fromEntries(Object.entries(chosen ?? {}).filter(([, v]) => v != null)));
+
 // On resolution: keeps the targets that are still legal. `fizzled` when targets were chosen and none remain.
 export function recheck(g, p, specs, chosen = {}) {
   const targets = {};
@@ -316,7 +321,7 @@ export const CHOICES = {
     const t = g.waiting.find(x => x.id === c.data.trigger);
     const problem = checkTargets(g, t.p, abilityOf(t.ability).targets ?? [], sel.targets ?? {});
     if (problem) throw Error(problem);
-    t.targets = structuredClone(sel.targets ?? {});
+    t.targets = chosenTargets(sel.targets);
   },
   probe(g, c, sel) {
     const {discard, order} = sel;

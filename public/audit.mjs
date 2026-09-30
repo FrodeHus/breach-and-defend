@@ -5,8 +5,11 @@ import {
   applyAction,
   bottomCommit,
   canonical,
+  choiceCommit,
   digest,
+  playOptions,
   restoreBottoms,
+  restoreChoices,
   seedHex,
   sha256Hex,
   timeoutAction,
@@ -22,7 +25,13 @@ const PARTS = {
   foe: 'Your opponent’s cards or capacity',
   table: 'The turn, stack or combat state',
 };
-const same = (a, b) => canonical(actionFields(a)) === canonical(actionFields(b));
+// The host logs a play's options cut to the fields the engine reads (see Match.apply), while the guest keeps what it
+// sent, so both sides are cut the same way before they are compared.
+const fields = a =>
+  (a.type === 'play' || a.type === 'activate') && a.options !== undefined
+    ? actionFields({...a, options: playOptions(a.options)})
+    : actionFields(a);
+const same = (a, b) => canonical(fields(a)) === canonical(fields(b));
 
 // Network delay and the two ends noticing a dropped connection at slightly different moments can make an honest
 // timeout arrive a little before the guest's own clock says it is due.
@@ -51,6 +60,7 @@ function guestClock(game, {startedAt, times, gaps}) {
 // Replays a finished match from the revealed seed and compares it with what this player actually saw.
 // `log` is what the guest received, with the host's mulligan bottoms redacted to a count; `bottoms` is what the
 // host revealed for them at the end. Only those fields are filled in, and each must match its count.
+// Likewise `choices` holds the host's Probe answers, sent live only as commitments; each must match its commitment.
 export async function audit({
   seedCommit,
   hostSecret,
@@ -59,6 +69,7 @@ export async function audit({
   pool = DEFAULT_POOL,
   log: received = [],
   bottoms = null,
+  choices = null,
   digests = [],
   sent = {},
   timing = null,
@@ -72,15 +83,29 @@ export async function audit({
     return unverified('Your saved record of this match is incomplete.');
   if (typeof pool !== 'string' || !Object.hasOwn(POOLS, pool))
     return unverified('This match used cards this version of the game doesn’t have.');
-  const log = restoreBottoms(received, bottoms);
-  if (!log)
+  const unbottomed = restoreBottoms(received, bottoms);
+  if (!unbottomed)
     return tampered(1, 'The revealed opening-hand choices do not match what your opponent did during the match.');
   // Each redacted bottom was committed to when it happened; the revealed one must be that same set.
   for (const [i, e] of received.entries()) {
     if (!(e?.bottomCount > 0)) continue;
-    if (typeof e.bottomCommit !== 'string' || e.bottomCommit !== (await bottomCommit(hostSecret, e.n, log[i].bottom))) {
+    if (
+      typeof e.bottomCommit !== 'string' ||
+      e.bottomCommit !== (await bottomCommit(hostSecret, e.n, unbottomed[i].bottom))
+    ) {
       return tampered(1, 'Your opponent changed which cards they put on the bottom after a mulligan.');
     }
+  }
+  // Likewise each redacted Probe answer: it must be revealed, and be the one committed to when it was made.
+  const log = restoreChoices(unbottomed, choices);
+  if (!log) return tampered(1, 'Your opponent didn’t reveal the private choices they made during the match.');
+  for (const [i, e] of unbottomed.entries()) {
+    if (!e?.secret || e.by !== 0 || Object.hasOwn(e, 'selection')) continue;
+    if (
+      typeof e.selectionCommit !== 'string' ||
+      e.selectionCommit !== (await choiceCommit(hostSecret, e.n, log[i].selection))
+    )
+      return tampered(1, 'Your opponent changed a private choice after making it.');
   }
 
   const game = versusGame(await seedHex(hostSecret, guestSecret), hostFaction, pool);
@@ -119,6 +144,9 @@ export async function audit({
       }
       lastSeq = entry.seq;
     }
+    // Only a Probe answer names hidden cards, so only it may be withheld until the reveal.
+    if (entry.by === 0 && entry.secret && !(entry.type === 'choose' && game.pending?.kind === 'probe'))
+      return tampered(turn, 'Your opponent hid a move that wasn’t a private choice.');
     try {
       applyAction(game, entry.by, entry);
     } catch {
