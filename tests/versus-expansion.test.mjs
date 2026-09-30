@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {CARDS} from '../public/cards.mjs';
 import {actionFields, applyAction, playOptions, timeoutAction} from '../public/protocol.mjs';
 import {Seat} from '../public/remote.mjs';
+import {openedMatch} from './helpers/versus.mjs';
 import {compute, put, resolveTop, table} from './helpers/rules.mjs';
 
 const pt = name => CARDS.find(c => c.name === name).id;
@@ -102,4 +103,32 @@ test('a seat sends expansion moves as intents', () => {
     {type: 'activate', uid: 7, abilityId: 'boost', options: {targets: {t: ref(8)}}},
     {type: 'choose', selection: {pay: true}},
   ]);
+});
+
+test('the match logs a guest play with only the option fields the engine reads', async () => {
+  const m = await openedMatch(),
+    g = m.game;
+  Object.assign(g, {phase: 'main1', active: 1, priority: 1});
+  compute(g, 1, 8);
+  const foe = put(g, 0, 'b8');
+  const c = put(g, 1, pt('Coordinated Pressure'), 'hand');
+  const r = m.submit(
+    1,
+    {type: 'play', uid: c.uid, target: null, options: {overclock: true, junk: 'x', targets: {t: ref(foe.uid)}}},
+    5000,
+  );
+  assert.equal(r.ok, true, r.error);
+  assert.deepEqual(r.entry.options, {overclock: true, targets: {t: ref(foe.uid)}});
+  assert.equal(g.stack.at(-1).opts.overclock, true);
+});
+
+test('a First Breach play still logs exactly its own fields', async () => {
+  const m = await openedMatch(),
+    g = m.game;
+  Object.assign(g, {phase: 'main1', active: 1, priority: 1});
+  const c = put(g, 1, pt('Map Trust Relationships'), 'hand');
+  compute(g, 1, 1);
+  const r = m.submit(1, {type: 'play', uid: c.uid, target: null}, 5001);
+  assert.equal(r.ok, true, r.error);
+  assert.deepEqual(Object.keys(r.entry).sort(), ['by', 'n', 'seq', 'target', 'timeout', 'type', 'uid']);
 });

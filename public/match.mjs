@@ -1,6 +1,15 @@
 // @ts-check
 import {Game} from './engine.mjs';
-import {actionFields, applyAction, seedHex, timeoutAction, unflipAction, versusGame, viewFor} from './protocol.mjs';
+import {
+  actionFields,
+  applyAction,
+  playOptions,
+  seedHex,
+  timeoutAction,
+  unflipAction,
+  versusGame,
+  viewFor,
+} from './protocol.mjs';
 
 export const TURN_MS = 90_000,
   RESPONSE_MS = 20_000,
@@ -92,7 +101,12 @@ export class Match {
   }
 
   // Applies atomically: an engine error restores the exact previous state.
-  apply(by, action, seq, timeout) {
+  apply(by, rawAction, seq, timeout) {
+    // A peer's options are cut to the fields the engine reads, so the engine and the log see the same action.
+    const action =
+      (rawAction.type === 'play' || rawAction.type === 'activate') && rawAction.options !== undefined
+        ? {...rawAction, options: playOptions(rawAction.options)}
+        : rawAction;
     const before = this.game.toJSON();
     try {
       applyAction(this.game, by, action);
