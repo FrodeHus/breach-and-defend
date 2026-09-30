@@ -1,4 +1,6 @@
 // Visual transitions observe rules state; they never apply damage or move game cards.
+import * as stage3d from './stage3d.mjs';
+import {faces} from './card-faces.mjs';
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = s => document.querySelector(s);
 const nodes = () => [...document.querySelectorAll('#app [data-motion-uid]')];
@@ -45,15 +47,52 @@ function ghost(item) {
   document.body.append(el);
   return el;
 }
-export function snapshot(game) {
-  const cards = new Map();
+// Rules-side view of the table: where every card is, how hurt each unit is, and each player's capacity.
+export function state(game) {
+  const cards = new Map(),
+    damage = new Map();
   game.players.forEach((p, owner) =>
-    ['hand', 'field', 'grave'].forEach(zone => p[zone].forEach(c => cards.set(c.uid, {zone, owner}))),
+    ['hand', 'field', 'grave'].forEach(zone =>
+      p[zone].forEach(c => {
+        cards.set(c.uid, {zone, owner});
+        if (zone === 'field') damage.set(c.uid, c.damage || 0);
+      }),
+    ),
   );
   game.stack.forEach(s => s.card && cards.set(s.card.uid, {zone: 'stack', owner: s.p}));
+  return {cards, damage, life: game.players.map(p => p.life)};
+}
+// What happened between two states, as events the animations react to. Healing and end-of-turn resets are not events.
+export function changes(before, after) {
+  const events = [];
+  for (const [uid, now] of after.cards) {
+    const old = before.cards.get(uid);
+    if (now.zone === 'grave' && old && old.zone !== 'grave')
+      events.push({
+        type: 'leave',
+        uid,
+        owner: now.owner,
+        from: old.zone,
+        fromOwner: old.owner,
+        destroyed: old.zone === 'field',
+      });
+    else if (now.zone !== 'grave' && (!old || old.zone !== now.zone))
+      events.push({type: 'enter', uid, owner: now.owner, zone: now.zone, from: old?.zone ?? null});
+  }
+  for (const [uid, hurt] of after.damage) {
+    const was = before.damage?.get(uid);
+    if (was !== undefined && hurt > was) events.push({type: 'damaged', uid, amount: hurt - was});
+  }
+  after.life.forEach((life, p) => {
+    const was = before.life?.[p];
+    if (was !== undefined && life < was) events.push({type: 'playerHit', p, amount: was - life});
+  });
+  return events;
+}
+export function snapshot(game) {
   const visual = new Map(nodes().map(el => [Number(el.dataset.motionUid), {el, r: rect(el)}]));
   return {
-    cards,
+    ...state(game),
     visual,
     phase: game.phase,
     attacks: [...game.attacks],
@@ -82,58 +121,115 @@ async function impact(r) {
   );
   ring.remove();
 }
+const factionOf = el => (el?.classList.contains('red') ? 'red' : 'blue');
+async function lungeCss(from, destinations) {
+  const g = ghost(from);
+  from.el.style.visibility = 'hidden';
+  try {
+    for (const target of destinations) {
+      if (!target.r) continue;
+      const a = center(from.r),
+        b = center(target.r),
+        x = b.x - a.x,
+        y = b.y - a.y;
+      await animate(
+        g,
+        [
+          {transform: 'perspective(800px) translate3d(0,0,0) rotateX(0)'},
+          {
+            transform: `perspective(800px) translate3d(${x * 0.9}px,${y * 0.9}px,65px) rotateX(${y > 0 ? -14 : 14}deg) rotateZ(-4deg)`,
+          },
+        ],
+        310,
+      );
+      await Promise.all([
+        impact(target.r),
+        target.el
+          ? animate(
+              target.el,
+              [
+                {transform: 'translateX(0)'},
+                {transform: 'translateX(9px) rotate(4deg)'},
+                {transform: 'translateX(-5px)'},
+                {transform: 'translateX(0)'},
+              ],
+              260,
+            )
+          : Promise.resolve(),
+      ]);
+      await animate(
+        g,
+        [{transform: `translate(${x * 0.9}px,${y * 0.9}px) scale(1.06)`}, {transform: 'translate(0,0) scale(1)'}],
+        220,
+      );
+    }
+  } finally {
+    g.remove();
+    from.el.style.visibility = '';
+  }
+}
+async function lunge3d(from, destinations, uid, game, hits, damage) {
+  const size = {width: from.r.width, height: from.r.height},
+    faction = factionOf(from.el),
+    f = await faces({
+      id: from.el.dataset.card,
+      faction,
+      from: 'tile',
+      to: 'tile',
+      ...size,
+      stats: statsOf(game, uid, damage.get(uid)),
+    });
+  for (const target of destinations) {
+    if (!target.r) continue;
+    const knock = target.el
+      ? {
+          els: [target.el],
+          faces: await faces({
+            id: target.el.dataset.card,
+            faction: factionOf(target.el),
+            from: 'tile',
+            to: 'tile',
+            width: target.r.width,
+            height: target.r.height,
+            stats: statsOf(game, target.uid, damage.get(target.uid)),
+          }),
+        }
+      : null;
+    let landed = Promise.resolve();
+    await stage3d.lunge({
+      els: [from.el],
+      from: from.r,
+      to: target.r,
+      faces: f,
+      onImpact: () => {
+        const amount = hits.get(target.key) || 0;
+        hits.delete(target.key); // one total per target, however many attackers hit it
+        landed = stage3d.burst({rect: target.r, faction, amount, knock});
+      },
+    });
+    await landed;
+  }
+}
 export async function combat(before, game) {
   if (before.phase !== 'afterBlock' || game.phase !== 'endCombat' || still()) return;
+  before.fought = true; // transitions() leaves the damage from this combat to these animations
+  const hits = new Map(
+    changes(before, state(game))
+      .filter(e => e.type === 'damaged' || e.type === 'playerHit')
+      .map(e => [e.type === 'damaged' ? e.uid : `p${e.p}`, e.amount]),
+  );
   await Promise.all(
     before.attacks.map(async uid => {
       const from = before.visual.get(uid);
       if (!from) return;
-      const targets = (before.blocks[uid] || []).map(id => before.visual.get(id)).filter(Boolean);
-      const destinations = targets.length ? targets : [{r: before.players[1 - before.active]}];
-      const g = ghost(from);
-      from.el.style.visibility = 'hidden';
-      try {
-        for (const target of destinations) {
-          if (!target.r) continue;
-          const a = center(from.r),
-            b = center(target.r),
-            x = b.x - a.x,
-            y = b.y - a.y;
-          await animate(
-            g,
-            [
-              {transform: 'perspective(800px) translate3d(0,0,0) rotateX(0)'},
-              {
-                transform: `perspective(800px) translate3d(${x * 0.9}px,${y * 0.9}px,65px) rotateX(${y > 0 ? -14 : 14}deg) rotateZ(-4deg)`,
-              },
-            ],
-            310,
-          );
-          await Promise.all([
-            impact(target.r),
-            target.el
-              ? animate(
-                  target.el,
-                  [
-                    {transform: 'translateX(0)'},
-                    {transform: 'translateX(9px) rotate(4deg)'},
-                    {transform: 'translateX(-5px)'},
-                    {transform: 'translateX(0)'},
-                  ],
-                  260,
-                )
-              : Promise.resolve(),
-          ]);
-          await animate(
-            g,
-            [{transform: `translate(${x * 0.9}px,${y * 0.9}px) scale(1.06)`}, {transform: 'translate(0,0) scale(1)'}],
-            220,
-          );
-        }
-      } finally {
-        g.remove();
-        from.el.style.visibility = '';
-      }
+      const targets = (before.blocks[uid] || [])
+        .map(id => ({...before.visual.get(Number(id)), uid: Number(id), key: Number(id)}))
+        .filter(t => t.r);
+      const defender = 1 - before.active,
+        destinations = targets.length ? targets : [{r: before.players[defender], key: `p${defender}`}];
+      return stage3d.ready()
+        ? fallback(lunge3d(from, destinations, uid, game, hits, before.damage), () => lungeCss(from, destinations))
+        : lungeCss(from, destinations);
     }),
   );
 }
@@ -195,58 +291,156 @@ async function depart(item, target, destroyed) {
     g.remove();
   }
 }
+// The card leaving play, or a stand-in at the opponent's panel when it left their hidden hand.
+function departing(before, e, game) {
+  const from = before.visual.get(e.uid);
+  if (from || e.from !== 'hand' || e.fromOwner !== 1 || !before.players[1]) return from || null;
+  const el = document.createElement('div');
+  el.className = 'card hidden-card ' + game.players[e.fromOwner].faction;
+  const r = before.players[1];
+  return {el, r: {left: r.left + r.width / 2, top: r.top, width: 90, height: 125}};
+}
+function enter(before, e, item, game) {
+  const origin =
+      before.visual.get(e.uid)?.r || (e.zone === 'hand' ? before.decks?.[e.owner] : null) || before.players[e.owner],
+    a = center(item.r),
+    b = origin ? center(origin) : {x: a.x - 90, y: a.y + 80};
+  const g = ghost(item);
+  item.el.style.visibility = 'hidden';
+  g.classList.add('entry-card');
+  const back = document.createElement('div');
+  back.className = 'card-back ' + game.players[e.owner].faction;
+  g.append(back);
+  return animate(
+    g,
+    [
+      {
+        transform: `perspective(850px) translate3d(${b.x - a.x}px,${b.y - a.y}px,0) rotateY(180deg) rotateZ(-10deg) scale(.7)`,
+        opacity: 0,
+      },
+      {offset: 0.18, opacity: 1},
+      {
+        offset: 0.7,
+        transform: 'perspective(850px) translate3d(0,-12px,70px) rotateY(20deg) rotateZ(2deg) scale(1.05)',
+        opacity: 1,
+      },
+      {transform: 'perspective(850px) translate3d(0,0,0) rotateY(0) rotateZ(0) scale(1)', opacity: 1},
+    ],
+    620,
+  ).finally(() => {
+    g.remove();
+    item.el.style.visibility = '';
+  });
+}
+// A failed 3D animation replays with CSS; stage3d switches itself off after the first failure.
+const fallback = (job, css) =>
+  job.catch(err => {
+    stage3d.fail(err);
+    return css();
+  });
+const kindOf = zone => (zone === 'field' ? 'tile' : 'hand');
+// A stack entry is a text row, not a card: it flies and flips as a hand-sized card centred on the row.
+export function cardAround(r, width = 110, height = 140) {
+  const left = r.left + r.width / 2 - width / 2,
+    top = r.top + r.height / 2 - height / 2;
+  return {x: left, y: top, left, top, width, height, right: left + width, bottom: top + height};
+}
+const onStack = el => !!el?.classList?.contains('stack-item');
+// Stack rows carry no data-card, so the id comes from the card wherever the game now holds it.
+const cardId = (game, uid, el) =>
+  el?.dataset?.card || game.find?.(uid)?.card?.id || game.stack?.find(s => s.card?.uid === uid)?.card?.id;
+// `damage` overrides the card's current damage, for faces drawn as they looked before combat resolved.
+function statsOf(game, uid, damage) {
+  const f = game.find?.(uid);
+  return f?.card ? {...game.stats(f.card, f.p), damage: damage ?? (f.card.damage || 0)} : null;
+}
+async function enter3d(before, e, item, game) {
+  const old = before.visual.get(e.uid)?.r,
+    origin = old || (e.zone === 'hand' ? before.decks?.[e.owner] : null) || before.players[e.owner];
+  if (!origin) return;
+  item.el.style.visibility = 'hidden'; // else the card shows in its slot while the faces load, then vanishes to fly in
+  try {
+    const to = onStack(item.el) ? cardAround(item.r) : item.r,
+      from = old && onStack(before.visual.get(e.uid).el) ? cardAround(old) : origin,
+      f = await faces({
+        id: cardId(game, e.uid, item.el) || before.visual.get(e.uid)?.el.dataset.card,
+        faction: game.players[e.owner].faction,
+        from: kindOf(e.from),
+        to: kindOf(e.zone),
+        width: to.width,
+        height: to.height,
+        stats: e.zone === 'field' ? statsOf(game, e.uid) : null,
+      });
+    await stage3d.fly({els: [item.el], from, to, faces: f, flip: old ? null : 'up'});
+  } finally {
+    item.el.style.visibility = '';
+  }
+}
+// Spell damage and damage to a player: the burst without a lunge, in the colours of whoever is not being hit.
+async function hit3d(r, el, e, game) {
+  const victim = e.type === 'damaged' ? game.find?.(e.uid)?.p : e.p,
+    faction = game.players[victim === 0 ? 1 : 0]?.faction || 'blue',
+    knock = el
+      ? {
+          els: [el],
+          faces: await faces({
+            id: el.dataset.card,
+            faction: factionOf(el),
+            from: 'tile',
+            to: 'tile',
+            width: r.width,
+            height: r.height,
+            stats: statsOf(
+              game,
+              e.uid,
+              e.type === 'damaged' ? Math.max(0, (game.find?.(e.uid)?.card.damage || 0) - e.amount) : undefined,
+            ),
+          }),
+        }
+      : null;
+  await stage3d.burst({rect: r, faction, amount: e.amount, knock});
+}
+async function leave3d(from, pile, e, game) {
+  const r = onStack(from.el) ? cardAround(from.r) : from.r,
+    f = await faces({
+      id: cardId(game, e.uid, from.el),
+      faction: game.players[e.fromOwner].faction,
+      from: kindOf(e.from),
+      to: kindOf(e.from),
+      width: r.width,
+      height: r.height,
+      stats: null,
+    });
+  if (e.destroyed) return stage3d.shatter({rect: r, faces: f, faction: game.players[e.fromOwner].faction});
+  if (pile) return stage3d.fly({els: [], from: r, to: pile, faces: f, flip: 'down', duration: 650});
+}
 export async function transitions(before, game) {
   if (still()) return;
   const after = snapshot(game),
     jobs = [];
-  for (const [uid, now] of after.cards) {
-    const old = before.cards.get(uid),
-      item = after.visual.get(uid);
-    if (now.zone === 'grave' && old && old.zone !== 'grave') {
-      let from = before.visual.get(uid);
-      if (!from && old.zone === 'hand' && old.owner === 1 && before.players[1]) {
-        const el = document.createElement('div');
-        el.className = 'card hidden-card ' + game.players[old.owner].faction;
-        const r = before.players[1];
-        from = {el, r: {left: r.left + r.width / 2, top: r.top, width: 90, height: 125}};
-      }
-      if (from) jobs.push(depart(from, after.graves[now.owner], old.zone === 'field'));
-    }
-    if (item && (!old || old.zone !== now.zone) && now.zone !== 'grave') {
-      const origin =
-          before.visual.get(uid)?.r ||
-          (now.zone === 'hand' ? before.decks?.[now.owner] : null) ||
-          before.players[now.owner],
-        a = center(item.r),
-        b = origin ? center(origin) : {x: a.x - 90, y: a.y + 80};
-      const g = ghost(item);
-      item.el.style.visibility = 'hidden';
-      g.classList.add('entry-card');
-      const back = document.createElement('div');
-      back.className = 'card-back ' + game.players[now.owner].faction;
-      g.append(back);
-      jobs.push(
-        animate(
-          g,
-          [
-            {
-              transform: `perspective(850px) translate3d(${b.x - a.x}px,${b.y - a.y}px,0) rotateY(180deg) rotateZ(-10deg) scale(.7)`,
-              opacity: 0,
-            },
-            {offset: 0.18, opacity: 1},
-            {
-              offset: 0.7,
-              transform: 'perspective(850px) translate3d(0,-12px,70px) rotateY(20deg) rotateZ(2deg) scale(1.05)',
-              opacity: 1,
-            },
-            {transform: 'perspective(850px) translate3d(0,0,0) rotateY(0) rotateZ(0) scale(1)', opacity: 1},
-          ],
-          620,
-        ).finally(() => {
-          g.remove();
-          item.el.style.visibility = '';
-        }),
-      );
+  for (const e of changes(before, after)) {
+    if (e.type === 'leave') {
+      const from = departing(before, e, game);
+      const pile = after.graves[e.owner];
+      if (from)
+        jobs.push(
+          stage3d.ready()
+            ? fallback(leave3d(from, pile, e, game), () => depart(from, pile, e.destroyed))
+            : depart(from, pile, e.destroyed),
+        );
+    } else if (e.type === 'enter') {
+      const item = after.visual.get(e.uid);
+      if (item)
+        jobs.push(
+          stage3d.ready()
+            ? fallback(enter3d(before, e, item, game), () => enter(before, e, item, game))
+            : enter(before, e, item, game),
+        );
+    } else if (!before.fought) {
+      const r = e.type === 'damaged' ? after.visual.get(e.uid)?.r : after.players[e.p];
+      if (!r) continue;
+      const el = e.type === 'damaged' ? after.visual.get(e.uid).el : null;
+      jobs.push(stage3d.ready() ? fallback(hit3d(r, el, e, game), () => impact(r)) : impact(r));
     }
   }
   await Promise.all(jobs);

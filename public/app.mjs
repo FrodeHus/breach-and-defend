@@ -7,6 +7,7 @@ import {Tutorial} from './tutorial.mjs';
 import {installCardPreview} from './card-preview.mjs';
 import {installLoreFlip} from './lore-panel.mjs';
 import {installCardDrag, dropHandCard, assignBlock, clearBlock} from './card-drag.mjs';
+import {init as init3d} from './stage3d.mjs';
 import {snapshot, combat, transitions, arrows, within} from './motion.mjs';
 import {HostSession, GuestSession} from './session.mjs';
 import * as net from './net.mjs';
@@ -557,6 +558,7 @@ function render() {
   document.querySelectorAll('.nav').forEach(n => n.classList.toggle('active', n.id === `${view}Nav`));
   app.innerHTML = page();
   if (view === 'arena' && game) arrows(blocks);
+  if (view === 'arena' && game) init3d(); // Lazy: three.js loads after the first arena render, or never.
   if (view === 'library') libraryCards();
   highlightGuidance();
   if (focusId) document.getElementById(focusId)?.focus({preventScroll: true});

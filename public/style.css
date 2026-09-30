@@ -1023,6 +1023,24 @@ dialog::backdrop {
   will-change: transform, opacity;
   overflow: visible;
 }
+/* The 3D stand-in layer: covers the viewport, never takes input, invisible when idle. */
+.stage3d {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+.damage-float {
+  position: fixed;
+  z-index: 41;
+  pointer-events: none;
+  font:
+    700 2rem/1 'Barlow Condensed',
+    sans-serif;
+  color: #fff;
+  -webkit-text-stroke: 1px #0c1115;
+  text-shadow: 0 2px 0 #0c1115;
+}
 .motion-ghost .art {
   height: 32%;
 }

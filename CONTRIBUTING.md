@@ -41,8 +41,11 @@ Edit files in `public/` and refresh the browser.
 ### Style
 
 - Match the surrounding code: ES modules, no frameworks, no npm dependencies.
-  The only runtime third-party script is PeerJS (loaded from a pinned CDN URL
-  in `public/net.mjs`) for play-a-friend; avoid adding more.
+  The only runtime third-party code is PeerJS (loaded from a pinned CDN URL
+  in `public/net.mjs`) for play-a-friend, and three.js (vendored at
+  `public/vendor/three.module.min.js`, r170, MIT) for 3D card motion. three.js
+  is loaded lazily and every 3D animation must keep a CSS fallback in
+  `public/motion.mjs`. Avoid adding more.
 - Markup lives in view modules (`card-view.mjs`, `arena-view.mjs`, `library.mjs`,
   `versus-ui.mjs`, …) as pure functions of the UI state, so they can be tested
   in Node. `app.mjs` owns the state and handles events by delegation on `#app`;
