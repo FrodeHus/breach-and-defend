@@ -164,6 +164,7 @@ const everyView = (check, games = 4) => {
       first: seed & 1,
       pool: EXPANSION_POOL,
       mode: 'versus',
+      every: 1,
       check: g => {
         for (const p of [0, 1]) check(g, p, viewFor(g, p));
       },
@@ -171,14 +172,26 @@ const everyView = (check, games = 4) => {
 };
 
 test('views of expansion matches never reveal a hidden card', () => {
+  let privateSeen = 0;
   everyView((g, p, v) => {
+    if (p === 0 && g.pending?.private) privateSeen++;
     const hidden = hiddenUids(g, p);
     for (const u of shownUids(v)) assert.ok(!hidden.has(u), `view for ${p} reveals hidden uid ${u}`);
   });
+  assert.ok(privateSeen > 0, 'the sweep must sample at least one private pending choice');
 });
 
-test('flipping a view twice gives it back, with pending, waiting and ability entries included', () => {
-  everyView((g, p, v) => assert.deepEqual(flip(flip(v)), v));
+test('a view flips pending, waiting and stack entries for the second player, and flipping twice restores it', () => {
+  everyView((g, p, v) => {
+    const m = x => (p ? 1 - x : x);
+    if (g.pending) {
+      assert.equal(v.pending.actor, m(g.pending.actor));
+      if (g.pending.frame) assert.equal(v.pending.resolving?.p, m(g.pending.frame.entry?.p));
+    }
+    (g.waiting ?? []).forEach((w, i) => assert.equal(v.waiting[i].p, m(w.p)));
+    g.stack.forEach((e, i) => assert.equal(v.stack[i].p, m(e.p)));
+    assert.deepEqual(flip(flip(v)), v);
+  });
 });
 
 test('a private choice shows its chooser the cards and the other player only a count', () => {
