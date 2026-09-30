@@ -3,7 +3,7 @@
 import {Match} from './match.mjs';
 import {Seat} from './remote.mjs';
 import {audit} from './audit.mjs';
-import {DEFAULT_POOL, POOLS} from './cards.mjs';
+import {DEFAULT_POOL, poolReleased} from './cards.mjs';
 import {
   bottomCommit,
   canonical,
@@ -84,7 +84,7 @@ export class HostSession extends Session {
     clock,
     random = randomHex,
   }) {
-    if (typeof pool !== 'string' || !Object.hasOwn(POOLS, pool)) throw Error(`Unknown card pool: ${pool}.`);
+    if (!poolReleased(pool)) throw Error(`Unknown card pool: ${pool}.`);
     const hostSecret = random();
     const record = {
       hostFaction,
@@ -534,7 +534,10 @@ export class GuestSession extends Session {
         if (r.hostToken && msg.hostToken !== r.hostToken) return this.impostor();
         // A host from before card pools sends none: that is First Breach.
         const pool = msg.pool ?? DEFAULT_POOL;
-        if (typeof pool !== 'string' || !Object.hasOwn(POOLS, pool)) {
+        // The guest agreed to the pool it was first offered; a host that changes it later is not playing fair.
+        if (r.pool && r.pool !== pool) return this.impostor();
+        // A pool this build hasn't released may have different cards from the host's build.
+        if (!poolReleased(pool)) {
           this.dispose(true);
           return this.set('error', {error: 'unknown-pool'});
         }

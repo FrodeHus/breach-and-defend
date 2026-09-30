@@ -9,7 +9,7 @@ import {choose, perform} from './helpers/policy.mjs';
 import {redactEntry, timeoutAction} from '../public/protocol.mjs';
 import {OPENING_MS} from '../public/match.mjs';
 import {audit} from '../public/audit.mjs';
-import {POOLS} from '../public/cards.mjs';
+import {POOLS, SETS} from '../public/cards.mjs';
 
 const flush = async (n = 5) => {
   for (let i = 0; i < n; i++) await new Promise(r => setImmediate(r));
@@ -880,4 +880,53 @@ test('a host cannot open an invite for an unknown pool', async () => {
     HostSession.create({net: fakeNet(), store: store(), hostFaction: 'blue', pool: 'nope', clock: fakeTime()}),
     /Unknown card pool/,
   );
+});
+
+test('a pool whose sets are not released is refused by the host and by a guest', async t => {
+  SETS.hidden = {name: 'Hidden', code: 'HD1', released: true};
+  POOLS.later = {name: 'Later', sets: ['first-breach', 'hidden'], deck: POOLS['first-breach'].deck};
+  t.after(() => {
+    delete SETS.hidden;
+    delete POOLS.later;
+  });
+  const net = fakeNet();
+  const host = await HostSession.create({net, store: store(), hostFaction: 'blue', pool: 'later', clock: fakeTime()});
+  SETS.hidden.released = false; // This guest's build knows the pool but has not released it.
+  const guest = await GuestSession.join({net, store: store(), matchId: host.matchId, retry});
+  await settle({host, guest, net});
+  assert.equal(guest.status, 'error');
+  assert.equal(guest.error, 'unknown-pool');
+  await assert.rejects(
+    HostSession.create({net: fakeNet(), store: store(), hostFaction: 'blue', pool: 'later', clock: fakeTime()}),
+    /Unknown card pool/,
+  );
+});
+
+// A host that could change the terms after the guest joined could pick its own secret once it knows the guest's.
+const rewelcome = (ctx, changes) =>
+  ctx.host.conn.send({
+    type: 'welcome',
+    guestToken: ctx.host.record.guestToken,
+    hostToken: ctx.host.record.hostToken,
+    seedCommit: ctx.host.record.seedCommit,
+    hostFaction: ctx.host.record.hostFaction,
+    pool: ctx.host.pool,
+    ...changes,
+  });
+
+test('a repeated welcome with the same terms is accepted', async () => {
+  const ctx = await pair();
+  rewelcome(ctx, {});
+  await settle(ctx);
+  assert.equal(ctx.guest.status, 'pledge');
+});
+
+test('a repeated welcome that changes the card pool is refused', async t => {
+  mirror(t);
+  const ctx = await pair();
+  rewelcome(ctx, {pool: 'mirror'});
+  await settle(ctx);
+  assert.equal(ctx.guest.status, 'error');
+  assert.equal(ctx.guest.error, 'impostor');
+  assert.equal(ctx.guest.pool, 'first-breach');
 });
