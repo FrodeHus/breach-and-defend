@@ -352,7 +352,7 @@ export const launchRect = (origin, to) => {
   return cardAround(origin, to.width * k, to.height * k);
 };
 const onStack = el => !!el?.classList?.contains('stack-item');
-// Stack rows carry no data-card, so the id comes from the card wherever the game now holds it.
+// A stack row names its card; a row already gone takes the id from the card wherever the game now holds it.
 const cardId = (game, uid, el) =>
   el?.dataset?.card || game.find?.(uid)?.card?.id || game.stack?.find(s => s.card?.uid === uid)?.card?.id;
 // `damage` overrides the card's current damage, for faces drawn as they looked before combat resolved.

@@ -1834,6 +1834,14 @@ a:focus-visible {
   color: #655137;
   display: inline-block;
   margin: 0 8px 6px 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.stack-item:hover:not(:disabled),
+.stack-item:focus-visible {
+  border-color: #b8883b;
+  background: #fff6e4;
 }
 .stack-item strong {
   color: #80510e;

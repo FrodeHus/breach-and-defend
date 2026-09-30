@@ -438,6 +438,7 @@
   }
   .match-playing .effect-stack .stack-item {
     display: block;
+    width: 100%;
     margin: 0 0 5px;
     padding: 8px;
     font-size: 0.8125rem;
