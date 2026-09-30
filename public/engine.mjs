@@ -325,6 +325,7 @@ export class Game {
     }
     q.hand = q.hand.filter(x => x.uid !== uid);
     if (d.type === 'Infrastructure') {
+      if (d.entersTapped) c.tapped = true;
       q.field.push(c);
       q.landPlayed = true;
       this.note(`${this.label(p)} ${this.verb(p, 'play', 'plays')} ${d.name}.`);
@@ -631,16 +632,21 @@ export class Game {
   }
   // After every action: defeat units at zero toughness, then put abilities that triggered onto the stack.
   settle() {
+    this.collect();
     this.check();
     // Nothing triggers once the match is decided; drop it so a finished match saves no expansion state.
     if (this.winner !== null) {
       this.queue = [];
       this.waiting = [];
       this.pending = null;
+      return;
     }
-    if (this.winner !== null || this.pending) return;
+    this.collect();
+    if (!this.pending) this.place();
+  }
+  // Turns queued events into waiting triggers while their sources are still where the events found them.
+  collect() {
     for (const e of this.queue.splice(0)) this.waiting.push(...this.triggersFor(e));
-    this.place();
   }
   triggersFor(e) {
     const found = [];

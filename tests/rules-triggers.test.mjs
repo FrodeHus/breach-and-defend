@@ -214,3 +214,43 @@ test('expansion state stays out of First Breach saves between actions', () => {
   const json = g.toJSON();
   for (const k of ['queue', 'waiting', 'pending', 'casts']) assert.equal(Object.hasOwn(json, k), false, k);
 });
+
+test('infrastructure that enters tapped is tapped and gives no compute', t => {
+  define(t, {id: 'x-slow', type: 'Infrastructure', entersTapped: true});
+  const g = table();
+  const c = put(g, 0, 'x-slow', 'hand');
+  g.play(0, c.uid);
+  assert.equal(c.tapped, true);
+  assert.equal(g.mana(0), 0);
+});
+
+test('a trigger fires even when its source dies in the same action', t => {
+  define(t, {
+    id: 'x-trample',
+    type: 'Unit',
+    power: 4,
+    toughness: 2,
+    keywords: ['overflow'],
+    abilities: [trig('h', 'hitsOpponent', [{op: 'createToken', token: 'pt-backdoor'}])],
+  });
+  define(t, {id: 'x-pebble', type: 'Unit', power: 2, toughness: 1});
+  const g = table();
+  const r = put(g, 0, 'x-trample'),
+    b = put(g, 1, 'x-pebble');
+  g.phase = 'attack';
+  g.attackers(0, [r.uid]);
+  g.pass(0);
+  g.pass(1);
+  g.blockers(1, {[r.uid]: [b.uid]});
+  g.pass(0);
+  g.pass(1);
+  assert.equal(g.players[1].life, 17);
+  assert.equal(
+    g.players[0].grave.some(c => c.id === 'x-trample'),
+    true,
+    'the attacker died',
+  );
+  assert.equal(g.stack.length, 1);
+  resolveTop(g);
+  assert.ok(ids(g, 0).includes('pt-backdoor'));
+});
