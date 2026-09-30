@@ -8,7 +8,7 @@ import {lorePanel} from './lore-panel.mjs';
 import * as versusUi from './versus-ui.mjs';
 import {esc} from './html.mjs';
 import {card, label, playStatus} from './card-view.mjs';
-import {cardActions, stackItem, tokenGroups} from './expansion-view.mjs';
+import {byLook, cardActions, stackItem, tokenGroups} from './expansion-view.mjs';
 
 export const poolEyebrow = game => (POOLS[game.pool]?.name ?? POOLS['first-breach'].name).toUpperCase();
 export function opening(s) {
@@ -36,10 +36,7 @@ export function zone(s, p) {
     field.length
       ? tokenGroups(
           s,
-          [
-            ...field.filter(c => !BY_ID[c.id].token),
-            ...field.filter(c => BY_ID[c.id].token).sort((a, b) => a.id.localeCompare(b.id)),
-          ],
+          [...field.filter(c => !BY_ID[c.id].token), ...field.filter(c => BY_ID[c.id].token).sort(byLook)],
           p,
         )
       : `<div class="empty-zone"><span>${p === 0 ? 'Deploy units, tools, and controls from your hand.' : 'No opposing units or controls deployed.'}</span></div>`

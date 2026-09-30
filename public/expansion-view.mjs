@@ -31,8 +31,14 @@ export function stackItem(s, e) {
 }
 
 // Identical means the same token in the same visible state, so a tapped, locked or damaged one is never hidden.
-const sameLook = (x, c) =>
-  x.id === c.id && !!x.tapped === !!c.tapped && !!x.locked === !!c.locked && (x.damage || 0) === (c.damage || 0);
+const look = c => [c.id, +!!c.tapped, +!!c.locked, c.damage || 0];
+const sameLook = (x, c) => look(x).every((v, i) => v === look(c)[i]);
+// Orders tokens by the same look, so identical ones sit together and group even when a different one came between.
+export const byLook = (a, b) => {
+  const x = look(a),
+    y = look(b);
+  return x[0].localeCompare(y[0]) || x[1] - y[1] || x[2] - y[2] || x[3] - y[3];
+};
 // The battlefield row: identical tokens in a labelled group with a count; every card keeps its own button.
 export function tokenGroups(s, cards, p) {
   const out = [];

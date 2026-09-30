@@ -402,7 +402,12 @@ test('tokens group only while they look the same, so a tapped one is never hidde
   const a = [g.createToken(0, 'pt-backdoor'), g.createToken(0, 'pt-backdoor'), g.createToken(0, 'pt-backdoor')];
   a[1].tapped = true;
   let html = arena.zone(state(g), 0);
-  assert.doesNotMatch(html, /class="token-group"/, 'untapped, tapped, untapped are three separate runs');
+  // Untapped, tapped, untapped: the two untapped ones are sorted together, and the tapped one stays out of the group.
+  assert.match(html, /class="token-group" role="group" aria-label="2 Backdoor tokens"/);
+  assert.doesNotMatch(
+    html.match(/<div class="token-group"[\s\S]*?<\/button><\/div>/)[0],
+    new RegExp(`data-uid="${a[1].uid}"`),
+  );
   for (const t of a) assert.match(html, new RegExp(`data-uid="${t.uid}"`));
   a[1].tapped = false;
   a[2].tapped = true;
@@ -649,4 +654,17 @@ test('a rejected combination of targets says why, and Confirm points at the reas
   const html = prepDialog(state(g), {kind: 'cast', uid: c.uid, zone: 'hand', ways, way: 0, picks});
   assert.match(html, /<button[^>]*id="prepConfirm"[^>]*aria-describedby="prep-issue"[^>]*disabled/);
   assert.match(html, /id="prep-issue"[^>]*>Choose cards from a single player’s discard\.</);
+});
+
+test('identical tokens split by a tapped one still group, with the tapped one alone', () => {
+  const g = table();
+  const fb = put(g, 0, 'r7');
+  const i = [g.createToken(0, 'pt-indicator'), g.createToken(0, 'pt-indicator'), g.createToken(0, 'pt-indicator')];
+  i[1].tapped = true;
+  const html = arena.zone(state(g), 0);
+  assert.equal(html.match(/class="token-group"/g).length, 1);
+  const group = html.match(/<div class="token-group"[^>]*aria-label="2 Indicator tokens"[\s\S]*?<\/button><\/div>/)[0];
+  for (const t of [i[0], i[2]]) assert.match(group, new RegExp(`data-uid="${t.uid}"`));
+  assert.match(html, new RegExp(`<\\/div><button class="card tile[^"]*tapped[^"]*"[^>]*data-uid="${i[1].uid}"`));
+  assert.ok(html.indexOf(`data-uid="${fb.uid}"`) < html.indexOf('token-group'), 'other cards keep their place first');
 });
