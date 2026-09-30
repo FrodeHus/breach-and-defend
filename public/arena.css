@@ -785,3 +785,9 @@
     max-width: calc((100% - clamp(410px, 45vw, 600px)) / 2 - 14px);
   }
 }
+/* Narrow layouts leave the pile unpositioned; without this its absolutely placed stack covers the whole board. */
+@media (max-width: 899px), (max-height: 559px) {
+  .table .resources.compute-pile {
+    position: relative;
+  }
+}
