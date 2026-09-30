@@ -2518,3 +2518,44 @@ git commit -m "Play complete seeded matches on the expansion pool"
 - [ ] Run `npm test && npm run typecheck` and the Prettier check on the branch tip. The golden test must show the original hash.
 - [ ] Append to this plan a short "Follow-ups" section for Plans 4–6. Include everything the reviews defer, and the balance observations from Task 8 (win rates by faction and seat over the 20 matches, and whether any card never got cast).
 - [ ] Use superpowers:finishing-a-development-branch.
+
+## Follow-ups found while building this plan
+
+Recorded by the task and whole-branch reviews.
+
+**Balance observations (computer vs computer; not proof of balance)**
+- The 20 test matches: red won 11, blue 9; the first seat won 11, the second 9; games averaged 21 turns (15–36).
+- The final reviewer's extra 200 matches: red won about 56%, the first seat about 51.5%, and games averaged about 21 turns (maximum 38).
+- Twelve expansion cards aren't in either design deck, so normal matches never play them. The reviewer's 400 matches with every card ×2 finished cleanly.
+- The computer now casts Reopened Connection to save a threatened unit: 54 times in 400 matches, but 0 times in the 20 test seeds.
+
+**Computer opponent (before release)**
+- Trigger targets fall back to `defaultChoice` (lowest uid): Lockdown Coordinator locks an arbitrary opposing unit, and Restoration Lead returns an arbitrary card. Choose by threat or value, as the spec's "combat value of lockdown" asks.
+- It spends every Backdoor on the +2/+0 boost in Main I, so Backdoors never build up for Burn the Channel, Staged Loader or Coordinated Intrusion Lead.
+- It overclocks only when the plain cast has no useful plan. Overclocks that add an effect (Break the Chain's archiving) are therefore never used.
+- `aiAbility` assumes every activated-ability target is a friendly buff, which is true for every current card. It may also respond to an opposing bounce with Reopened Connection: no save, but still a card drawn.
+
+**Plan 4 (multiplayer)**
+- Timeouts must use `defaultChoice` (don't pay, decline), never `aiChoice` (which pays and retires).
+- `flip` must swap players inside `pending.frame` (frame and entry `p`, targets), `waiting[].p`, and `pending.actor`/`data`.
+- Probe options are deck uids and must be redacted for the other player.
+- `protocol.mjs` `LESSONS` now includes the expansion cards, whose `lesson` is undefined. Decide how their events are validated.
+- After `fromJSON`, `toJSON` key order can differ (for example `pending` comes last). Digests must use canonical key order.
+- A soft-counter payment choice belongs to the non-active player: the clock follows `actor()`.
+
+**Plan 5 (interface)**
+- With only an Overclock-reachable target, `legal()` reports castable, but `play()` without Overclock fails with a generic message. Steer the player to Overclock without choosing it silently.
+- `canAct` doesn't count activatable token abilities. They're main-phase only, so it matters only if main phases are ever auto-passed.
+
+**Test gaps (no known defects)**
+- Rules edge cases the final reviewer confirmed by hand but that no committed test covers:
+  - Break the Chain whose permanent becomes an illegal target while its archive target stays legal.
+  - Redundant Handler archived before its trigger resolves, and returning with a new uid.
+- Card-test coverage points from the task reviews:
+  - Signal Spoof and Verify Provenance paid/unpaid paths.
+  - Behavioral Monitor's once-per-turn limit.
+  - Continuous Validation's first-cast negative case.
+  - Lockdown and Emergency Segmentation across the untap step.
+  - Live Response wrong-side rejections.
+  - The `aiChoice` pay/optional branches.
+- `Game.recover` silently treats an unknown zone as hand. Make it throw.
