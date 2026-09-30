@@ -15,6 +15,7 @@ import {
   viewFor,
 } from './protocol.mjs';
 import {freshClock, runningClock} from './match.mjs';
+import {DEFAULT_POOL, POOLS} from './cards.mjs';
 
 const PARTS = {
   you: 'Your cards or capacity',
@@ -55,6 +56,7 @@ export async function audit({
   hostSecret,
   guestSecret,
   hostFaction,
+  pool = DEFAULT_POOL,
   log: received = [],
   bottoms = null,
   digests = [],
@@ -68,6 +70,8 @@ export async function audit({
     return tampered(1, 'The revealed seed does not match the one your opponent committed to.');
   if (!guestSecret || !digests[0] || !digests[received.length])
     return unverified('Your saved record of this match is incomplete.');
+  if (typeof pool !== 'string' || !Object.hasOwn(POOLS, pool))
+    return unverified('This match used cards this version of the game doesn’t have.');
   const log = restoreBottoms(received, bottoms);
   if (!log)
     return tampered(1, 'The revealed opening-hand choices do not match what your opponent did during the match.');
@@ -79,7 +83,7 @@ export async function audit({
     }
   }
 
-  const game = versusGame(await seedHex(hostSecret, guestSecret), hostFaction);
+  const game = versusGame(await seedHex(hostSecret, guestSecret), hostFaction, pool);
   const compare = async (i, turn) => {
     const want = digests[i];
     if (!want) return null; // Not seen live (e.g. while reconnecting); later views still cover this state.

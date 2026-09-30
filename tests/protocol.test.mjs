@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Game} from '../public/engine.mjs';
-import {CARDS, BY_ID} from '../public/cards.mjs';
+import {CARDS, BY_ID, POOLS} from '../public/cards.mjs';
 import {
   viewFor,
   flip,
@@ -343,4 +343,29 @@ test('host keep entries are redacted to a count and restored from the revealed b
   assert.equal(restoreBottoms(sent, {2: ['5']}), null);
   assert.equal(restoreBottoms(sent, null), null);
   assert.equal(redactEntry(null), null);
+});
+
+const mirror = t => {
+  POOLS.mirror = {name: 'Mirror', sets: ['first-breach'], deck: f => [...POOLS['first-breach'].deck(f)].reverse()};
+  t.after(() => delete POOLS.mirror);
+};
+
+test('a First Breach view has no pool key, so its digests are unchanged', () => {
+  const view = viewFor(versusGame(SEED, 'blue'), 1);
+  assert.equal(Object.hasOwn(view, 'pool'), false);
+  assert.doesNotThrow(() => sanitizeView(view));
+  assert.throws(() => sanitizeView({...view, pool: 'first-breach'}), /Invalid view: pool/);
+});
+
+test('an expansion view carries its pool, and an unknown pool is rejected', t => {
+  mirror(t);
+  const g = versusGame(SEED, 'blue', 'mirror');
+  assert.equal(g.pool, 'mirror');
+  const view = viewFor(g, 1);
+  assert.equal(view.pool, 'mirror');
+  assert.doesNotThrow(() => sanitizeView(view));
+  assert.equal(Game.fromJSON(view).pool, 'mirror');
+  assert.throws(() => sanitizeView({...view, pool: 'nope'}), /Invalid view: pool/);
+  assert.throws(() => sanitizeView({...view, pool: '__proto__'}), /Invalid/);
+  assert.throws(() => sanitizeView({...view, pool: 7}), /Invalid view: pool/);
 });

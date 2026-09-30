@@ -25,8 +25,8 @@ export function runningClock(c, game, fresh) {
 
 // Host-side referee: every change to a versus match, from either player, goes through here.
 export class Match {
-  static async create({hostFaction, hostSecret, guestSecret, seedCommit}, options) {
-    const game = versusGame(await seedHex(hostSecret, guestSecret), hostFaction);
+  static async create({hostFaction, hostSecret, guestSecret, seedCommit, pool}, options) {
+    const game = versusGame(await seedHex(hostSecret, guestSecret), hostFaction, pool);
     return new Match({hostFaction, hostSecret, guestSecret, seedCommit, game: game.toJSON()}, options);
   }
   static fromJSON(json, options) {

@@ -7,17 +7,18 @@ import {digest, randomHex, sha256Hex, timeoutAction, unflipAction, viewFor} from
 import {OPENING_MS, TURN_MS} from '../public/match.mjs';
 import {choose} from './helpers/policy.mjs';
 import {fakeTime} from './helpers/versus.mjs';
+import {POOLS} from '../public/cards.mjs';
 
 // Plays a full match the way the guest would record it, including when each entry arrived by the match's fake
 // clock. `tamper` simulates a cheating host, or lets time pass.
 // Fixed secrets per seed, so every run plays the same games.
 const secret = (seed, who) => (seed * 2 + who).toString(16).padStart(32, '0');
-async function record(tamper = () => {}, seed = 1) {
+async function record(tamper = () => {}, seed = 1, pool = undefined) {
   const hostSecret = secret(seed, 0),
     guestSecret = secret(seed, 1);
   const time = fakeTime();
   const m = await Match.create(
-    {hostFaction: 'blue', hostSecret, guestSecret, seedCommit: await sha256Hex(hostSecret)},
+    {hostFaction: 'blue', hostSecret, guestSecret, seedCommit: await sha256Hex(hostSecret), pool},
     time,
   );
   const views = [],
@@ -52,6 +53,7 @@ async function record(tamper = () => {}, seed = 1) {
     sent,
     digests: await Promise.all(views.map(digest)),
     timing,
+    ...(pool ? {pool} : {}),
   };
 }
 
@@ -212,4 +214,21 @@ test('the commitment is checked before completeness', async () => {
   const r = await audit({...rec, hostSecret: randomHex(), digests: rec.digests.slice(0, 5)});
   assert.equal(r.result, 'tampered');
   assert.match(r.reason, /committed/);
+});
+
+test('an expansion match verifies with its pool and is caught if audited with another', async t => {
+  POOLS.mirror = {name: 'Mirror', sets: ['first-breach'], deck: f => [...POOLS['first-breach'].deck(f)].reverse()};
+  t.after(() => delete POOLS.mirror);
+  const rec = await record(undefined, 1, 'mirror');
+  assert.equal(rec.pool, 'mirror');
+  assert.deepEqual(await audit(rec), {result: 'verified'});
+  const {pool, ...withoutPool} = rec;
+  assert.equal((await audit(withoutPool)).result, 'tampered');
+});
+
+test('a record from before card pools audits as First Breach; an unknown pool is unverified', async () => {
+  const rec = await record();
+  assert.equal(Object.hasOwn(rec, 'pool'), false);
+  assert.deepEqual(await audit(rec), {result: 'verified'});
+  assert.equal((await audit({...rec, pool: 'nope'})).result, 'unverified');
 });
