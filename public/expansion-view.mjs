@@ -7,6 +7,23 @@ import {card} from './card-view.mjs';
 import {abilityWays, castWays, ready, readyIssue, targetLabel} from './prepare.mjs';
 import {cardName, choiceCards, choiceIssue, choiceReady} from './choices.mjs';
 
+// A card offered in a choice: art, cost, type and rules text beside its label, so the player can judge the card
+// without opening it. Anything that is not a known card keeps its plain label.
+function brief(game, id, label, uid = null) {
+  const d = BY_ID[id];
+  if (!d) return esc(label);
+  const f = uid != null ? game.find?.(uid) : null,
+    stats = f?.zone === 'field' && d.type === 'Unit' ? game.stats(f.card, f.p) : d;
+  const cost = d.type === 'Infrastructure' ? '◇' : d.cost;
+  const type = [d.type, d.token && 'Token', d.subtype, d.type === 'Unit' && `${stats.power}/${stats.toughness}`]
+    .filter(Boolean)
+    .join(' · ');
+  return `<span class="choice-card"><span class="choice-art" aria-hidden="true" style="background-image:url('art/${d.art}.webp')"></span><span class="choice-info"><span class="choice-head"><span class="choice-name">${esc(label)}</span>${d.token ? '' : `<span class="choice-cost" title="${d.type === 'Infrastructure' ? 'Infrastructure' : `Costs ${cost} compute`}">${cost}</span>`}</span><span class="choice-type">${esc(type)}</span>${d.text ? `<span class="choice-text">${esc(d.text)}</span>` : ''}</span></span>`;
+}
+const pickLabel = (game, c) =>
+  c.kind === 'card' ? brief(game, game.find(c.uid)?.card.id, c.label, c.uid) : esc(c.label);
+const pickClass = c => (c.kind === 'card' ? ' class="choice-card-button"' : '');
+
 const who = (s, p) => (p === 0 ? 'You' : s.versus ? 'Opponent' : 'Computer');
 
 // Any stack entry. A First Breach spell renders exactly as it always has.
@@ -117,7 +134,7 @@ export function prepDialog(s, prep) {
                 ? sel.candidates
                     .map(
                       (c, i) =>
-                        `<button data-pick="${esc(sel.key)}:${i}" aria-pressed="${(prep.picks[sel.key] ?? []).includes(i)}">${esc(c.label)}</button>`,
+                        `<button${pickClass(c)} data-pick="${esc(sel.key)}:${i}" aria-pressed="${(prep.picks[sel.key] ?? []).includes(i)}">${pickLabel(game, c)}</button>`,
                     )
                     .join('')
                 : '<p class="muted">Nothing to choose.</p>'
@@ -150,10 +167,11 @@ export function choiceDialog(s, st) {
     const kept = st.order.filter(u => !st.discard.includes(u));
     body = `<p class="muted">Top of your deck first. Kept cards go back in this order.</p><ol class="choice-list">${st.order
       .map(u => {
-        const name = cardName(cards.find(x => x.uid === u)?.id),
+        const id = cards.find(x => x.uid === u)?.id,
+          name = cardName(id),
           out = st.discard.includes(u),
           k = kept.indexOf(u);
-        return `<li class="${out ? 'to-discard' : ''}"><span>${esc(name)}${out ? ' <small>(to discard)</small>' : ''}</span><button data-choice-toggle="${u}" aria-pressed="${out}">Move to discard</button>${out ? '' : move(u, name, k === 0, k === kept.length - 1)}</li>`;
+        return `<li class="${out ? 'to-discard' : ''}"><span>${brief(game, id, name)}${out ? ' <small>(to discard)</small>' : ''}</span><span class="choice-controls"><button data-choice-toggle="${u}" aria-pressed="${out}">Move to discard</button>${out ? '' : move(u, name, k === 0, k === kept.length - 1)}</span></li>`;
       })
       .join('')}</ol>`;
   } else if (c.kind === 'discard') {
@@ -163,7 +181,7 @@ export function choiceDialog(s, st) {
           picked = st.picks.discard ?? [],
           on = picked.includes(u),
           full = !on && picked.length >= c.min;
-        return `<button data-choice-toggle="${u}" aria-pressed="${on}"${full ? ' disabled' : ''}>${esc(cardName(f?.card.id))}</button>`;
+        return `<button class="choice-card-button" data-choice-toggle="${u}" aria-pressed="${on}"${full ? ' disabled' : ''}>${brief(game, f?.card.id, cardName(f?.card.id), u)}</button>`;
       })
       .join('')}</div><p class="muted">Selected ${(st.picks.discard ?? []).length} of ${esc(String(c.min))}.</p>`;
   } else if (c.kind === 'pay') {
@@ -175,7 +193,7 @@ export function choiceDialog(s, st) {
       .map(u =>
         u === null
           ? '<button data-optional="">Don’t retire</button>'
-          : `<button class="primary" data-optional="${u}">Retire ${esc(cardName(game.find(u)?.card.id))}</button>`,
+          : `<button class="primary choice-card-button" data-optional="${u}">${brief(game, game.find(u)?.card.id, `Retire ${cardName(game.find(u)?.card.id)}`, u)}</button>`,
       )
       .join('')}</div>`;
   } else if (c.kind === 'order') {
@@ -193,7 +211,7 @@ export function choiceDialog(s, st) {
           `<fieldset class="prep-selector"><legend>${o.upTo ? `Choose up to ${o.upTo}` : 'Choose a target'}</legend>${o.candidates
             .map(
               (t, i) =>
-                `<button data-choice-pick="${esc(o.key)}:${i}" aria-pressed="${(st.picks[o.key] ?? []).includes(i)}">${esc(targetLabel(game, t))}</button>`,
+                `<button${pickClass(t)} data-choice-pick="${esc(o.key)}:${i}" aria-pressed="${(st.picks[o.key] ?? []).includes(i)}">${pickLabel(game, {...t, label: targetLabel(game, t)})}</button>`,
             )
             .join('')}</fieldset>`,
       )
