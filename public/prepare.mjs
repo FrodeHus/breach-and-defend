@@ -1,0 +1,152 @@
+// public/prepare.mjs
+// How a player can cast a card or activate an ability right now, as data the interface renders: each way with its
+// total cost, what blocks it, and the choices (targets and cost cards) it needs. Nothing here changes the game.
+import {BY_ID} from './cards.mjs';
+import {archiveOptions, candidates, checkTargets, isRule, retireOptions, spellRule} from './rules.mjs';
+
+// A candidate's name, whose it is and where (from the viewer's seat, 0), as the First Breach target dialog shows it.
+export function targetLabel(game, t) {
+  const name = game.targetName(t);
+  if (t.kind === 'spell') return `${name} · On the stack`;
+  const f = t.kind === 'card' ? game.find(t.uid) : null;
+  if (!f) return name;
+  return `${name} · ${f.p === 0 ? 'Yours' : 'Opponent’s'} · ${f.zone === 'grave' ? 'Discard' : BY_ID[f.card.id].type}`;
+}
+// A cost card's name and visible state, so a tapped or damaged one can be told from a fresh one.
+const costLabel = c =>
+  [BY_ID[c.id].name, c.tapped && 'tapped', c.damage && `${c.damage} damage`, c.locked && 'skips next untap']
+    .filter(Boolean)
+    .join(' · ');
+const targetSelector = (game, p, spec) => ({
+  key: spec.key,
+  kind: 'target',
+  label: spec.upTo ? `Choose up to ${spec.upTo}` : spec.optional ? 'Choose a target (optional)' : 'Choose a target',
+  min: spec.upTo || spec.optional ? 0 : 1,
+  max: spec.upTo || 1,
+  many: !!spec.upTo,
+  candidates: candidates(game, p, spec).map(t => ({...t, label: targetLabel(game, t)})),
+});
+const cardSelector = (game, kind, cards) => ({
+  key: kind,
+  kind,
+  label: kind === 'retire' ? 'Retire as a cost' : 'Archive as a cost',
+  min: 1,
+  max: 1,
+  many: false,
+  candidates: cards.map(c => ({kind: 'card', uid: c.uid, label: costLabel(c)})),
+});
+// A way the player can't complete says why, even when the engine would only object once targets are chosen.
+function explain(way) {
+  if (!way.issues.some(i => i.code === 'target') && way.selectors.some(s => s.min > 0 && !s.candidates.length))
+    way.issues.push({code: 'target', message: 'There is no legal choice for this way.'});
+  return way;
+}
+
+export function castWays(game, p, c, zone = 'hand') {
+  const d = BY_ID[c.id];
+  if (!isRule(d)) return [];
+  const reuse = zone === 'grave';
+  const modes = d.modes ? d.modes.map((m, i) => [i, m.label]) : [[null, null]];
+  const ways = [];
+  for (const [mode, modeLabel] of modes)
+    for (const overclock of d.overclock ? [false, true] : [false]) {
+      const options = {
+        ...(mode != null ? {mode} : {}),
+        ...(overclock ? {overclock: true} : {}),
+        ...(reuse ? {reuse: true} : {}),
+      };
+      const rule = spellRule(d, {mode, overclock});
+      const specs = rule.targets;
+      const selectors = specs.map(spec => targetSelector(game, p, spec));
+      if (d.extraCost?.retire) selectors.push(cardSelector(game, 'retire', retireOptions(game, p, d.extraCost.retire)));
+      ways.push(
+        explain({
+          key: `${mode ?? 'base'}-${overclock ? 'overclock' : 'standard'}${reuse ? '-reuse' : ''}`,
+          label:
+            [modeLabel, d.overclock ? (overclock ? 'Overclocked' : 'Standard') : null, reuse ? 'Reuse' : null]
+              .filter(Boolean)
+              .join(' · ') || 'Cast',
+          options,
+          totalCost: game.costOf(d, options),
+          issues: game.playIssues(p, c, options),
+          selectors,
+          p,
+          specs,
+        }),
+      );
+    }
+  return ways;
+}
+
+export function abilityWays(game, p, c) {
+  const d = BY_ID[c.id];
+  return (d.abilities ?? [])
+    .filter(a => a.kind === 'activated')
+    .map(a => {
+      const cost = a.cost ?? {};
+      const specs = a.targets ?? [];
+      const selectors = specs.map(spec => targetSelector(game, p, spec));
+      if (cost.retire && cost.retire !== 'self')
+        selectors.push(cardSelector(game, 'retire', retireOptions(game, p, cost.retire, c.uid)));
+      if (cost.archive) selectors.push(cardSelector(game, 'archive', archiveOptions(game, p, cost.archive)));
+      return explain({
+        key: a.id,
+        abilityId: a.id,
+        label: a.label,
+        options: {},
+        totalCost: cost.compute ?? 0,
+        issues: game.activationIssues(p, c.uid, a.id),
+        selectors,
+        p,
+        specs,
+        selfRetire: cost.retire === 'self' ? c.uid : null,
+      });
+    });
+}
+
+// Picks are candidate indexes per selector. A single-choice selector replaces its pick; a multi one toggles within max.
+export function togglePick(way, picks, key, index) {
+  const sel = way.selectors.find(s => s.key === key);
+  if (!sel || !sel.candidates[index]) return picks;
+  const now = picks[key] ?? [];
+  const next = now.includes(index)
+    ? now.filter(i => i !== index)
+    : sel.max === 1
+      ? [index]
+      : now.length < sel.max
+        ? [...now, index]
+        : now;
+  return {...picks, [key]: next};
+}
+const counted = (way, picks) =>
+  !way.issues.length &&
+  way.selectors.every(s => (picks[s.key] ?? []).length >= s.min && (picks[s.key] ?? []).length <= s.max);
+// Why a complete selection is still refused: the engine's own target check, or a cost card that is also a target.
+export function readyIssue(way, picks, game) {
+  if (!game || !counted(way, picks)) return null;
+  const {targets, costUids} = toOptions(way, picks);
+  const problem = checkTargets(game, way.p, way.specs, targets);
+  if (problem) return problem;
+  const targeted = Object.values(targets)
+    .flat()
+    .map(t => t.uid);
+  return costUids.some(u => targeted.includes(u)) || (way.selfRetire != null && targeted.includes(way.selfRetire))
+    ? 'A card can’t be both a cost and a target.'
+    : null;
+}
+// Counts always; with the game it also runs the engine's own target check and refuses a cost card that is a target.
+export function ready(way, picks, game) {
+  return counted(way, picks) && !readyIssue(way, picks, game);
+}
+export function toOptions(way, picks) {
+  const targets = {},
+    costUids = [];
+  for (const s of way.selectors) {
+    const chosen = (picks[s.key] ?? []).map(i => s.candidates[i]).map(({kind, uid}) => ({kind, uid}));
+    if (s.kind === 'target') {
+      if (s.many) targets[s.key] = chosen;
+      else if (chosen.length) targets[s.key] = chosen[0];
+    } else costUids.push(...chosen.map(t => t.uid));
+  }
+  return {...way.options, targets, costUids};
+}

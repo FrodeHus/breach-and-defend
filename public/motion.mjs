@@ -50,7 +50,7 @@ export function snapshot(game) {
   game.players.forEach((p, owner) =>
     ['hand', 'field', 'grave'].forEach(zone => p[zone].forEach(c => cards.set(c.uid, {zone, owner}))),
   );
-  game.stack.forEach(s => cards.set(s.card.uid, {zone: 'stack', owner: s.p}));
+  game.stack.forEach(s => s.card && cards.set(s.card.uid, {zone: 'stack', owner: s.p}));
   const visual = new Map(nodes().map(el => [Number(el.dataset.motionUid), {el, r: rect(el)}]));
   return {
     cards,

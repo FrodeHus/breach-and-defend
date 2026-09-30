@@ -768,3 +768,176 @@
     position: relative;
   }
 }
+/* Expansion cards on the table: token groups, ready abilities, card-dialog actions and the archive pile. */
+.token-group {
+  display: inline-flex;
+  align-items: stretch;
+  position: relative;
+  flex: 0 0 auto;
+}
+/* Identical tokens fan as a small offset stack. The first tile stays in flow and sizes the group; each later tile sits on
+   top, 12px further right (capped at the fourth), and the group's padding reserves that offset so the ×N badge lands
+   on the top tile's corner and neighbours are never covered. Child 1 is the badge, so tiles start at child 2. The
+   .card.tile pair outranks battlefield-tile.css's position: relative. */
+.token-group > .card.tile + .card.tile {
+  position: absolute;
+  top: 0;
+  left: 12px;
+}
+.token-group > .card.tile:nth-child(4) {
+  left: 24px;
+}
+.token-group > .card.tile:nth-child(n + 5) {
+  left: 36px;
+}
+.token-group:has(> .card:nth-child(3)) {
+  padding-right: 12px;
+}
+.token-group:has(> .card:nth-child(4)) {
+  padding-right: 24px;
+}
+.token-group:has(> .card:nth-child(5)) {
+  padding-right: 36px;
+}
+.token-group > .card:hover,
+.token-group > .card:focus-visible {
+  z-index: 2;
+}
+.token-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 3;
+  padding: 1px 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--bg);
+  background: var(--gold);
+  border-radius: 9px;
+}
+.tile-ready {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 2;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--bg);
+  background: var(--gold);
+  border-radius: 50%;
+}
+.card.tile.can-activate {
+  box-shadow: 0 0 0 2px var(--gold);
+}
+/* The ready badge spans 4px–24px from the left; keep the name clear of it. */
+.card.tile.can-activate .tile-name {
+  padding-left: 28px;
+}
+.card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+.action-reason {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+.archive-pile {
+  color: var(--gold);
+  border-style: dashed;
+}
+/* Preparing a cast or activation: wrapping grids of ways and choices; the pressed one is marked by border and ✓. */
+.prep-ways,
+.prep-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.prep-selector {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+}
+.prep-selector legend {
+  color: var(--muted);
+  padding: 0 4px;
+}
+.prep-way {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 100%;
+}
+.prep-way button:disabled {
+  opacity: 0.55;
+}
+#modalBody [aria-pressed='true'] {
+  border: 2px solid var(--gold);
+}
+#modalBody [aria-pressed='true']::before {
+  content: '✓ ';
+}
+/* Answering a pending choice: one row per card or ability, its name then its controls, wrapping on a phone. */
+/* Rows are flex, which hides list markers, so the numbers come from a counter. A card set aside for discard isn't
+   counted: the numbers are the order the kept cards go back in. */
+.choice-list {
+  list-style: none;
+  counter-reset: choice;
+  margin: 12px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.choice-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.choice-list li:not(.to-discard) {
+  counter-increment: choice;
+}
+.choice-list li:not(.to-discard)::before {
+  content: counter(choice) '.';
+  min-width: 1.5em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.choice-list li > span {
+  flex: 1 1 10rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* A card set aside for discard is struck through and labelled, not only dimmed. */
+.choice-list li.to-discard {
+  border-style: dashed;
+}
+.choice-list li.to-discard > span {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+/* The ↑/↓ pair never splits across lines. */
+.choice-move {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+.choice-list li.to-discard small {
+  display: inline-block;
+  text-decoration: none;
+}
+.choice-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}

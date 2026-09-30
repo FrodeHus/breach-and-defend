@@ -18,6 +18,10 @@ import {guide} from './guide.mjs';
 import {library, libraryGrid} from './library.mjs';
 import {card, hoverCard, label} from './card-view.mjs';
 import * as arena from './arena-view.mjs';
+import * as expansion from './expansion-view.mjs';
+import {abilityWays, castWays, ready, toOptions, togglePick} from './prepare.mjs';
+import {isRule} from './rules.mjs';
+import {choiceSelection, moveChoice, pickChoiceTarget, startChoice, toggleChoice} from './choices.mjs';
 
 // Watchdogs: a stalled animation or an unanswered versus intent must never leave the board locked.
 const ANIMATION_MS = 6000,
@@ -51,6 +55,24 @@ let filter = {q: '', faction: 'all', type: 'all', set: 'all'};
 let versus = null,
   remoteQueue = [],
   versusShown = '';
+// A cast or activation being prepared in the dialog: nothing is spent until it is confirmed.
+let prep = null;
+// The pending choice being answered in the dialog (kept while it is closed, so reopening keeps the selection),
+// whether its dialog is the one showing, and the id of the last choice whose dialog the player closed.
+let choice = null,
+  choiceShown = false,
+  choiceClosed = null;
+// Closing the choice dialog, however it closes, keeps it closed until the player asks for it again.
+function closeChoice() {
+  if (choiceShown && choice) choiceClosed = choice.id;
+  choiceShown = false;
+}
+// A new match starts with no choice in progress (choice ids restart with the card uids).
+function forgetChoice() {
+  choice = null;
+  choiceShown = false;
+  choiceClosed = null;
+}
 // The state the views read. They never change it.
 const ui = () => ({
   game,
@@ -134,11 +156,24 @@ function toast(s) {
 }
 
 function close() {
+  prep = null;
+  closeChoice();
   modal.close();
   schedule();
 }
 $('.close').onclick = close;
-modal.addEventListener('cancel', () => setTimeout(schedule, 0));
+modal.addEventListener('cancel', () => {
+  prep = null;
+  closeChoice();
+  setTimeout(schedule, 0);
+});
+// Any other way the modal closes (a new game, a versus prompt) also abandons a preparation. Closing a choice
+// dialog (×, Escape, the backdrop) lets the player look at the board: it stays closed until "Make your choice".
+modal.addEventListener('close', () => {
+  prep = null;
+  // The close event is queued: if a dialog has already opened again, it belongs to that one.
+  if (!modal.open) closeChoice();
+});
 modal.addEventListener('click', e => {
   if (e.target === modal) close();
 });
@@ -146,6 +181,7 @@ function dialog(html) {
   cardDrag.cancel();
   cardPreview.dismiss(true);
   clearTimeout(timer);
+  choiceShown = false;
   $('#modalBody').innerHTML = html;
   if (!modal.open) modal.showModal();
   decorateTutorialDialog();
@@ -235,10 +271,23 @@ function showCard(id, uid = null, zone = '') {
   const c = uid ? game?.find(uid)?.card : null;
   dialog(arena.cardDialog(ui(), id, c, zone));
   if ($('#cast')) $('#cast').onclick = () => chooseTarget(uid);
+  document.querySelectorAll('#modalBody [data-ability]').forEach(
+    b =>
+      (b.onclick = () => {
+        const c = game.players[0].field.find(x => x.uid === uid);
+        const way = c && abilityWays(game, 0, c).find(w => w.abilityId === b.dataset.ability);
+        if (way) prepare({kind: 'activate', uid, zone: 'field', ways: [way]});
+      }),
+  );
+  if ($('#reuse')) $('#reuse').onclick = () => chooseTarget(uid, 'grave');
 }
-function chooseTarget(uid) {
-  const c = game.players[0].hand.find(c => c.uid === uid);
+function chooseTarget(uid, zone = 'hand') {
+  const c = game.players[0][zone === 'grave' ? 'grave' : 'hand'].find(c => c.uid === uid);
   if (!c) return;
+  if (isRule(BY_ID[c.id])) {
+    prepare({kind: 'cast', uid, zone, ways: castWays(game, 0, c, zone)});
+    return;
+  }
   const d = BY_ID[c.id],
     ts = game.targets(0, c);
   if (!d.target || d.target === 'opponent') {
@@ -255,6 +304,101 @@ function chooseTarget(uid) {
       }),
   );
 }
+// Preparing a cast or activation: pick a way, then targets and cost cards. Cancelling spends nothing.
+function prepare(p) {
+  // An activation has exactly one way: show it even when it cannot be used, so its reason is visible.
+  const usable = p.ways.map((w, i) => (w.issues.length ? -1 : i)).filter(i => i >= 0);
+  prep = {...p, way: p.kind === 'activate' ? 0 : usable.length === 1 ? usable[0] : null, picks: {}};
+  showPrep();
+}
+// Re-rendering replaces the controls, so focus returns to the one just pressed, else Confirm, else the first choice.
+function showPrep(keep = '') {
+  dialog(expansion.prepDialog(ui(), prep));
+  (
+    (keep ? $(`#modalBody ${keep}:not([disabled])`) : null) ??
+    $('#prepConfirm:not([disabled])') ??
+    $('#modalBody button:not([disabled])')
+  )?.focus();
+}
+function confirmPrep() {
+  const way = prep?.ways[prep.way];
+  if (!way || !ready(way, prep.picks, game)) return;
+  const {kind, uid} = prep,
+    options = toOptions(way, prep.picks);
+  prep = null;
+  modal.close();
+  action(() => (kind === 'cast' ? game.play(0, uid, null, options) : game.activate(0, uid, way.abilityId, options)));
+}
+// A pending choice opens by itself once; closing it to look at the board is fine, and "Make your choice" reopens it.
+// Re-rendering replaces the controls, so focus returns to the first of `keep` that is still enabled, else Confirm,
+// else the first control.
+function openChoice(...keep) {
+  if (!game?.pending || game.pending.actor !== 0) return;
+  if (choice?.id !== game.pending.id) choice = startChoice(game.pending);
+  dialog(expansion.choiceDialog(ui(), choice));
+  choiceShown = true;
+  (
+    keep.map(k => $(`#modalBody ${k}:not([disabled])`)).find(Boolean) ??
+    $('#choiceConfirm:not([disabled])') ??
+    $('#modalBody button:not([disabled])')
+  )?.focus();
+}
+// A choice dialog left open after its choice was answered elsewhere (the versus clock) closes itself.
+function dropStaleChoice() {
+  if (!choiceShown || (choice && game?.pending?.id === choice.id)) return;
+  choice = null;
+  choiceShown = false;
+  modal.close();
+}
+function submitChoice(selection) {
+  choice = null;
+  choiceShown = false;
+  modal.close();
+  action(() => game.choose(0, selection));
+}
+// One delegated listener for the choice and preparation controls: the modal body is replaced on every render.
+$('#modalBody').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b || b.disabled) return;
+  if (choiceShown && choice && game?.pending?.id === choice.id) {
+    const ds = b.dataset,
+      at = (attr, v) => `[${attr}="${CSS.escape(v)}"]`;
+    if (ds.pay) return submitChoice({pay: ds.pay === 'yes'});
+    if (ds.optional !== undefined) return submitChoice({uid: ds.optional === '' ? null : Number(ds.optional)});
+    if (ds.choiceToggle) {
+      choice = toggleChoice(game, choice, Number(ds.choiceToggle));
+      return openChoice(at('data-choice-toggle', ds.choiceToggle));
+    }
+    // At an end the pressed arrow disables itself: focus the other arrow of the same card.
+    if (ds.choiceUp) {
+      choice = moveChoice(choice, Number(ds.choiceUp), -1);
+      return openChoice(at('data-choice-up', ds.choiceUp), at('data-choice-down', ds.choiceUp));
+    }
+    if (ds.choiceDown) {
+      choice = moveChoice(choice, Number(ds.choiceDown), 1);
+      return openChoice(at('data-choice-down', ds.choiceDown), at('data-choice-up', ds.choiceDown));
+    }
+    if (ds.choicePick) {
+      const cut = ds.choicePick.lastIndexOf(':');
+      choice = pickChoiceTarget(game, choice, ds.choicePick.slice(0, cut), Number(ds.choicePick.slice(cut + 1)));
+      return openChoice(at('data-choice-pick', ds.choicePick));
+    }
+    if (b.id === 'choiceConfirm') return submitChoice(choiceSelection(game, choice));
+    return;
+  }
+  if (!prep) return;
+  if (b.dataset.way !== undefined) {
+    prep = {...prep, way: Number(b.dataset.way), picks: {}};
+    return showPrep(`[data-way="${b.dataset.way}"]`);
+  }
+  if (b.dataset.pick !== undefined) {
+    const [key, i] = b.dataset.pick.split(':');
+    prep = {...prep, picks: togglePick(prep.ways[prep.way], prep.picks, key, Number(i))};
+    return showPrep(`[data-pick="${b.dataset.pick}"]`);
+  }
+  if (b.id === 'prepConfirm') return confirmPrep();
+  if (b.id === 'prepCancel') return close();
+});
 function recap() {
   dialog(arena.recapView(ui()));
   if ($('#rematch')) $('#rematch').onclick = () => start(game.players[0].faction);
@@ -301,6 +445,7 @@ function start(f, optIn = false) {
   const pool = playablePool(poolChoice, {guided: optIn});
   store.set('pref:pool', poolChoice); // Rewritten on each start, so the weekly storage prune keeps it.
   game = new Game(f, undefined, {pool});
+  forgetChoice();
   view = 'arena';
   selected.clear();
   blocks = {};
@@ -409,6 +554,7 @@ function render() {
 }
 
 function advance() {
+  if (game?.pending?.actor === 0) return openChoice();
   action(() => {
     if (game.phase === 'attack') return game.attackers(0, [...selected]);
     if (game.phase === 'block') return game.blockers(0, blocks);
@@ -466,6 +612,7 @@ const DATA_BUTTONS = {
   },
   invite: f => hostMatch(f),
   grave: p => dialog(arena.graveDialog(ui(), Number(p))),
+  archive: p => dialog(expansion.archiveDialog(ui(), Number(p))),
 };
 app.addEventListener('click', e => {
   const button = e.target.closest('button');
@@ -526,6 +673,7 @@ document.addEventListener('click', e => {
     uid = Number(el.dataset.uid),
     zone = el.dataset.zone;
   inspect = id;
+  if (modal.open && uid && zone === 'grave') return showCard(id, uid, 'grave');
   if (view === 'library' || !uid || modal.open) {
     showCard(id);
     return;
@@ -654,6 +802,7 @@ function bindVersus(s) {
   blocker = null;
   remoteQueue = [];
   if (s.seat.game) game = s.seat.game;
+  forgetChoice();
   s.seat.onUpdate = remoteUpdate;
   s.onStatus = versusStatus;
   versusStatus();
@@ -702,6 +851,7 @@ function leaveVersus() {
 // Plays the computer's moves, and passes for you when you have nothing to respond with (unless paused).
 function schedule() {
   clearTimeout(timer);
+  dropStaleChoice();
   if (versus && versus.status !== 'playing') return;
   if (
     animating ||
@@ -714,6 +864,11 @@ function schedule() {
   )
     return;
   if (guidance.shouldPause(game)) return;
+  // Auto-pass never runs while a choice is yours.
+  if (game.pending?.actor === 0) {
+    if (choiceClosed !== game.pending.id) openChoice();
+    return;
+  }
   if (game.actor() === 1) {
     if (!versus) timer = setTimeout(() => action(() => game.aiAction()), 450);
     return;
