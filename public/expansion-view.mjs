@@ -4,7 +4,7 @@
 import {esc} from './html.mjs';
 import {BY_ID} from './cards.mjs';
 import {card} from './card-view.mjs';
-import {abilityWays, castWays, ready} from './prepare.mjs';
+import {abilityWays, castWays, ready, readyIssue, targetLabel} from './prepare.mjs';
 import {cardName, choiceCards, choiceReady} from './choices.mjs';
 
 const who = (s, p) => (p === 0 ? 'You' : s.versus ? 'Opponent' : 'Computer');
@@ -124,8 +124,9 @@ export function prepDialog(s, prep) {
       ? `${esc(way.label)} — ${costText(way, ability)}`
       : `${prep.zone === 'grave' ? 'Reuse' : 'Cast'} ${esc(d.name ?? '')}`;
   const canConfirm = way && ready(way, prep.picks, game);
+  const issue = way ? readyIssue(way, prep.picks, game) : null;
   const eyebrow = prep.kind === 'activate' ? 'ACTIVATE' : prep.zone === 'grave' ? 'REUSE FROM DISCARD' : 'CAST';
-  return `<div class="eyebrow">${eyebrow} / ${esc((d.name ?? '').toUpperCase())}</div><h2>${title}</h2><p class="muted">${esc(d.text ?? '')}</p>${ways}${way?.issues.length && prep.kind === 'activate' ? reason('reason-prep', way.issues) : ''}${selectors}<div class="toolbar"><button class="primary" id="prepConfirm" ${canConfirm ? '' : 'disabled'}>Confirm${way ? ` · ${way.totalCost} compute` : ''}</button><button id="prepCancel">Cancel</button></div>`;
+  return `<div class="eyebrow">${eyebrow} / ${esc((d.name ?? '').toUpperCase())}</div><h2>${title}</h2><p class="muted">${esc(d.text ?? '')}</p>${ways}${way?.issues.length && prep.kind === 'activate' ? reason('reason-prep', way.issues) : ''}${selectors}${issue ? `<p class="action-reason" id="prep-issue" role="status">${esc(issue)}</p>` : ''}<div class="toolbar"><button class="primary" id="prepConfirm"${issue ? ' aria-describedby="prep-issue"' : ''} ${canConfirm ? '' : 'disabled'}>Confirm${way ? ` · ${way.totalCost} compute` : ''}</button><button id="prepCancel">Cancel</button></div>`;
 }
 
 // The ↑/↓ pair stays together when a row wraps.
@@ -186,7 +187,7 @@ export function choiceDialog(s, st) {
           `<fieldset class="prep-selector"><legend>${o.upTo ? `Choose up to ${o.upTo}` : 'Choose a target'}</legend>${o.candidates
             .map(
               (t, i) =>
-                `<button data-choice-pick="${esc(o.key)}:${i}" aria-pressed="${(st.picks[o.key] ?? []).includes(i)}">${esc(game.targetName(t))}</button>`,
+                `<button data-choice-pick="${esc(o.key)}:${i}" aria-pressed="${(st.picks[o.key] ?? []).includes(i)}">${esc(targetLabel(game, t))}</button>`,
             )
             .join('')}</fieldset>`,
       )

@@ -4,6 +4,19 @@
 import {BY_ID} from './cards.mjs';
 import {archiveOptions, candidates, checkTargets, isRule, retireOptions, spellRule} from './rules.mjs';
 
+// A candidate's name, whose it is and where (from the viewer's seat, 0), as the First Breach target dialog shows it.
+export function targetLabel(game, t) {
+  const name = game.targetName(t);
+  if (t.kind === 'spell') return `${name} · On the stack`;
+  const f = t.kind === 'card' ? game.find(t.uid) : null;
+  if (!f) return name;
+  return `${name} · ${f.p === 0 ? 'Yours' : 'Opponent’s'} · ${f.zone === 'grave' ? 'Discard' : BY_ID[f.card.id].type}`;
+}
+// A cost card's name and visible state, so a tapped or damaged one can be told from a fresh one.
+const costLabel = c =>
+  [BY_ID[c.id].name, c.tapped && 'tapped', c.damage && `${c.damage} damage`, c.locked && 'skips next untap']
+    .filter(Boolean)
+    .join(' · ');
 const targetSelector = (game, p, spec) => ({
   key: spec.key,
   kind: 'target',
@@ -11,7 +24,7 @@ const targetSelector = (game, p, spec) => ({
   min: spec.upTo || spec.optional ? 0 : 1,
   max: spec.upTo || 1,
   many: !!spec.upTo,
-  candidates: candidates(game, p, spec).map(t => ({...t, label: game.targetName(t)})),
+  candidates: candidates(game, p, spec).map(t => ({...t, label: targetLabel(game, t)})),
 });
 const cardSelector = (game, kind, cards) => ({
   key: kind,
@@ -20,7 +33,7 @@ const cardSelector = (game, kind, cards) => ({
   min: 1,
   max: 1,
   many: false,
-  candidates: cards.map(c => ({kind: 'card', uid: c.uid, label: BY_ID[c.id].name})),
+  candidates: cards.map(c => ({kind: 'card', uid: c.uid, label: costLabel(c)})),
 });
 // A way the player can't complete says why, even when the engine would only object once targets are chosen.
 function explain(way) {
@@ -105,18 +118,25 @@ export function togglePick(way, picks, key, index) {
         : now;
   return {...picks, [key]: next};
 }
-// Counts always; with the game it also runs the engine's own target check and refuses a cost card that is a target.
-export function ready(way, picks, game) {
-  const counts =
-    !way.issues.length &&
-    way.selectors.every(s => (picks[s.key] ?? []).length >= s.min && (picks[s.key] ?? []).length <= s.max);
-  if (!counts || !game) return counts;
+const counted = (way, picks) =>
+  !way.issues.length &&
+  way.selectors.every(s => (picks[s.key] ?? []).length >= s.min && (picks[s.key] ?? []).length <= s.max);
+// Why a complete selection is still refused: the engine's own target check, or a cost card that is also a target.
+export function readyIssue(way, picks, game) {
+  if (!game || !counted(way, picks)) return null;
   const {targets, costUids} = toOptions(way, picks);
-  if (checkTargets(game, way.p, way.specs, targets)) return false;
+  const problem = checkTargets(game, way.p, way.specs, targets);
+  if (problem) return problem;
   const targeted = Object.values(targets)
     .flat()
     .map(t => t.uid);
-  return !costUids.some(u => targeted.includes(u)) && !(way.selfRetire != null && targeted.includes(way.selfRetire));
+  return costUids.some(u => targeted.includes(u)) || (way.selfRetire != null && targeted.includes(way.selfRetire))
+    ? 'A card can’t be both a cost and a target.'
+    : null;
+}
+// Counts always; with the game it also runs the engine's own target check and refuses a cost card that is a target.
+export function ready(way, picks, game) {
+  return counted(way, picks) && !readyIssue(way, picks, game);
 }
 export function toOptions(way, picks) {
   const targets = {},

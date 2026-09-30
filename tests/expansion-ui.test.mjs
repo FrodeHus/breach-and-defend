@@ -96,7 +96,7 @@ test('a card without lore renders without “undefined”', () => {
   assert.doesNotMatch(lorePanel(CARDS.find(x => x.id === c.id)), /undefined/);
 });
 
-import {abilityWays, castWays, ready, toOptions, togglePick} from '../public/prepare.mjs';
+import {abilityWays, castWays, ready, readyIssue, toOptions, togglePick} from '../public/prepare.mjs';
 
 test('a card with Overclock offers Standard and Overclocked, each with its total cost and targets', () => {
   const g = table();
@@ -123,7 +123,7 @@ test('a card with Overclock offers Standard and Overclocked, each with its total
     min: 1,
     max: 1,
     many: false,
-    candidates: [{kind: 'card', uid: foe.uid, label: 'Forensic Investigator'}],
+    candidates: [{kind: 'card', uid: foe.uid, label: 'Forensic Investigator · Opponent’s · Unit'}],
   });
   assert.equal(ready(ways[0], {}), false);
   const picks = togglePick(ways[0], {}, 't', 0);
@@ -606,4 +606,47 @@ test('the log uses “an” before a token name that starts with a vowel', () =>
   g.createToken(0, 'pt-backdoor');
   assert.ok(g.log.some(l => /creates an Indicator\./.test(l)));
   assert.ok(g.log.some(l => /create a Backdoor\./.test(l)));
+});
+
+test('target candidates name whose they are and where, and cost candidates show their state', () => {
+  const g = table();
+  compute(g, 0, 2);
+  put(g, 0, 'r7', 'grave');
+  put(g, 1, 'b8', 'grave');
+  const c = put(g, 0, pt('Burn Credentials'), 'hand');
+  const ways = castWays(g, 0, c);
+  const labels = ways[0].selectors[0].candidates.map(x => x.label);
+  assert.match(labels.join('|'), /[^|]+ · Yours · Discard/);
+  assert.match(labels.join('|'), /[^|]+ · Opponent’s · Discard/);
+  const html = prepDialog(state(g), {kind: 'cast', uid: c.uid, zone: 'hand', ways, way: 0, picks: {}});
+  assert.match(html, /data-pick="g:0"[^>]*>[^<]+ · Yours · Discard</);
+  const mine = g.players[0].grave[0];
+  g.pending = {id: 9, actor: 0, kind: 'targets', private: false, prompt: 'Choose.', min: 1, max: 1};
+  g.pending.options = [{key: 'g', optional: false, upTo: 2, candidates: [ref(mine.uid)]}];
+  assert.match(choiceDialog(state(g), startChoice(g.pending)), /data-choice-pick="g:0"[^>]*>[^<]+ · Yours · Discard</);
+  g.pending = null;
+  const w = put(g, 0, pt('Analysis Workbench'));
+  const tapped = g.createToken(0, 'pt-indicator');
+  tapped.tapped = true;
+  tapped.locked = true;
+  const hurt = abilityWays(g, 0, w)[0].selectors.find(s => s.key === 'retire');
+  assert.equal(hurt.candidates[0].label, 'Indicator · tapped · skips next untap');
+});
+
+test('a rejected combination of targets says why, and Confirm points at the reason', () => {
+  const g = table();
+  compute(g, 0, 2);
+  put(g, 0, 'r7', 'grave');
+  put(g, 1, 'b8', 'grave');
+  const c = put(g, 0, pt('Burn Credentials'), 'hand');
+  const ways = castWays(g, 0, c);
+  let picks = togglePick(ways[0], {}, 'g', 0);
+  const one = prepDialog(state(g), {kind: 'cast', uid: c.uid, zone: 'hand', ways, way: 0, picks});
+  assert.doesNotMatch(one, /id="prep-issue"/);
+  assert.doesNotMatch(one, /id="prepConfirm"[^>]*disabled/);
+  picks = togglePick(ways[0], picks, 'g', 1);
+  assert.equal(readyIssue(ways[0], picks, g), 'Choose cards from a single player’s discard.');
+  const html = prepDialog(state(g), {kind: 'cast', uid: c.uid, zone: 'hand', ways, way: 0, picks});
+  assert.match(html, /<button[^>]*id="prepConfirm"[^>]*aria-describedby="prep-issue"[^>]*disabled/);
+  assert.match(html, /id="prep-issue"[^>]*>Choose cards from a single player’s discard\.</);
 });
