@@ -5,7 +5,7 @@ import {esc} from './html.mjs';
 import {BY_ID} from './cards.mjs';
 import {card} from './card-view.mjs';
 import {abilityWays, castWays, ready, readyIssue, targetLabel} from './prepare.mjs';
-import {cardName, choiceCards, choiceReady} from './choices.mjs';
+import {cardName, choiceCards, choiceIssue, choiceReady} from './choices.mjs';
 
 const who = (s, p) => (p === 0 ? 'You' : s.versus ? 'Opponent' : 'Computer');
 
@@ -132,7 +132,7 @@ export function prepDialog(s, prep) {
   const canConfirm = way && ready(way, prep.picks, game);
   const issue = way ? readyIssue(way, prep.picks, game) : null;
   const eyebrow = prep.kind === 'activate' ? 'ACTIVATE' : prep.zone === 'grave' ? 'REUSE FROM DISCARD' : 'CAST';
-  return `<div class="eyebrow">${eyebrow} / ${esc((d.name ?? '').toUpperCase())}</div><h2>${title}</h2><p class="muted">${esc(d.text ?? '')}</p>${ways}${way?.issues.length && prep.kind === 'activate' ? reason('reason-prep', way.issues) : ''}${selectors}${issue ? `<p class="action-reason" id="prep-issue" role="status">${esc(issue)}</p>` : ''}<div class="toolbar"><button class="primary" id="prepConfirm"${issue ? ' aria-describedby="prep-issue"' : ''} ${canConfirm ? '' : 'disabled'}>Confirm${way ? ` · ${way.totalCost} compute` : ''}</button><button id="prepCancel">Cancel</button></div>`;
+  return `<div class="eyebrow">${eyebrow} / ${esc((d.name ?? '').toUpperCase())}</div><h2>${title}</h2><p class="muted">${esc(d.text ?? '')}</p>${ways}${way?.issues.length && prep.kind === 'activate' ? reason('reason-prep', way.issues) : ''}${selectors}${issue ? `<p class="action-reason" id="prep-issue">${esc(issue)}</p>` : ''}<div class="toolbar"><button class="primary" id="prepConfirm"${issue ? ' aria-describedby="prep-issue"' : ''} ${canConfirm ? '' : 'disabled'}>Confirm${way ? ` · ${way.totalCost} compute` : ''}</button><button id="prepCancel">Cancel</button></div>`;
 }
 
 // The ↑/↓ pair stays together when a row wraps.
@@ -199,5 +199,6 @@ export function choiceDialog(s, st) {
       )
       .join('');
   }
-  return `<div class="eyebrow">YOUR CHOICE</div><h2>${esc(c.prompt)}</h2>${resolving ? `<p class="muted">Resolving: ${esc(game.entryName(resolving))}</p>` : ''}${body}${confirm ? `<div class="toolbar"><button class="primary" id="choiceConfirm" ${choiceReady(game, st) ? '' : 'disabled'}>Confirm</button></div>` : ''}`;
+  const issue = choiceIssue(game, st);
+  return `<div class="eyebrow">YOUR CHOICE</div><h2>${esc(c.prompt)}</h2>${resolving ? `<p class="muted">Resolving: ${esc(game.entryName(resolving))}</p>` : ''}${body}${confirm ? `${issue ? `<p class="action-reason" id="choice-issue">${esc(issue)}</p>` : ''}<div class="toolbar"><button class="primary" id="choiceConfirm" ${choiceReady(game, st) ? '' : 'disabled'}${issue ? ' aria-describedby="choice-issue"' : ''}>Confirm</button></div>` : ''}`;
 }

@@ -4,7 +4,7 @@ import {PERSISTENT_THREATS} from './persistent-threats.mjs';
 // A set stays out of the library and the start screen until `released`: every card has lore and art by then.
 export const SETS = {
   'first-breach': {name: 'First Breach', code: 'FB1', released: true},
-  'persistent-threats': {name: 'Persistent Threats', code: 'PT1', released: false},
+  'persistent-threats': {name: 'Persistent Threats', code: 'PT1', released: true},
 };
 const cards = [];
 function add(set, faction, name, cost, type, text, extra = {}) {
@@ -145,6 +145,11 @@ for (const {faction, name, cost, type, text, ...extra} of PERSISTENT_THREATS)
   add('persistent-threats', faction, name, cost, type, text, extra);
 export const CARDS = cards;
 export const BY_ID = Object.fromEntries(cards.map(c => [c.id, c]));
+// A card's or token's lore fields, from LORE by name.
+const loreOf = name => {
+  const lore = LORE[name];
+  return {flavor: lore?.flavor, flavorBy: lore?.by, lesson: lore?.learn};
+};
 // Tokens are created during play: they are looked up by id like cards, but are never in CARDS or a deck.
 export const TOKENS = {
   backdoor: {
@@ -167,6 +172,7 @@ export const TOKENS = {
       },
     ],
     art: 'cards/backdoor',
+    ...loreOf('Backdoor'),
   },
   indicator: {
     id: 'pt-indicator',
@@ -187,9 +193,13 @@ export const TOKENS = {
       },
     ],
     art: 'cards/indicator',
+    ...loreOf('Indicator'),
   },
 };
-for (const t of Object.values(TOKENS)) BY_ID[t.id] = t;
+for (const t of Object.values(TOKENS)) {
+  if (!t.lesson && SETS[t.set].released) throw Error(`${t.name} has no lore.`);
+  BY_ID[t.id] = t;
+}
 // The shipped starters: 24 infrastructure, two of each unit, one of everything else. Order matters: seeded shuffles
 // start from it, so changing it would change every saved and audited match.
 function starter(faction) {
@@ -270,6 +280,12 @@ export const poolReleased = id =>
   typeof id === 'string' && Object.hasOwn(POOLS, id) && POOLS[id].sets.every(s => SETS[s]?.released);
 export const releasedPools = () => Object.keys(POOLS).filter(poolReleased);
 export const releasedCards = () => cards.filter(c => SETS[c.set].released);
+export const releasedTokens = () => Object.values(TOKENS).filter(t => SETS[t.set].released);
+// The header's edition label: the newest released set and how many sets are out.
+export function edition() {
+  const sets = Object.keys(SETS).filter(id => SETS[id].released);
+  return `${SETS[sets.at(-1)].name.toUpperCase()} / ${String(sets.length).padStart(2, '0')}`;
+}
 // Guided games teach First Breach, and a stored choice may name a pool this version no longer offers.
 export const playablePool = (choice, {guided = false} = {}) =>
   !guided && poolReleased(choice) ? choice : DEFAULT_POOL;
@@ -295,3 +311,39 @@ export const KEYWORD_NAMES = {
   overflow: 'Overflow',
   firewall: 'Firewall',
 };
+// Persistent Threats rules terms: shown in the Field Guide and on the expansion cards that use them.
+export const MECHANICS = {
+  probe: [
+    'Probe',
+    'Look at the top N cards of your deck. Put any of them into your discard and the rest back on top in any order. Cards you put into your discard are public; the cards you keep and their order stay hidden from your opponent.',
+  ],
+  overclock: [
+    'Overclock',
+    'As you cast this card you may pay N more compute for its stronger effect. The cast dialog shows both total costs.',
+  ],
+  reuse: [
+    'Reuse',
+    'Cast this card from your discard by paying N compute instead of its cost. Afterwards it is archived, even if it is countered.',
+  ],
+  retire: [
+    'Retire',
+    'Put a card you control into your discard to pay a cost or for an effect. A retired token leaves the game. Destroying a card is not retiring it.',
+  ],
+  archive: [
+    'Archive',
+    'A public zone beside the discard for cards removed from the game for good. Nothing returns archived cards.',
+  ],
+  backdoor: [
+    'Backdoor',
+    'A red Tool token. 1 compute, retire it: a unit you control gets +2/+0 until end of turn. Use it in your main phase while the stack is empty.',
+  ],
+  indicator: [
+    'Indicator',
+    'A blue Tool token. 2 compute, retire it: draw a card. Use it in your main phase while the stack is empty.',
+  ],
+};
+// The rules terms an expansion card's text uses. First Breach cards have none, so their markup never changes.
+export const mechanicsOf = d =>
+  d.set === 'persistent-threats'
+    ? Object.keys(MECHANICS).filter(k => new RegExp(`\\b${MECHANICS[k][0]}`, 'i').test(d.text))
+    : [];

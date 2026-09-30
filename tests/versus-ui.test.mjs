@@ -14,6 +14,7 @@ test('the invite lobby escapes the link, offers share only when supported, and w
 });
 
 test('each lobby state has a way forward', () => {
+  assert.match(ui.lobby({status: 'pledge'}), /BREACH &amp; DEFEND \/ PLAY A FRIEND/);
   assert.match(ui.lobby({status: 'pledge'}), /id="showPledge"/);
   assert.match(ui.lobby({status: 'pledged'}), /Waiting for your opponent to take the pledge/);
   assert.match(ui.lobby({status: 'reconnecting'}), /id="cancelVersus"/);

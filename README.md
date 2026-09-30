@@ -10,7 +10,7 @@
   <a href="LICENSE-ASSETS.md"><img alt="Art license: CC BY-NC 4.0" src="https://img.shields.io/badge/art-CC%20BY--NC%204.0-lightgrey.svg"></a>
 </p>
 
-# Breach & Defend — First Breach
+# Breach & Defend
 
 A red-versus-blue card game for learning cybersecurity, inspired by classic trading-card game mechanics. Play red or blue against a local computer opponent, or against a friend through an invite link. Every card teaches a real security concept, from phishing and lateral movement to backups and MFA.
 
@@ -18,9 +18,9 @@ No install, account, or build step: it's plain HTML, CSS and JavaScript modules.
 
 ## Included
 
-- 50 original card designs: 25 for each faction.
-- Two fixed 60-card decks, each with 24 infrastructure, 24 units, and 12 other cards.
-- Eight original AI illustrations shared by related card families, with an illustration on every card.
+- 100 original card designs across two sets: First Breach (50) and the opt-in Persistent Threats expansion (50), plus two tokens.
+- Fixed, public 60-card decks: two First Breach starters, and two Persistent Threats decks that mix both sets.
+- An original illustration and a security lesson on every card and token.
 - Original daylight battlefield, two transparent faction emblems, and two faction card backs used on deck piles and 3D flip animations.
 - Opening-hand mulligans; one infrastructure per turn; automatic resource payment; turn phases; priority and a last-in-first-out effect stack.
 - Attacking, blocking, multiple blockers, simultaneous damage, new-arrival delay, Rapid deploy, Always-on, Stealth, Detection, Recharge, Overflow, and Firewall.
@@ -49,6 +49,10 @@ Check **Guide my first game** before choosing either faction. It starts unchecke
 
 The guide pauses your first pending-effect priority window so you can read before passing. It adapts to your real hand and available moves, so lessons may span several turns or occur in a different order. **Exit tutorial** is available on the board and in card dialogs and continues the same match without guidance. Existing quick tips and the field guide remain available independently.
 
+## Persistent Threats
+
+Tick **Include Persistent Threats** on the start screen, or when inviting a friend, to play the expansion. Both players use decks that mix First Breach and Persistent Threats cards. The expansion adds Probe, Overclock and Reuse, the Backdoor and Indicator tokens, retiring, the archive, triggered abilities and in-match choices; the Field Guide explains each, and quick tips in expansion matches point them out as they come up. The guided first game always uses First Breach.
+
 ## Browse and play cards
 
 Hover a visible card in your hand, opening hand, either battlefield, or card library to lift out an enlarged preview with its full rules, cost, stats, and keyword explanations. Tab focus also opens previews; Escape dismisses them. Previews stay within the screen edges and respect reduced-motion preferences. Clicking still opens the card details and play options; touch players can continue to tap cards.
@@ -68,7 +72,7 @@ On the arena start screen, choose **Play a friend**, pick your side and send the
 
 ## Deliberate simplifications
 
-This is not a full implementation of any existing card game’s rules. Compute is one generic resource and is paid automatically. Start-of-turn gains resolve automatically without triggered-ability responses. Combat damage is assigned automatically in the order blockers were assigned, lethal damage first. No multiple resource types, tokens, exile, sideboards, deck editor, or saved computer matches are included. Reloading resets a computer match.
+This is not a full implementation of any existing card game’s rules. Compute is one generic resource and is paid automatically. Start-of-turn gains resolve automatically without triggered-ability responses. Combat damage is assigned automatically in the order blockers were assigned, lethal damage first. No multiple resource types, sideboards, deck editor, or saved computer matches are included. Reloading resets a computer match.
 
 The computer uses a local heuristic. It knows its own hand and the public battlefield, not the player's hidden cards. The user always takes the first turn. Starter balance and the 15–25 minute target duration need human playtesting.
 
@@ -79,6 +83,11 @@ The computer uses a local heuristic. It knows its own hand and the public battle
 ## Source layout
 
 - `public/cards.mjs`: card definitions, lessons, deck lists, and keyword glossary.
+- `public/persistent-threats.mjs`: Persistent Threats card definitions.
+- `public/rules.mjs`: triggers, costs, choices and effects.
+- `public/lore.mjs`: flavor and learning texts.
+- `public/prepare.mjs`, `choices.mjs`, `expansion-view.mjs`, `expansion-tips.mjs`: the expansion interface.
+- `art-source/cards/*/generation-prompts.json`: image prompts.
 - `public/engine.mjs`: rules and computer strategy, independent of the interface.
 - `public/app.mjs`: UI state, event handling, match flow, and optional WebMCP tools.
 - `public/card-view.mjs`, `arena-view.mjs`, `library.mjs`, `guide.mjs`: card, arena, dialog, library and field-guide markup, as pure functions of the UI state. `html.mjs` holds the shared `esc`.

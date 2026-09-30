@@ -1,7 +1,7 @@
 // public/card-view.mjs
 // Card markup for the hand, battlefield, library and dialogs. Pure strings: each function takes the UI state `s`
 // ({game, selected, blocks, blocker}) it needs, so it can be tested without a browser.
-import {BY_ID, KEYWORDS, KEYWORD_NAMES, SETS} from './cards.mjs';
+import {BY_ID, KEYWORDS, KEYWORD_NAMES, MECHANICS, SETS, mechanicsOf} from './cards.mjs';
 import {COMBAT_STEPS} from './engine.mjs';
 import {esc} from './html.mjs';
 
@@ -102,5 +102,13 @@ export function hoverCard(s, el) {
     c = found?.card,
     d = BY_ID[id];
   if (!d) return '';
-  return `${card(s, c || id, {detail: true, zone, p: found?.p ?? null})}${d.flavor ? `<blockquote class="preview-flavor">“${esc(d.flavor)}”</blockquote>` : ''}${zone === 'hand' ? playStatus(s, c) : ''}${d.keywords?.length ? `<div class="preview-keywords">${d.keywords.map(k => `<p><strong>${esc(KEYWORD_NAMES[k])}.</strong> ${esc(KEYWORDS[k])}</p>`).join('')}</div>` : ''}`;
+  return `${card(s, c || id, {detail: true, zone, p: found?.p ?? null})}${d.flavor ? `<blockquote class="preview-flavor">“${esc(d.flavor)}”</blockquote>` : ''}${zone === 'hand' ? playStatus(s, c) : ''}${
+    d.keywords?.length || mechanicsOf(d).length
+      ? `<div class="preview-keywords">${(d.keywords ?? []).map(k => `<p><strong>${esc(KEYWORD_NAMES[k])}.</strong> ${esc(KEYWORDS[k])}</p>`).join('')}${mechanicsOf(
+          d,
+        )
+          .map(k => `<p><strong>${esc(MECHANICS[k][0])}.</strong> ${esc(MECHANICS[k][1])}</p>`)
+          .join('')}</div>`
+      : ''
+  }`;
 }

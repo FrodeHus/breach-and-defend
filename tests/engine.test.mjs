@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {Game} from '../public/engine.mjs';
-import {CARDS, BY_ID, POOLS, deck, releasedCards} from '../public/cards.mjs';
+import {CARDS, BY_ID, POOLS, deck, releasedCards, releasedTokens} from '../public/cards.mjs';
 import {seededRandom} from '../public/rng.mjs';
 import {playOut, conserved} from './helpers/simulate.mjs';
 const id = name => CARDS.find(c => c.name === name).id;
@@ -30,7 +30,8 @@ test('50 illustrated First Breach cards; each faction has a legal 60-card starte
     assert.equal(deck(f).length, 60);
     assert.equal(CARDS.filter(c => c.set === 'first-breach' && c.faction === f).length, 25);
   }
-  for (const c of releasedCards()) assert.ok(fs.existsSync(new URL(`../public/art/${c.art}.webp`, import.meta.url)));
+  for (const c of [...releasedCards(), ...releasedTokens()])
+    assert.ok(fs.existsSync(new URL(`../public/art/${c.art}.webp`, import.meta.url)), c.name);
 });
 test('London mulligan bottoms chosen cards and skips first draw', () => {
   const g = new Game();

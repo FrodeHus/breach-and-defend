@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {landing, MODES} from '../public/landing.mjs';
-import {BY_ID, CARDS, POOLS, releasedCards} from '../public/cards.mjs';
+import {BY_ID, CARDS, POOLS, SETS, releasedCards} from '../public/cards.mjs';
 
 test('computer mode: mode pressed, tutorial opt-in, and Play buttons wired to data-start', () => {
   const html = landing({mode: 'solo'});
@@ -70,12 +70,15 @@ test('each side button sits in an unclipped cta-slot so its focus glow is visibl
 
 test('the hero counts the released cards', t => {
   assert.match(landing(), new RegExp(`${releasedCards().length} cards · every card teaches`));
+  const n = releasedCards().length;
   CARDS.push({...BY_ID.r1, id: 'x1'});
   t.after(() => CARDS.pop());
-  assert.match(landing(), /51 cards · every card teaches/);
+  assert.match(landing(), new RegExp(`${n + 1} cards · every card teaches`));
 });
 
-test('no expansion opt-in while First Breach is the only released pool', () => {
+test('no expansion opt-in while First Breach is the only released pool', t => {
+  SETS['persistent-threats'].released = false;
+  t.after(() => (SETS['persistent-threats'].released = true));
   assert.doesNotMatch(landing({mode: 'solo'}), /includeExpansion/);
   assert.doesNotMatch(landing({mode: 'friend'}), /includeExpansion/);
 });

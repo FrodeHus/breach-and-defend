@@ -1,13 +1,14 @@
 // public/arena-view.mjs
 // Arena markup: opening hand, battlefield, command bar, tutorial panels and the match recap. Pure strings: each
 // function takes the UI state `s` assembled by app.mjs, so it can be tested without a browser.
-import {BY_ID, KEYWORDS, KEYWORD_NAMES, POOLS, SETS} from './cards.mjs';
+import {BY_ID, KEYWORDS, KEYWORD_NAMES, MECHANICS, POOLS, SETS, mechanicsOf} from './cards.mjs';
 import {PHASE_NAMES, COMBAT_STEPS} from './engine.mjs';
 import {LESSONS} from './tutorial.mjs';
 import {lorePanel} from './lore-panel.mjs';
 import * as versusUi from './versus-ui.mjs';
 import {esc} from './html.mjs';
 import {card, label, playStatus} from './card-view.mjs';
+import {choiceTip, expansionTip} from './expansion-tips.mjs';
 import {byLook, cardActions, stackItem, tokenGroups} from './expansion-view.mjs';
 
 export const poolEyebrow = game => (POOLS[game.pool]?.name ?? POOLS['first-breach'].name).toUpperCase();
@@ -131,6 +132,8 @@ export function guidedPanel(s) {
 }
 export function tutorialText(s) {
   const {game} = s;
+  const choice = choiceTip(game);
+  if (choice) return choice;
   if (game.phase === 'block')
     return '<strong>Block smart.</strong> A blocker deals its power to its attacker while receiving damage back. A unit survives if damage stays below its toughness. Stealth needs Stealth or Detection to block.';
   if (game.stack.length)
@@ -141,7 +144,10 @@ export function tutorialText(s) {
     return '<strong>First, build your resources.</strong> Play one Infrastructure card for free during your main phase. Each ready infrastructure pays for one compute.';
   if (!game.players[0].field.some(c => BY_ID[c.id].type === 'Unit'))
     return '<strong>Deploy a unit.</strong> The number at top right is its compute cost. Bottom-right numbers are power / toughness. Cards with bright borders can be played now.';
-  return '<strong>Keep a Response ready.</strong> Spending all your compute leaves you unable to respond. Click any card to see its rules and security lesson.';
+  return (
+    expansionTip(game) ??
+    '<strong>Keep a Response ready.</strong> Spending all your compute leaves you unable to respond. Click any card to see its rules and security lesson.'
+  );
 }
 export function battlefield(s) {
   const {game, versus, inspectorOpen, tutorial, guidance} = s;
@@ -170,7 +176,13 @@ export function cardDialog(s, id, c, zone) {
   const {game, loreSide} = s;
   const d = BY_ID[id],
     can = c && zone === 'hand' && game.legal(0, c);
-  return `<div class="eyebrow">${(SETS[d.set]?.name ?? SETS['first-breach'].name).toUpperCase()} / ${d.faction.toUpperCase()} TEAM</div><div class="modal-card">${card(s, c || id, {detail: true})}<div><h2>${d.name}</h2>${lorePanel(d, loreSide)}${(d.keywords || []).map(k => `<p><strong>${KEYWORD_NAMES[k]}</strong><br>${KEYWORDS[k]}</p>`).join('')}${zone === 'hand' ? `<div id="castRequirements">${playStatus(s, c)}</div><button id="cast" class="primary" aria-describedby="castRequirements" ${can ? '' : 'disabled'}>${d.type === 'Infrastructure' ? 'Play infrastructure' : 'Cast card'}${d.cost ? ' · ' + d.cost + ' compute' : ''}</button>` : ''}${cardActions(s, c, zone)}</div></div>`;
+  return `<div class="eyebrow">${(SETS[d.set]?.name ?? SETS['first-breach'].name).toUpperCase()} / ${d.faction.toUpperCase()} TEAM</div><div class="modal-card">${card(s, c || id, {detail: true})}<div><h2>${d.name}</h2>${lorePanel(d, loreSide)}${(d.keywords || []).map(k => `<p><strong>${KEYWORD_NAMES[k]}</strong><br>${KEYWORDS[k]}</p>`).join('')}${mechanicsOf(
+    d,
+  )
+    .map(k => `<p><strong>${MECHANICS[k][0]}</strong><br>${MECHANICS[k][1]}</p>`)
+    .join(
+      '',
+    )}${zone === 'hand' ? `<div id="castRequirements">${playStatus(s, c)}</div><button id="cast" class="primary" aria-describedby="castRequirements" ${can ? '' : 'disabled'}>${d.type === 'Infrastructure' ? 'Play infrastructure' : 'Cast card'}${d.cost ? ' · ' + d.cost + ' compute' : ''}</button>` : ''}${cardActions(s, c, zone)}</div></div>`;
 }
 export function targetDialog(s, d, ts) {
   const {game} = s;

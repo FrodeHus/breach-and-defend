@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Game} from '../public/engine.mjs';
-import {BY_ID, CARDS, POOLS, SETS, releasedCards} from '../public/cards.mjs';
+import {BY_ID, CARDS, POOLS, SETS, releasedCards, releasedTokens} from '../public/cards.mjs';
 import {Tutorial} from '../public/tutorial.mjs';
 import {card} from '../public/card-view.mjs';
 import * as arena from '../public/arena-view.mjs';
@@ -39,7 +39,10 @@ test('the library filters by faction, type and text, and says when nothing match
     libraryGrid(state(null, {filter: {q: 'no such card', faction: 'all', type: 'all'}})),
     /No matching cards/,
   );
-  assert.equal((libraryGrid(state(null)).match(/data-card=/g) || []).length, releasedCards().length);
+  assert.equal(
+    (libraryGrid(state(null)).match(/data-card=/g) || []).length,
+    releasedCards().length + releasedTokens().length,
+  );
   assert.match(
     library(state(null, {filter: {q: '"><img>', faction: 'all', type: 'all'}})),
     /value="&quot;&gt;&lt;img&gt;"/,
@@ -91,8 +94,8 @@ test('cards show their set code', t => {
 
 test('the library shows released sets only, with counts from the catalog and a set filter once there are two', t => {
   const html = library(state(null));
-  assert.match(html, new RegExp(`${releasedCards().length} cards · 2 starter decks`));
-  assert.doesNotMatch(html, /id="setFilter"/);
+  assert.match(html, new RegExp(`${releasedCards().length} cards · 4 decks`));
+  assert.match(html, /<option value="persistent-threats" >Persistent Threats<\/option>/);
   assert.doesNotMatch(html, /shared by thematic card families/);
   SETS.extra = {name: 'Extra', code: 'EX1', released: true};
   t.after(() => delete SETS.extra);

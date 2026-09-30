@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CARDS} from '../public/cards.mjs';
+import {CARDS, BY_ID, MECHANICS, mechanicsOf, edition, releasedTokens, SETS} from '../public/cards.mjs';
+import {library, libraryGrid} from '../public/library.mjs';
+import {about} from '../public/about.mjs';
+import {guide} from '../public/guide.mjs';
 import {Tutorial} from '../public/tutorial.mjs';
 import * as arena from '../public/arena-view.mjs';
 import {stackItem} from '../public/expansion-view.mjs';
@@ -89,11 +92,9 @@ test('animation snapshots and tutorial tracking ignore stack entries without a c
 });
 
 test('a card without lore renders without “undefined”', () => {
-  const g = table();
-  const c = put(g, 0, pt('Seed Access'), 'hand');
-  const el = {dataset: {card: c.id, zone: 'hand', uid: String(c.uid)}};
-  assert.doesNotMatch(hoverCard(state(g), el), /undefined/);
-  assert.doesNotMatch(lorePanel(CARDS.find(x => x.id === c.id)), /undefined/);
+  const bare = {...BY_ID[pt('Seed Access')], flavor: undefined, flavorBy: undefined, lesson: undefined};
+  assert.doesNotMatch(lorePanel(bare), /undefined/);
+  assert.match(lorePanel(bare), /arrive with its release/);
 });
 
 import {abilityWays, castWays, ready, readyIssue, toOptions, togglePick} from '../public/prepare.mjs';
@@ -422,6 +423,7 @@ test('tokens group only while they look the same, so a tapped one is never hidde
 import {
   choiceCards,
   choiceReady,
+  choiceIssue,
   choiceSelection,
   moveChoice,
   pickChoiceTarget,
@@ -654,6 +656,7 @@ test('a rejected combination of targets says why, and Confirm points at the reas
   const html = prepDialog(state(g), {kind: 'cast', uid: c.uid, zone: 'hand', ways, way: 0, picks});
   assert.match(html, /<button[^>]*id="prepConfirm"[^>]*aria-describedby="prep-issue"[^>]*disabled/);
   assert.match(html, /id="prep-issue"[^>]*>Choose cards from a single player’s discard\.</);
+  assert.doesNotMatch(html, /id="prep-issue"[^>]*role="status"|role="status"[^>]*id="prep-issue"/);
 });
 
 test('identical tokens split by a tapped one still group, with the tapped one alone', () => {
@@ -703,7 +706,7 @@ test('a pending target choice is ready only when the engine would accept it', t 
   assert.equal(choiceReady(g, st), true, 'one card from one discard is fine');
   st = pickChoiceTarget(g, st, 'g', 1);
   assert.equal(choiceReady(g, st), false, 'cards from both discards are refused');
-  assert.match(choiceDialog(state(g), st), /<button class="primary" id="choiceConfirm" disabled>/);
+  assert.match(choiceDialog(state(g), st), /<button class="primary" id="choiceConfirm" disabled[ >]/);
 });
 
 test('Probe and order rows are numbered, counting only the cards that stay on top', async () => {
@@ -713,4 +716,197 @@ test('Probe and order rows are numbered, counting only the cards that stay on to
   assert.match(rule('.choice-list'), /counter-reset:\s*choice/);
   assert.match(rule('.choice-list li:not(.to-discard)'), /counter-increment:\s*choice/);
   assert.match(rule('.choice-list li:not(.to-discard)::before'), /content:\s*counter\(choice\) '\.'/);
+});
+
+test('expansion cards explain the rules terms they use; First Breach cards are unchanged', () => {
+  assert.deepEqual(mechanicsOf(BY_ID[pt('Map Trust Relationships')]), ['probe', 'reuse']);
+  assert.deepEqual(mechanicsOf(BY_ID[pt('Burn the Channel')]), ['retire']);
+  assert.deepEqual(mechanicsOf(BY_ID[pt('Seed Access')]), ['backdoor']);
+  for (const c of CARDS.filter(c => c.set === 'first-breach')) assert.deepEqual(mechanicsOf(c), [], c.name);
+  const g = table();
+  const dialog = arena.cardDialog(state(g), pt('Map Trust Relationships'), null, '');
+  assert.match(dialog, new RegExp(`<strong>Probe</strong><br>${MECHANICS.probe[1]}`));
+  assert.match(dialog, /<strong>Reuse<\/strong>/);
+  const fb = CARDS.find(c => c.set === 'first-breach' && c.type === 'Operation');
+  assert.doesNotMatch(arena.cardDialog(state(g), fb.id, null, ''), /Probe|Reuse|Overclock|Retire|Archive/);
+});
+
+test('the Field Guide teaches Persistent Threats once it is released', () => {
+  const on = guide({expansion: true}),
+    off = guide({expansion: false});
+  assert.match(on, /FIELD GUIDE \/ ALL SETS/);
+  assert.match(on, /<h2>Persistent Threats<\/h2>/);
+  for (const [name] of Object.values(MECHANICS)) assert.match(on, new RegExp(`<strong>${name}\\.</strong>`));
+  assert.match(on, /Triggered abilities/);
+  assert.match(on, /Make your choice/);
+  assert.match(on, /<strong>Several targets\.<\/strong>/);
+  assert.doesNotMatch(off, /Several targets/);
+  assert.doesNotMatch(on, /no exile, token, or sideboard/);
+  assert.match(off, /FIELD GUIDE \/ FIRST BREACH/);
+  assert.doesNotMatch(off, /Persistent Threats/);
+  assert.match(off, /There are no exile, token, or sideboard mechanics in this set\./);
+});
+
+import {EXPANSION_POOL} from '../public/cards.mjs';
+import {choiceTip, expansionTip} from '../public/expansion-tips.mjs';
+
+test('expansion tips follow what the player has, and never appear in a First Breach match', () => {
+  const g = table();
+  g.pool = EXPANSION_POOL;
+  const fb = new Game('red', () => 0.5);
+  assert.equal(expansionTip(fb), null);
+  assert.equal(choiceTip(fb), null);
+  g.phase = 'main1';
+  g.players[0].field = g.players[0].field.filter(c => BY_ID[c.id].type !== 'Tool');
+  put(g, 0, 'r7');
+  assert.equal(expansionTip(g), null);
+  g.createToken(0, 'pt-backdoor');
+  assert.match(expansionTip(g), /<strong>Backdoors\.<\/strong>/);
+  assert.match(arena.tutorialText(state(g)), /Backdoors/);
+  g.players[1].archive.push(g.card(pt('Seed Access')));
+  assert.match(expansionTip(g), /Backdoors/, 'your own tokens come before the archive');
+});
+
+test('a pending Probe gets its own tip, ahead of the stack tip', () => {
+  const g = probing();
+  g.pool = EXPANSION_POOL;
+  assert.match(choiceTip(g), /<strong>Probe\.<\/strong>/);
+  assert.match(arena.tutorialText(state(g)), /Probe/);
+});
+
+// Mark the expansion released (or not) for one test, restoring whatever it was.
+const releaseFor = (t, released) => {
+  const was = SETS['persistent-threats'].released;
+  SETS['persistent-threats'].released = released;
+  t.after(() => (SETS['persistent-threats'].released = was));
+};
+const filter = (extra = {}) => ({filter: {q: '', faction: 'all', type: 'all', set: 'all', ...extra}});
+
+test('the header edition and library follow the released sets', t => {
+  releaseFor(t, false);
+  assert.equal(edition(), 'FIRST BREACH / 01');
+  assert.deepEqual(releasedTokens(), []);
+  assert.match(library(filter()), /Each starter contains 24 infrastructure/);
+  releaseFor(t, true);
+  assert.equal(edition(), 'PERSISTENT THREATS / 02');
+  assert.equal(releasedTokens().length, 2);
+  const html = library(filter());
+  assert.match(html, /100 cards · 4 decks/, 'tokens are not counted as cards');
+  assert.match(html, /First Breach decks have 24 infrastructure, 24 units and 12 other cards\./);
+  assert.match(html, /First Breach \+ Persistent Threats decks have 24 infrastructure, 20 units and 16 other cards\./);
+});
+
+test('the library lists tokens, and search and filters apply to them', t => {
+  releaseFor(t, true);
+  assert.match(libraryGrid(filter()), /data-card="pt-backdoor"/);
+  assert.match(libraryGrid(filter({q: 'backdoor'})), /data-card="pt-backdoor"/);
+  assert.doesNotMatch(libraryGrid(filter({faction: 'blue'})), /data-card="pt-backdoor"/);
+  assert.doesNotMatch(libraryGrid(filter({set: 'first-breach'})), /data-card="pt-indicator"/);
+});
+
+test('about counts the released cards', t => {
+  releaseFor(t, false);
+  assert.match(about(), /every one of the 50 cards/);
+  releaseFor(t, true);
+  assert.match(about(), /every one of the 100 cards/);
+});
+
+test('a choice that cannot be confirmed says why, and Confirm points at the reason', t => {
+  define(t, {
+    id: 'x-sweep2',
+    type: 'Tool',
+    abilities: [
+      {
+        kind: 'triggered',
+        id: 'sweep',
+        label: 'Sweep',
+        targets: [{key: 'g', zone: 'grave', side: 'any', upTo: 2, onePlayer: true}],
+        steps: [{op: 'archive', to: 'g'}],
+      },
+    ],
+  });
+  const g = table();
+  const src = put(g, 0, 'x-sweep2');
+  const mine = put(g, 0, 'r7', 'grave'),
+    theirs = put(g, 1, 'b8', 'grave');
+  g.waiting = [{id: 21, p: 0, ability: {card: 'x-sweep2', uid: src.uid, id: 'sweep'}}];
+  g.pending = {
+    id: 9,
+    actor: 0,
+    kind: 'targets',
+    private: false,
+    prompt: 'Choose.',
+    min: 1,
+    max: 1,
+    data: {trigger: 21},
+  };
+  g.pending.options = [{key: 'g', optional: false, upTo: 2, candidates: [ref(mine.uid), ref(theirs.uid)]}];
+  let st = pickChoiceTarget(g, startChoice(g.pending), 'g', 0);
+  assert.equal(choiceIssue(g, st), null, 'one card from one discard is fine');
+  assert.doesNotMatch(choiceDialog(state(g), st), /choice-issue/);
+  st = pickChoiceTarget(g, st, 'g', 1);
+  const issue = choiceIssue(g, st);
+  assert.equal(typeof issue, 'string');
+  const html = choiceDialog(state(g), st);
+  assert.match(html, /<p class="action-reason" id="choice-issue">/);
+  assert.match(
+    html,
+    /<button[^>]*id="choiceConfirm"[^>]*disabled[^>]*aria-describedby="choice-issue"|<button[^>]*id="choiceConfirm"[^>]*aria-describedby="choice-issue"[^>]*disabled/,
+  );
+});
+
+test('the screen-reader status region sits inside the modal dialog, outside its body', async () => {
+  const {readFileSync} = await import('node:fs');
+  const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+  assert.match(
+    html,
+    /<dialog id="modal">[\s\S]*<div id="modalBody"><\/div>\s*<div id="srStatus"[^>]*aria-live="polite"><\/div>\s*<\/dialog>/,
+  );
+});
+
+test('the remaining expansion tips and choice tips each show in their own situation', t => {
+  const g = table();
+  g.pool = EXPANSION_POOL;
+  put(g, 0, pt('Map Trust Relationships'), 'grave');
+  assert.equal(expansionTip(g), null, 'a Reuse card you cannot pay for gives no tip');
+  compute(g, 0, 3);
+  assert.match(expansionTip(g), /Reuse/);
+
+  const o = table();
+  o.pool = EXPANSION_POOL;
+  compute(o, 0, 3);
+  put(o, 0, pt('Coordinated Pressure'), 'hand');
+  put(o, 1, BY_ID[CARDS.find(c => c.set === 'first-breach' && c.type === 'Unit' && c.faction === 'blue').id].id);
+  assert.match(expansionTip(o), /Overclock/);
+
+  const i = table();
+  i.pool = EXPANSION_POOL;
+  i.createToken(0, 'pt-indicator');
+  assert.match(expansionTip(i), /Indicators/);
+
+  const a = table();
+  a.pool = EXPANSION_POOL;
+  a.players[1].archive.push(a.card(pt('Seed Access')));
+  assert.match(expansionTip(a), /Archive/);
+
+  for (const [kind, re] of [
+    ['order', /Order your triggers/],
+    ['pay', /Pay or be countered/],
+  ]) {
+    const c = table();
+    c.pool = EXPANSION_POOL;
+    c.pending = {id: 1, actor: 0, kind};
+    assert.match(choiceTip(c), re);
+    c.pending = {id: 1, actor: 1, kind};
+    assert.equal(choiceTip(c), null, "the opponent's choice gives no tip");
+  }
+});
+
+test('hovering an expansion card shows its glossary entry, and a First Breach card does not', () => {
+  const g = table();
+  g.pool = EXPANSION_POOL;
+  const el = id => ({dataset: {card: id, zone: 'library'}});
+  assert.match(hoverCard(state(g), el(pt('Map Trust Relationships'))), /Probe\./);
+  const fb = CARDS.find(c => c.set === 'first-breach' && c.type === 'Operation');
+  assert.doesNotMatch(hoverCard(state(g), el(fb.id)), /Probe\.|Reuse\.|Overclock\./);
 });

@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {releasedCards} from '../public/cards.mjs';
+import {releasedCards, releasedTokens} from '../public/cards.mjs';
 import {lorePanel} from '../public/lore-panel.mjs';
 
 test('every card has a flavor quote with attribution and a learning text', () => {
-  for (const c of releasedCards()) {
+  for (const c of [...releasedCards(), ...releasedTokens()]) {
     assert.ok(c.flavor?.length > 10, `${c.name} flavor`);
     assert.ok(c.flavorBy?.length, `${c.name} attribution`);
     assert.ok(c.lesson?.length > 100, `${c.name} learning text`);

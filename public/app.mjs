@@ -1,7 +1,7 @@
 // public/app.mjs
 // Controller: owns the UI state, renders the views (card-view, arena-view, library, guide, landing, about,
 // versus-ui) into #app, and turns clicks into engine moves. All markup lives in those view modules.
-import {BY_ID, DEFAULT_POOL, POOLS, playablePool} from './cards.mjs';
+import {BY_ID, DEFAULT_POOL, POOLS, edition, playablePool, releasedCards} from './cards.mjs';
 import {Game} from './engine.mjs';
 import {Tutorial} from './tutorial.mjs';
 import {installCardPreview} from './card-preview.mjs';
@@ -155,7 +155,15 @@ function toast(s) {
   toastTimer = setTimeout(() => (t.style.display = 'none'), 4000);
 }
 
+// Tells screen-reader users why Confirm is disabled. The region lives in the dialog but outside #modalBody, so re-rendering can't drop it.
+let announced = '';
+function announce(text = '') {
+  if (text === announced) return;
+  announced = text;
+  $('#srStatus').textContent = text;
+}
 function close() {
+  announce();
   prep = null;
   closeChoice();
   modal.close();
@@ -163,6 +171,7 @@ function close() {
 }
 $('.close').onclick = close;
 modal.addEventListener('cancel', () => {
+  announce();
   prep = null;
   closeChoice();
   setTimeout(schedule, 0);
@@ -172,7 +181,10 @@ modal.addEventListener('cancel', () => {
 modal.addEventListener('close', () => {
   prep = null;
   // The close event is queued: if a dialog has already opened again, it belongs to that one.
-  if (!modal.open) closeChoice();
+  if (!modal.open) {
+    announce();
+    closeChoice();
+  }
 });
 modal.addEventListener('click', e => {
   if (e.target === modal) close();
@@ -319,10 +331,12 @@ function showPrep(keep = '') {
     $('#prepConfirm:not([disabled])') ??
     $('#modalBody button:not([disabled])')
   )?.focus();
+  announce($('#prep-issue')?.textContent ?? '');
 }
 function confirmPrep() {
   const way = prep?.ways[prep.way];
   if (!way || !ready(way, prep.picks, game)) return;
+  announce();
   const {kind, uid} = prep,
     options = toOptions(way, prep.picks);
   prep = null;
@@ -342,15 +356,18 @@ function openChoice(...keep) {
     $('#choiceConfirm:not([disabled])') ??
     $('#modalBody button:not([disabled])')
   )?.focus();
+  announce($('#choice-issue')?.textContent ?? '');
 }
 // A choice dialog left open after its choice was answered elsewhere (the versus clock) closes itself.
 function dropStaleChoice() {
   if (!choiceShown || (choice && game?.pending?.id === choice.id)) return;
+  announce();
   choice = null;
   choiceShown = false;
   modal.close();
 }
 function submitChoice(selection) {
+  announce();
   choice = null;
   choiceShown = false;
   modal.close();
@@ -933,4 +950,7 @@ setInterval(() => {
   const el = $('#versusClock');
   if (el && versus?.seat?.clock) el.textContent = versusUi.clockText(versus.seat.clock, Date.now());
 }, 250);
+// The static header defaults to First Breach; show the released sets instead.
+$('.edition').textContent = edition();
+$('#libraryNav span').textContent = String(releasedCards().length);
 if (!routeVersus()) render();
