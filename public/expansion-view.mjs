@@ -172,7 +172,7 @@ export function choiceDialog(s, st) {
       )
       .join('')}</div>`;
   } else if (c.kind === 'order') {
-    body = `<p class="muted">The first goes on the stack first and resolves last.</p><ol class="choice-list">${st.order
+    body = `<ol class="choice-list">${st.order
       .map((id, i) => {
         const w = game.waiting.find(t => t.id === id),
           name = w ? game.entryName({ability: w.ability}) : 'Ability';

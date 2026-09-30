@@ -511,14 +511,23 @@ test('discard, pay, optional, order and targets each have their own controls', (
   const opt = choiceDialog(state(g), startChoice(g.pending));
   assert.match(opt, new RegExp(`data-optional="${b.uid}"[^>]*>Retire Backdoor`));
   assert.match(opt, /data-optional=""[^>]*>Don’t retire/);
-  g.pending = pend('order', {options: [21, 22], min: 2, max: 2});
+  g.pending = pend('order', {
+    options: [21, 22],
+    min: 2,
+    max: 2,
+    prompt: 'Choose the order your abilities go on the stack. The first goes on first and resolves last.',
+  });
   g.waiting = [
     {id: 21, p: 0, ability: {card: pt('Dormant Implant'), uid: 1, id: 'implant'}},
     {id: 22, p: 0, ability: {card: pt('Telemetry Curator'), uid: 2, id: 'collect'}},
   ];
   st = moveChoice(startChoice(g.pending), 22, -1);
   assert.deepEqual(choiceSelection(g, st), {order: [22, 21]});
-  assert.match(choiceDialog(state(g), st), /Dormant Implant \(Create a Backdoor\)/);
+  const order = choiceDialog(state(g), st);
+  assert.match(order, /Dormant Implant \(Create a Backdoor\)/);
+  // The engine's prompt already explains the order; the dialog says it once.
+  assert.equal(order.match(/resolves last/g).length, 1);
+  assert.match(order, /<h2>[^<]*resolves last\.<\/h2>/);
   const u = put(g, 0, 'r7');
   g.pending = pend('targets', {
     options: [{key: 't', optional: false, upTo: 0, candidates: [{kind: 'card', uid: u.uid}]}],
