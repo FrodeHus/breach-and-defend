@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {within, settle, blockTrace, busLines, state, changes, cardAround} from '../public/motion.mjs';
+import {within, settle, blockTrace, busLines, state, changes, cardAround, launchRect} from '../public/motion.mjs';
 import {Game} from '../public/engine.mjs';
 import {CARDS} from '../public/cards.mjs';
 
@@ -163,4 +163,15 @@ test('cardAround centres a hand-sized card on a stack row', () => {
   assert.deepEqual([r.left, r.top, r.width, r.height], [1083, 120, 100, 140]);
   assert.equal(r.right - r.left, 100);
   assert.equal(r.bottom - r.top, 140);
+});
+
+test('launchRect starts a card from the opponent panel in the destination proportions, not the panel shape', () => {
+  const bar = {left: 400, top: 60, width: 460, height: 58},
+    tile = {left: 500, top: 200, width: 120, height: 160};
+  const r = launchRect(bar, tile);
+  assert.ok(Math.abs(r.width / r.height - 120 / 160) < 1e-9);
+  assert.equal(r.height, 58);
+  assert.equal(r.left + r.width / 2, 630);
+  assert.equal(r.top + r.height / 2, 89);
+  assert.equal(launchRect({left: 0, top: 0, width: 400, height: 400}, tile).height, 160);
 });

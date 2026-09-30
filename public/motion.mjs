@@ -345,6 +345,12 @@ export function cardAround(r, width = 110, height = 140) {
     top = r.top + r.height / 2 - height / 2;
   return {x: left, y: top, left, top, width, height, right: left + width, bottom: top + height};
 }
+// A card coming out of a deck pile or the opponent's hidden hand starts as a card the height of that pile or
+// panel, in the destination's proportions: flying from the panel's own box stretched it to the panel's shape.
+export const launchRect = (origin, to) => {
+  const k = Math.min(1, origin.height / to.height);
+  return cardAround(origin, to.width * k, to.height * k);
+};
 const onStack = el => !!el?.classList?.contains('stack-item');
 // Stack rows carry no data-card, so the id comes from the card wherever the game now holds it.
 const cardId = (game, uid, el) =>
@@ -361,7 +367,7 @@ async function enter3d(before, e, item, game) {
   item.el.style.visibility = 'hidden'; // else the card shows in its slot while the faces load, then vanishes to fly in
   try {
     const to = onStack(item.el) ? cardAround(item.r) : item.r,
-      from = old && onStack(before.visual.get(e.uid).el) ? cardAround(old) : origin,
+      from = !old ? launchRect(origin, to) : onStack(before.visual.get(e.uid).el) ? cardAround(old) : old,
       f = await faces({
         id: cardId(game, e.uid, item.el) || before.visual.get(e.uid)?.el.dataset.card,
         faction: game.players[e.owner].faction,

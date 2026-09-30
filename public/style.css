@@ -1797,6 +1797,20 @@ a:focus-visible {
   transform: translateY(-14px) scale(1.06);
   z-index: 4;
 }
+/* Overlapping cards cast a small shadow onto the card beneath; the focused card lifts off the stack. Drop-shadow
+   filters leave box-shadow free for the playable and selection rings. The opening hand shares these rules. */
+.hand .card + .card,
+.opening-hand .card + .card {
+  filter: drop-shadow(-4px 0 5px #17354433);
+}
+.hand .card:hover,
+.hand .card:focus-visible,
+.hand .card.preview-source,
+.opening-hand .card:hover,
+.opening-hand .card:focus-visible,
+.opening-hand .card.preview-source {
+  filter: drop-shadow(0 10px 12px #17354440);
+}
 .hand .card-text {
   display: none;
 }

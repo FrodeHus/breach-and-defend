@@ -169,3 +169,62 @@
     transition: none;
   }
 }
+/* The opening hand fans the same tiles like the in-match hand: overlapping, with hover focus and the stack
+   shadows from style.css. The cost sits top-left so the next tile's overlap never hides it. Focus scales from
+   the bottom edge, so the hit area only grows and the pointer cannot slip off a lifting tile. */
+.opening-hand {
+  justify-content: safe center;
+  gap: 0;
+  padding: 18px 18px 20px;
+}
+.opening-hand .card.tile {
+  --scale: 1;
+  flex: 0 0 150px;
+  width: 150px;
+  aspect-ratio: 3/4;
+  height: auto;
+  transform-origin: center bottom;
+  transform: translateY(var(--lift)) scale(var(--scale));
+}
+.opening-hand .card.tile + .card.tile {
+  margin-left: -22px;
+}
+.opening-hand .card.tile:hover,
+.opening-hand .card.tile:focus-visible,
+.opening-hand .card.tile.preview-source {
+  --scale: 1.08;
+  z-index: 4;
+  transform: translateY(var(--lift)) scale(var(--scale));
+}
+.opening-hand .card.tile .tile-name {
+  padding-left: 33px;
+}
+.tile-cost {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #f7fafc;
+  color: #182b3a;
+  border: 1px solid #b2c3ce;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  box-shadow: 0 1px 4px #0006;
+}
+.opening-hand .card.tile.selected {
+  --lift: -10px;
+  box-shadow:
+    0 0 0 3px var(--accent),
+    0 6px 16px #17354440;
+}
+@media (prefers-reduced-motion: reduce) {
+  .opening-hand .card.tile:hover,
+  .opening-hand .card.tile:focus-visible,
+  .opening-hand .card.tile.preview-source {
+    --scale: 1;
+  }
+}
