@@ -501,13 +501,9 @@ export class Game {
           Object.assign(f.card, {uid: ++this.uid, tapped: false, sick: true, damage: 0, bp: 0, bt: 0});
           this.players[p].hand.push(f.card);
           break;
-        case 'counter': {
-          const i = this.stack.findIndex(x => x.card?.uid === target.uid);
-          const other = this.stack.splice(i, 1)[0];
-          this.players[other.p].grave.push(other.card);
-          this.note(`${this.data(other.card).name} is countered.`);
+        case 'counter':
+          this.counter(this.stack.findIndex(x => x.card?.uid === target.uid));
           break;
-        }
       }
       this.players[p].grave.push(card);
       this.note(`${d.name} resolves.`);
@@ -547,6 +543,40 @@ export class Game {
   finish(entry) {
     if (entry.card) this.leaveStack(entry);
     this.note(`${this.entryName(entry)} resolves.`);
+  }
+  counter(i) {
+    const other = this.stack.splice(i, 1)[0];
+    this.leaveStack(other);
+    this.note(`${this.data(other.card).name} is countered.`);
+  }
+  // The automatic answer to each kind of choice: for the computer, and for a play-a-friend clock running out.
+  defaultChoice(c = this.pending) {
+    switch (c.kind) {
+      case 'probe':
+        return {discard: [], order: [...c.options]};
+      case 'discard':
+        return {
+          uids: c.options
+            .map(u => this.find(u).card)
+            .sort((a, b) => this.data(b).cost - this.data(a).cost)
+            .slice(0, c.min)
+            .map(x => x.uid),
+        };
+      case 'pay':
+        return {pay: false};
+      case 'optional':
+        return {uid: null};
+      case 'order':
+        return {order: [...c.options]};
+      case 'targets':
+        return {
+          targets: Object.fromEntries(
+            c.options
+              .filter(o => !o.optional && !o.upTo)
+              .map(o => [o.key, [...o.candidates].sort((a, b) => a.uid - b.uid)[0]]),
+          ),
+        };
+    }
   }
   leaveStack(entry) {
     this.players[entry.p].grave.push(entry.card);
@@ -980,6 +1010,7 @@ export class Game {
   aiAction() {
     const p = this.actor();
     if (p !== 1 || this.winner !== null) return;
+    if (this.pending) return this.choose(1, this.defaultChoice());
     const me = this.players[1],
       foe = this.players[0];
     if (this.phase === 'cleanup') {

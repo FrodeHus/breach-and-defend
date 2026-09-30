@@ -145,6 +145,80 @@ export const OPS = {
   },
   archive: (g, f, s) => {
     for (const x of refs(g, f, s.to)) if (x.zone === 'grave') g.archiveCard(x.p, x.card);
+  }, // Private: only the probing player learns these cards and the order they go back in.
+  probe: (g, f, s) => {
+    const top = g.players[f.p].deck.slice(-s.n).reverse();
+    if (!top.length) return false;
+    g.pending = {
+      id: ++g.uid,
+      actor: f.p,
+      kind: 'probe',
+      private: true,
+      prompt: `Probe ${s.n}: put any of these into your discard, and the rest back on top in any order.`,
+      min: 0,
+      max: top.length,
+      options: top.map(c => c.uid),
+    };
+    return true;
+  },
+  discard: (g, f, s) => {
+    const hand = g.players[f.p].hand;
+    if (hand.length <= s.n) {
+      g.players[f.p].grave.push(...hand.splice(0));
+      return false;
+    }
+    g.pending = {
+      id: ++g.uid,
+      actor: f.p,
+      kind: 'discard',
+      private: true,
+      prompt: `Discard ${s.n} card${s.n === 1 ? '' : 's'}.`,
+      min: s.n,
+      max: s.n,
+      options: hand.map(c => c.uid),
+    };
+    return true;
+  },
+  // "Counter target spell unless its controller pays N": that player decides; `paid` steps reward the caster.
+  counterUnlessPay: (g, f, s) => {
+    const t = f.targets[s.to],
+      i = t ? g.stack.findIndex(x => x.card?.uid === t.uid) : -1;
+    if (i < 0) return false;
+    const q = g.stack[i].p;
+    if (g.mana(q) < s.amount) {
+      g.counter(i);
+      return false;
+    }
+    g.pending = {
+      id: ++g.uid,
+      actor: q,
+      kind: 'pay',
+      private: false,
+      prompt: `Pay ${s.amount} compute, or ${data(g.stack[i].card).name} is countered.`,
+      min: 1,
+      max: 1,
+      options: [true, false],
+      data: {uid: t.uid, amount: s.amount, paid: s.paid ?? []},
+    };
+    return true;
+  },
+  // "You may retire …. If you do, …": offered only when there is something to retire and it can still matter.
+  optionalRetire: (g, f, s) => {
+    if (s.ifSelfIn && g.find(f.self)?.zone !== s.ifSelfIn) return false;
+    const options = retireOptions(g, f.p, s.what, f.self).map(c => c.uid);
+    if (!options.length) return false;
+    g.pending = {
+      id: ++g.uid,
+      actor: f.p,
+      kind: 'optional',
+      private: false,
+      prompt: s.prompt ?? 'You may retire a card.',
+      min: 0,
+      max: 1,
+      options: [...options, null],
+      data: {then: s.then ?? []},
+    };
+    return true;
   },
 };
 
@@ -216,5 +290,59 @@ export const CHOICES = {
     const problem = checkTargets(g, t.p, abilityOf(t.ability).targets ?? [], sel.targets ?? {});
     if (problem) throw Error(problem);
     t.targets = structuredClone(sel.targets ?? {});
+  },
+  probe(g, c, sel) {
+    const {discard, order} = sel;
+    const all = Array.isArray(discard) && Array.isArray(order) ? [...discard, ...order] : null;
+    if (
+      !all ||
+      all.length !== c.options.length ||
+      new Set(all).size !== all.length ||
+      !all.every(u => c.options.includes(u))
+    )
+      throw Error('Put each probed card into your discard or back on top.');
+    const q = g.players[c.actor],
+      probed = q.deck.splice(q.deck.length - c.options.length);
+    const byUid = u => probed.find(x => x.uid === u);
+    q.deck.push(...[...order].reverse().map(byUid));
+    q.grave.push(...discard.map(byUid));
+    g.note(
+      `${g.label(c.actor)} ${g.verb(c.actor, 'probe', 'probes')} ${c.options.length}${discard.length ? `, discarding ${discard.map(u => data(byUid(u)).name).join(', ')}` : ''}.`,
+    );
+  },
+  discard(g, c, sel) {
+    const uids = sel.uids;
+    if (
+      !Array.isArray(uids) ||
+      uids.length !== c.min ||
+      new Set(uids).size !== uids.length ||
+      !uids.every(u => c.options.includes(u))
+    )
+      throw Error(`Choose ${c.min} card${c.min === 1 ? '' : 's'} to discard.`);
+    const q = g.players[c.actor];
+    for (const u of uids)
+      q.grave.push(
+        ...q.hand.splice(
+          q.hand.findIndex(x => x.uid === u),
+          1,
+        ),
+      );
+  },
+  pay(g, c, sel) {
+    if (typeof sel.pay !== 'boolean') throw Error('Choose whether to pay.');
+    const i = g.stack.findIndex(x => x.card?.uid === c.data.uid);
+    if (!sel.pay) return g.counter(i);
+    g.pay(c.actor, c.data.amount);
+    g.note(`${g.label(c.actor)} ${g.verb(c.actor, 'pay', 'pays')} ${c.data.amount} compute.`);
+    for (const step of c.data.paid) OPS[step.op](g, c.frame, step);
+  },
+  optional(g, c, sel) {
+    if (!Object.hasOwn(sel, 'uid') || !c.options.includes(sel.uid)) throw Error('Choose a card to retire, or none.');
+    if (sel.uid === null) return;
+    g.retire(
+      c.actor,
+      g.players[c.actor].field.find(x => x.uid === sel.uid),
+    );
+    for (const step of c.data.then) OPS[step.op](g, c.frame, step);
   },
 };
