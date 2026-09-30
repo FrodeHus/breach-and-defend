@@ -1,7 +1,7 @@
 // public/arena-view.mjs
 // Arena markup: opening hand, battlefield, command bar, tutorial panels and the match recap. Pure strings: each
 // function takes the UI state `s` assembled by app.mjs, so it can be tested without a browser.
-import {BY_ID, KEYWORDS, KEYWORD_NAMES, POOLS} from './cards.mjs';
+import {BY_ID, KEYWORDS, KEYWORD_NAMES, POOLS, SETS} from './cards.mjs';
 import {PHASE_NAMES, COMBAT_STEPS} from './engine.mjs';
 import {LESSONS} from './tutorial.mjs';
 import {lorePanel} from './lore-panel.mjs';
@@ -168,7 +168,7 @@ export function cardDialog(s, id, c, zone) {
   const {game, loreSide} = s;
   const d = BY_ID[id],
     can = c && zone === 'hand' && game.legal(0, c);
-  return `<div class="eyebrow">FIRST BREACH / ${d.faction.toUpperCase()} TEAM</div><div class="modal-card">${card(s, c || id, {detail: true})}<div><h2>${d.name}</h2>${lorePanel(d, loreSide)}${(d.keywords || []).map(k => `<p><strong>${KEYWORD_NAMES[k]}</strong><br>${KEYWORDS[k]}</p>`).join('')}${zone === 'hand' ? `<div id="castRequirements">${playStatus(s, c)}</div><button id="cast" class="primary" aria-describedby="castRequirements" ${can ? '' : 'disabled'}>${d.type === 'Infrastructure' ? 'Play infrastructure' : 'Cast card'}${d.cost ? ' · ' + d.cost + ' compute' : ''}</button>` : ''}${cardActions(s, c, zone)}</div></div>`;
+  return `<div class="eyebrow">${(SETS[d.set]?.name ?? SETS['first-breach'].name).toUpperCase()} / ${d.faction.toUpperCase()} TEAM</div><div class="modal-card">${card(s, c || id, {detail: true})}<div><h2>${d.name}</h2>${lorePanel(d, loreSide)}${(d.keywords || []).map(k => `<p><strong>${KEYWORD_NAMES[k]}</strong><br>${KEYWORDS[k]}</p>`).join('')}${zone === 'hand' ? `<div id="castRequirements">${playStatus(s, c)}</div><button id="cast" class="primary" aria-describedby="castRequirements" ${can ? '' : 'disabled'}>${d.type === 'Infrastructure' ? 'Play infrastructure' : 'Cast card'}${d.cost ? ' · ' + d.cost + ' compute' : ''}</button>` : ''}${cardActions(s, c, zone)}</div></div>`;
 }
 export function targetDialog(s, d, ts) {
   const {game} = s;

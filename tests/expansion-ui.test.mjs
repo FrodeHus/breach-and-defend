@@ -331,3 +331,46 @@ test('an ability preparation shows what it costs, including the card it retires'
   assert.match(html, /Retire as a cost/);
   assert.match(html, /data-pick="retire:0"[^>]*>Indicator/);
 });
+
+test('an ability preparation whose one way cannot be used names it and says why', () => {
+  const g = table();
+  const w = put(g, 0, pt('Analysis Workbench'));
+  g.createToken(0, 'pt-indicator');
+  const ways = abilityWays(g, 0, w);
+  assert.ok(ways[0].issues.length, 'no compute, so the way has issues');
+  const html = prepDialog(state(g), {kind: 'activate', uid: w.uid, zone: 'field', ways, way: 0, picks: {}});
+  assert.match(html, /<h2>Draw two, then discard one — 2 compute, tap/);
+  assert.doesNotMatch(html, /<h2>Cast /);
+  assert.match(html, /id="reason-prep"[^>]*>[^<]*Needs 2 compute/);
+  assert.match(html, /<button[^>]*id="prepConfirm"[^>]*disabled/);
+});
+
+test('reusing a card from the discard pile is titled Reuse, not Cast', () => {
+  const g = table();
+  compute(g, 0, 4);
+  const map = put(g, 0, pt('Map Trust Relationships'), 'grave');
+  const ways = castWays(g, 0, map, 'grave');
+  const html = prepDialog(state(g), {kind: 'cast', uid: map.uid, zone: 'grave', ways, way: null, picks: {}});
+  assert.match(html, /<h2>Reuse Map Trust Relationships<\/h2>/);
+  const c = put(g, 0, pt('Coordinated Pressure'), 'hand');
+  const cast = prepDialog(state(g), {
+    kind: 'cast',
+    uid: c.uid,
+    zone: 'hand',
+    ways: castWays(g, 0, c),
+    way: null,
+    picks: {},
+  });
+  assert.match(cast, /<h2>Cast Coordinated Pressure<\/h2>/);
+});
+
+test('a Persistent Threats card dialog names its own set', () => {
+  const g = table();
+  const c = put(g, 0, pt('Map Trust Relationships'), 'hand');
+  assert.match(
+    arena.cardDialog(state(g), c.id, c, 'hand'),
+    /<div class="eyebrow">PERSISTENT THREATS \/ RED TEAM<\/div>/,
+  );
+  const fb = put(g, 0, 'r3', 'hand');
+  assert.match(arena.cardDialog(state(g), fb.id, fb, 'hand'), /<div class="eyebrow">FIRST BREACH \/ RED TEAM<\/div>/);
+});

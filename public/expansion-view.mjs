@@ -109,7 +109,9 @@ export function prepDialog(s, prep) {
         .join('')
     : '';
   const title =
-    prep.kind === 'activate' && way ? `${esc(way.label)} — ${costText(way, ability)}` : `Cast ${esc(d.name ?? '')}`;
+    prep.kind === 'activate' && way
+      ? `${esc(way.label)} — ${costText(way, ability)}`
+      : `${prep.zone === 'grave' ? 'Reuse' : 'Cast'} ${esc(d.name ?? '')}`;
   const canConfirm = way && ready(way, prep.picks, game);
   const eyebrow = prep.kind === 'activate' ? 'ACTIVATE' : prep.zone === 'grave' ? 'REUSE FROM DISCARD' : 'CAST';
   return `<div class="eyebrow">${eyebrow} / ${esc((d.name ?? '').toUpperCase())}</div><h2>${title}</h2><p class="muted">${esc(d.text ?? '')}</p>${ways}${way?.issues.length && prep.kind === 'activate' ? reason('reason-prep', way.issues) : ''}${selectors}<div class="toolbar"><button class="primary" id="prepConfirm" ${canConfirm ? '' : 'disabled'}>Confirm${way ? ` · ${way.totalCost} compute` : ''}</button><button id="prepCancel">Cancel</button></div>`;

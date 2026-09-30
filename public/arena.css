@@ -775,8 +775,29 @@
   position: relative;
   flex: 0 0 auto;
 }
-.token-group > .card + .card {
-  margin-left: -60%;
+/* Identical tokens fan as a small offset stack. The first tile stays in flow and sizes the group; each later tile sits on
+   top, 12px further right (capped at the fourth), and the group's padding reserves that offset so the ×N badge lands
+   on the top tile's corner and neighbours are never covered. Child 1 is the badge, so tiles start at child 2. The
+   .card.tile pair outranks battlefield-tile.css's position: relative. */
+.token-group > .card.tile + .card.tile {
+  position: absolute;
+  top: 0;
+  left: 12px;
+}
+.token-group > .card.tile:nth-child(4) {
+  left: 24px;
+}
+.token-group > .card.tile:nth-child(n + 5) {
+  left: 36px;
+}
+.token-group:has(> .card:nth-child(3)) {
+  padding-right: 12px;
+}
+.token-group:has(> .card:nth-child(4)) {
+  padding-right: 24px;
+}
+.token-group:has(> .card:nth-child(5)) {
+  padding-right: 36px;
 }
 .token-group > .card:hover,
 .token-group > .card:focus-visible {

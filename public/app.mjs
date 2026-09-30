@@ -281,8 +281,9 @@ function chooseTarget(uid, zone = 'hand') {
 }
 // Preparing a cast or activation: pick a way, then targets and cost cards. Cancelling spends nothing.
 function prepare(p) {
+  // An activation has exactly one way: show it even when it cannot be used, so its reason is visible.
   const usable = p.ways.map((w, i) => (w.issues.length ? -1 : i)).filter(i => i >= 0);
-  prep = {...p, way: usable.length === 1 ? usable[0] : null, picks: {}};
+  prep = {...p, way: p.kind === 'activate' ? 0 : usable.length === 1 ? usable[0] : null, picks: {}};
   showPrep();
 }
 // Re-rendering replaces the controls, so focus returns to the one just pressed, else Confirm, else the first choice.
