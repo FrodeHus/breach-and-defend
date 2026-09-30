@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {within, settle} from '../public/motion.mjs';
+import {within, settle, blockTrace, busLines} from '../public/motion.mjs';
 
 const never = () => new Promise(() => {});
 function manualClock() {
@@ -55,4 +55,22 @@ test('an animation whose finished promise never settles still ends shortly after
 test('a cancelled animation counts as done', async () => {
   const cancelled = {finished: Promise.reject(new DOMException('cancelled', 'AbortError'))};
   assert.deepEqual(await settle(cancelled, 20), {done: true, value: undefined});
+});
+
+test('block traces run straight up, bend 45° onto the bus and back into the attacker', () => {
+  assert.equal(blockTrace({x: 300, y: 500}, {x: 100, y: 212}, 360), 'M 300 500 V 370 L 290 360 H 110 L 100 350 V 212');
+  assert.equal(blockTrace({x: 100, y: 500}, {x: 100, y: 212}, 360), 'M 100 500 V 212');
+  // Close columns shrink the bend so the route never doubles back.
+  assert.equal(blockTrace({x: 106, y: 500}, {x: 100, y: 212}, 360), 'M 106 500 V 363 L 103 360 H 103 L 100 357 V 212');
+});
+
+test('each attacker gets its own bus line inside the gap between the rows', () => {
+  assert.deepEqual(busLines(1, 500, 200), [350]);
+  assert.deepEqual(busLines(3, 500, 200), [340, 350, 360]);
+  const tight = busLines(4, 250, 200);
+  assert.ok(
+    tight.every(y => y >= 212 && y <= 238),
+    tight.join(),
+  );
+  assert.equal(new Set(tight).size, 4);
 });

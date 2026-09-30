@@ -252,38 +252,103 @@ export async function transitions(before, game) {
   await Promise.all(jobs);
 }
 let arrowFrame = 0;
+const SVG = 'http://www.w3.org/2000/svg';
+const SHIELD = 'M0 -10 L9 -6.5 V-0.5 C9 5 5 8.5 0 11 C-5 8.5 -9 5 -9 -0.5 V-6.5 Z';
+// Circuit-board route: straight runs with 45° bends. Each blocker runs to its attacker's own bus line, so
+// blockers of one attacker merge into a single trunk and different attackers never share a horizontal run.
+export function blockTrace(from, to, busY) {
+  const dir = Math.sign(to.y - from.y) || 1,
+    sx = Math.sign(to.x - from.x),
+    c = Math.min(10, Math.abs(to.x - from.x) / 2, Math.abs(busY - from.y), Math.abs(to.y - busY));
+  if (!sx) return `M ${from.x} ${from.y} V ${to.y}`;
+  return [
+    `M ${from.x} ${from.y}`,
+    `V ${busY - dir * c}`,
+    `L ${from.x + sx * c} ${busY}`,
+    `H ${to.x - sx * c}`,
+    `L ${to.x} ${busY + dir * c}`,
+    `V ${to.y}`,
+  ].join(' ');
+}
+// Spreads one bus line per attacker across the gap between the rows, ordered left to right.
+export function busLines(count, near, far, spacing = 10) {
+  const lo = Math.min(near, far) + 12,
+    hi = Math.max(near, far) - 12,
+    mid = (near + far) / 2,
+    step = count > 1 ? Math.min(spacing, Math.max(0, hi - lo) / (count - 1)) : 0;
+  return Array.from({length: count}, (_, k) => mid + (k - (count - 1) / 2) * step);
+}
+// Hovering a card picks out its own links; kept across redraws.
+let hotUid = null,
+  linkHover = false;
+function markLinks() {
+  const svg = document.querySelector('.block-arrows');
+  if (!svg) return;
+  svg.classList.toggle('has-hot', !!hotUid && !!svg.querySelector(`[data-uids~="${hotUid}"]`));
+  for (const g of svg.querySelectorAll('[data-uids]'))
+    g.classList.toggle('hot', g.dataset.uids.split(' ').includes(hotUid));
+}
+function highlightLinks() {
+  if (linkHover) return;
+  linkHover = true;
+  document.addEventListener('pointerover', e => {
+    const el = e.target instanceof Element && e.target.closest('[data-motion-uid][data-zone="field"]');
+    hotUid = el ? el.dataset.motionUid : null;
+    markLinks();
+  });
+}
 export function arrows(assignments) {
   cancelAnimationFrame(arrowFrame);
+  highlightLinks();
   arrowFrame = requestAnimationFrame(() => {
     document.querySelector('.block-arrows')?.remove();
     if (!$('.table')) return;
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const field = uid => $(`[data-motion-uid="${uid}"][data-zone="field"]`),
+      visible = el => {
+        const r = rect(el),
+          row = rect(el.closest('.board-row'));
+        return row && r.right > row.left && r.left < row.right;
+      };
+    const groups = Object.entries(assignments)
+      .map(([attacker, blockers]) => {
+        const to = field(attacker);
+        const from = blockers.map(field).filter(el => el && visible(el));
+        return to && visible(to) && from.length ? {attacker, to, from} : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => rect(a.to).left - rect(b.to).left);
+    if (!groups.length) return;
+    const svg = document.createElementNS(SVG, 'svg');
     svg.classList.add('block-arrows');
     svg.setAttribute('aria-hidden', 'true');
-    svg.innerHTML =
-      '<defs><marker id="block-tip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9a640c"/></marker></defs>';
-    for (const [attacker, blockers] of Object.entries(assignments))
-      for (const uid of blockers) {
-        const from = $(`[data-motion-uid="${uid}"][data-zone="field"]`),
-          to = $(`[data-motion-uid="${attacker}"][data-zone="field"]`);
-        if (!from || !to) continue;
-        const fr = rect(from),
-          tr = rect(to),
-          visible = (el, r) => {
-            const row = rect(el.closest('.board-row'));
-            return row && r.right > row.left && r.left < row.right;
-          };
-        if (!visible(from, fr) || !visible(to, tr)) continue;
-        const a = center(fr),
-          b = center(tr),
-          direction = b.y > a.y ? 1 : -1;
-        a.y += (direction * fr.height) / 2;
-        b.y -= direction * (tr.height / 2 + 7);
-        const path = document.createElementNS(svg.namespaceURI, 'path');
-        path.setAttribute('d', `M ${a.x} ${a.y} C ${a.x} ${(a.y + b.y) / 2}, ${b.x} ${(a.y + b.y) / 2}, ${b.x} ${b.y}`);
-        path.setAttribute('marker-end', 'url(#block-tip)');
-        svg.append(path);
+    const tr0 = rect(groups[0].to),
+      fr0 = rect(groups[0].from[0]),
+      // dir: which way the traces run from the blockers' row toward the attackers' row.
+      dir = fr0.top > tr0.top ? -1 : 1,
+      edge = (r, toward) => (toward > 0 ? r.bottom : r.top),
+      buses = busLines(groups.length, edge(fr0, dir), edge(tr0, -dir));
+    let id = 0;
+    groups.forEach(({attacker, to, from}, k) => {
+      const tr = rect(to),
+        tip = {x: tr.left + tr.width / 2, y: edge(tr, -dir) - dir * 12},
+        g = document.createElementNS(SVG, 'g');
+      g.classList.add('block-link', from[0].classList.contains('red') ? 'red' : 'blue');
+      g.dataset.uids = [attacker, ...from.map(el => el.dataset.motionUid)].join(' ');
+      let html = '';
+      for (const el of from) {
+        const fr = rect(el),
+          start = {x: fr.left + fr.width / 2, y: edge(fr, dir)},
+          d = blockTrace(start, tip, buses[k]),
+          pid = `block-trace-${id++}`;
+        html += `<path class="casing" d="${d}"/><path class="wire" d="${d}"/><path class="flow" id="${pid}" d="${d}"/>`;
+        html += `<circle class="solder" cx="${start.x}" cy="${start.y}" r="4.5"/>`;
+        html += `<circle class="packet" r="3.5"><animateMotion dur="1.3s" repeatCount="indefinite"><mpath href="#${pid}"/></animateMotion></circle>`;
       }
+      html += `<g class="shield" transform="translate(${tip.x} ${edge(tr, -dir)})"><path d="${SHIELD}"/><path class="check" d="M-3.5 0.5 L-1 3 L3.5 -2.5"/></g>`;
+      g.innerHTML = html;
+      svg.append(g);
+    });
     document.body.append(svg);
+    markLinks();
   });
 }

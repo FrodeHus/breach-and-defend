@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Game} from '../public/engine.mjs';
 import {CARDS} from '../public/cards.mjs';
-import {assignBlock, dropHandCard} from '../public/card-drag.mjs';
+import {assignBlock, clearBlock, dropHandCard} from '../public/card-drag.mjs';
 
 function setup(name) {
   const game = new Game();
@@ -77,7 +77,7 @@ test('assigning a block moves the blocker off its previous attacker', () => {
   game.attacks.push(other.uid);
   const blocks = {[red.uid]: [blue.uid]};
   assert.deepEqual(assignBlock(game, blocks, blue.uid, other.uid), []);
-  assert.deepEqual(blocks, {[red.uid]: [], [other.uid]: [blue.uid]});
+  assert.deepEqual(blocks, {[other.uid]: [blue.uid]});
 });
 
 test('illegal blocks report why and leave assignments untouched', () => {
@@ -91,4 +91,14 @@ test('illegal blocks report why and leave assignments untouched', () => {
   assert.match(assignBlock(game, blocks, blue.uid, red.uid).join(' '), /untapped/);
   assert.match(assignBlock(game, blocks, red.uid, red.uid).join(' '), /untapped/);
   assert.deepEqual(blocks, {});
+});
+
+test('clearing a block removes only that blocker and reports whether it had one', () => {
+  const blocks = {5: [1, 2], 6: [3]};
+  assert.equal(clearBlock(blocks, 3), true);
+  assert.deepEqual(blocks, {5: [1, 2]});
+  assert.equal(clearBlock(blocks, 1), true);
+  assert.deepEqual(blocks, {5: [2]});
+  assert.equal(clearBlock(blocks, 9), false);
+  assert.deepEqual(blocks, {5: [2]});
 });

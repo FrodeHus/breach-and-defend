@@ -6,7 +6,7 @@ import {Game} from './engine.mjs';
 import {Tutorial} from './tutorial.mjs';
 import {installCardPreview} from './card-preview.mjs';
 import {installLoreFlip} from './lore-panel.mjs';
-import {installCardDrag, dropHandCard, assignBlock} from './card-drag.mjs';
+import {installCardDrag, dropHandCard, assignBlock, clearBlock} from './card-drag.mjs';
 import {snapshot, combat, transitions, arrows, within} from './motion.mjs';
 import {HostSession, GuestSession} from './session.mjs';
 import * as net from './net.mjs';
@@ -112,6 +112,11 @@ const cardDrag = installCardDrag({
       const issues = assignBlock(game, blocks, b, a);
       if (issues.length) return toast(issues.join(' '));
       blocker = null;
+      render();
+    },
+    isBlocking: uid => Object.values(blocks).flat().includes(uid),
+    onClear: uid => {
+      clearBlock(blocks, uid);
       render();
     },
   },
@@ -532,8 +537,9 @@ document.addEventListener('click', e => {
           toast('Choose an untapped unit to block.');
           return;
         }
-        for (const a in blocks) blocks[a] = blocks[a].filter(x => x !== uid);
-        blocker = blocker === uid ? null : uid;
+        // Clicking a unit that is already blocking removes its block; otherwise it toggles as the pending blocker.
+        if (clearBlock(blocks, uid)) blocker = null;
+        else blocker = blocker === uid ? null : uid;
         render();
         return;
       }

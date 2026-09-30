@@ -15,13 +15,26 @@ export function assignBlock(game, blocks, blockerUid, attackerUid) {
   if (b?.zone !== 'field' || b.p !== 0 || game.data(b.card).type !== 'Unit' || b.card.tapped)
     return ['Choose an untapped unit to block.'];
   if (!game.canBlock(b.card, a.card)) return ['Stealth attackers need a blocker with Stealth or Detection.'];
-  for (const k in blocks) blocks[k] = blocks[k].filter(x => x !== blockerUid);
+  clearBlock(blocks, blockerUid);
   (blocks[attackerUid] ??= []).push(blockerUid);
   return [];
 }
 
+// Takes a unit off whatever it was blocking; true if it had a block.
+export function clearBlock(blocks, blockerUid) {
+  let had = false;
+  for (const k in blocks) {
+    if (!blocks[k].includes(blockerUid)) continue;
+    had = true;
+    blocks[k] = blocks[k].filter(x => x !== blockerUid);
+    if (!blocks[k].length) delete blocks[k];
+  }
+  return had;
+}
+
 // `block` (optional) enables dragging your battlefield units onto attackers:
-// {canDrag(uid), attackers() → uids, check(blockerUid, attackerUid) → issues, onDrop(blockerUid, attackerUid)}.
+// {canDrag(uid), attackers() → uids, check(blockerUid, attackerUid) → issues, onDrop(blockerUid, attackerUid),
+//  isBlocking(uid), onClear(uid)}. Dropping a unit that is already blocking anywhere but an attacker clears its block.
 export function installCardDrag({root, previewSource, canStart, describe, onBusy, onDragStart, onDrop, block}) {
   let gesture = null,
     suppressClick = false;
@@ -47,7 +60,10 @@ export function installCardDrag({root, previewSource, canStart, describe, onBusy
     status.hidden = true;
     if (root.hasPointerCapture(g.pointerId)) root.releasePointerCapture(g.pointerId);
     // Clear the gesture before opening a dialog or rendering the played card.
-    if (drop && g.dragging && g.over) g.over.drop();
+    if (drop && g.dragging) {
+      if (g.over) g.over.drop();
+      else if (g.mode === 'block' && g.blocking) block.onClear(g.uid);
+    }
     onBusy(false);
   }
   document.addEventListener('pointerdown', e => {
@@ -112,8 +128,11 @@ export function installCardDrag({root, previewSource, canStart, describe, onBusy
             const el = root.querySelector(`.opponent-lane [data-uid="${attacker}"]`);
             return el ? [{el, issues: block.check(g.uid, attacker), drop: () => block.onDrop(g.uid, attacker)}] : [];
           });
+          g.blocking = block.isBlocking(g.uid);
           status.textContent = g.zones.some(z => !z.issues.length)
-            ? 'Drop on an attacker to block · Esc to cancel'
+            ? g.blocking
+              ? 'Drop on an attacker to switch · drop anywhere else to remove the block'
+              : 'Drop on an attacker to block · Esc to cancel'
             : `Cannot block: ${g.zones[0]?.issues.join(' ') || 'no attackers.'}`;
         }
         for (const z of g.zones) z.el.classList.add(z.issues.length ? 'card-drop-blocked' : 'card-drop-ready');

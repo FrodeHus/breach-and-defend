@@ -1057,12 +1057,71 @@ dialog::backdrop {
   z-index: 12;
   overflow: hidden;
 }
-.block-arrows > path {
+/* Block links: circuit traces in the blocker's team colour, with data packets flowing toward the attacker. */
+.block-link {
+  --link: var(--blue);
+  transition: opacity 0.15s;
+}
+.block-link.red {
+  --link: var(--red);
+}
+.block-link path {
   fill: none;
-  stroke: #eed7a1;
-  stroke-width: 2.5;
-  filter: drop-shadow(0 1px 3px #000);
-  opacity: 0.95;
+  stroke-linejoin: round;
+}
+.block-link .casing {
+  stroke: #fff;
+  stroke-width: 7;
+  opacity: 0.8;
+}
+.block-link .wire {
+  stroke: var(--link);
+  stroke-width: 3;
+  opacity: 0.35;
+}
+.block-link .flow {
+  stroke: var(--link);
+  stroke-width: 3;
+  stroke-dasharray: 6 4;
+  animation: block-flow 0.9s linear infinite;
+}
+@keyframes block-flow {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+.block-link .solder {
+  fill: var(--link);
+  stroke: #fff;
+  stroke-width: 2;
+}
+.block-link .packet {
+  fill: color-mix(in srgb, var(--link) 45%, #fff);
+  stroke: #fff;
+  stroke-width: 1.4;
+  filter: drop-shadow(0 0 3px var(--link));
+}
+.block-link .shield path {
+  fill: var(--link);
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+.block-link .shield .check {
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+/* Hovering a card picks out its own links when several cross. */
+.block-arrows.has-hot .block-link:not(.hot) {
+  opacity: 0.25;
+}
+@media (prefers-reduced-motion: reduce) {
+  .block-link .flow {
+    animation: none;
+  }
+  .block-link .packet {
+    display: none;
+  }
 }
 .impact-ring {
   position: fixed;
@@ -1679,10 +1738,6 @@ dialog::backdrop {
 }
 .inspect .card {
   background: #fff;
-}
-.block-arrows > path {
-  stroke: #9a640c;
-  filter: drop-shadow(0 1px 2px #fff);
 }
 .card-back {
   color: #eaf8fa;
