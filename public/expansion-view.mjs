@@ -26,7 +26,7 @@ const pickClass = c => (c.kind === 'card' ? ' class="choice-card-button"' : '');
 
 const who = (s, p) => (p === 0 ? 'You' : s.versus ? 'Opponent' : 'Computer');
 
-// Any stack entry. A First Breach spell renders exactly as it always has.
+// Any stack entry.
 export function stackItem(s, e) {
   const {game} = s;
   const targets = e.opts
@@ -44,7 +44,10 @@ export function stackItem(s, e) {
     e.opts?.overclock && 'Overclocked',
     e.opts?.reuse && 'Reuse',
   ].filter(Boolean);
-  return `<div class="stack-item${e.ability ? ' ability' : ''}"${e.card ? ` data-motion-uid="${e.card.uid}"` : ''}><strong>${esc(game.entryName(e))}</strong>${who(s, e.p)}${tags.length ? ` · ${tags.join(' · ')}` : ''}${targets.length ? ' → ' + targets.map(esc).join(', ') : ''}</div>`;
+  // The row is the card (an ability shows its source), so hovering previews it and clicking opens it. No data-uid:
+  // a card on the stack is not in a zone the game can find, and it opens as a plain card.
+  const id = e.card?.id ?? e.ability.card;
+  return `<button type="button" class="stack-item${e.ability ? ' ability' : ''}" data-card="${id}" data-zone="stack"${e.card ? ` data-motion-uid="${e.card.uid}"` : ''}><strong>${esc(game.entryName(e))}</strong>${who(s, e.p)}${tags.length ? ` · ${tags.join(' · ')}` : ''}${targets.length ? ' → ' + targets.map(esc).join(', ') : ''}</button>`;
 }
 
 // Identical means the same token in the same visible state, so a tapped, locked or damaged one is never hidden.

@@ -30,7 +30,7 @@ const state = (game, extra = {}) => ({
   ...extra,
 });
 
-test('the stack shows abilities, Overclock and Reuse, and First Breach entries exactly as before', () => {
+test('the stack shows abilities, Overclock and Reuse, and every entry opens as its card', () => {
   const g = table();
   compute(g, 0, 8);
   const foe = put(g, 1, 'b8');
@@ -38,7 +38,7 @@ test('the stack shows abilities, Overclock and Reuse, and First Breach entries e
   g.play(0, fb.uid, {kind: 'card', uid: foe.uid});
   assert.equal(
     stackItem(state(g), g.stack[0]),
-    `<div class="stack-item" data-motion-uid="${fb.uid}"><strong>Exploit Window</strong>You → Forensic Investigator</div>`,
+    `<button type="button" class="stack-item" data-card="r14" data-zone="stack" data-motion-uid="${fb.uid}"><strong>Exploit Window</strong>You → Forensic Investigator</button>`,
   );
   while (g.stack.length) resolveTop(g); // Abilities need an empty stack
   const u = put(g, 0, 'r7'),
@@ -47,6 +47,7 @@ test('the stack shows abilities, Overclock and Reuse, and First Breach entries e
   const html = stackItem(state(g), g.stack.at(-1));
   assert.match(html, /Backdoor \(Boost a unit\)/);
   assert.match(html, /Ability/);
+  assert.match(html, /data-card="pt-backdoor"/); // An ability opens its source
   assert.match(html, /→ Lateral Mover/);
   assert.doesNotMatch(html, /data-motion-uid/);
   assert.match(arena.battlefield(state(g)), /Backdoor \(Boost a unit\)/);

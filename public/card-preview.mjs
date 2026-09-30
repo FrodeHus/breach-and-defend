@@ -35,7 +35,9 @@ export function installCardPreview({root, renderCard, canShow}) {
     const el = node instanceof Element ? node.closest('[data-card]') : null;
     return el &&
       root.contains(el) &&
-      el.matches('.hand [data-card], .opening-hand [data-card], #libraryGrid [data-card], .battle-lane [data-card]')
+      el.matches(
+        '.hand [data-card], .opening-hand [data-card], #libraryGrid [data-card], .battle-lane [data-card], .effect-stack [data-card]',
+      )
       ? el
       : null;
   };
