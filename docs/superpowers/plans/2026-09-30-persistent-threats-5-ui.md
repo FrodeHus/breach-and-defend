@@ -1393,3 +1393,21 @@ Played in the in-app browser on 2026-09-30, with the set temporarily marked rele
 **Fixed.** Token stacks overlapped neighbours and floated their count; tokens in different states were grouped; the card dialog said FIRST BREACH for every set; blocked activations opened an empty dialog; Reuse was titled "Cast"; choice dialogs reset focus to the first button and the Probe toggle read "✓ Keep on top"; a choice answered elsewhere left its dialog open; the discard grid ignored extra picks silently; ↑/↓ wrapped apart on phones; the log said "a Indicator"; the ⚡ badge covered tile names; the stack didn't name a chosen mode; the order dialog repeated its instruction.
 
 **Not verified here.** The two-browser Play a friend check: the PeerJS broker (0.peerjs.com) was unreachable from the corporate network (CORS failure under TLS inspection). The protocol and hidden-choice logic are covered by unit tests; run the live check off that network before release.
+
+## Follow-ups
+
+**For Plan 6 (lore, art, Field Guide, lessons, release):**
+- Write lore for all 50 cards and both tokens. `add()` refuses a released card without lore, so marking the set released depends on it. The recap's "Lessons from this match" lists expansion cards with empty bodies until then.
+- Art: write image-model prompts (one per card and token, target `public/art/cards/<slug>.webp`) in the existing prompt-file format, for the author to generate.
+- Release copy that is hard-coded to First Breach: `index.html` (nav "Card library 50", header "FIRST BREACH / 01"), the versus lobby eyebrow (`versus-ui.mjs`), and the Field Guide eyebrow and its "rules scope" section (`guide.mjs`).
+- Field Guide: a Persistent Threats section (tokens, retire, archive, Probe, Reuse, Overclock, modes, triggers and pending choices).
+- Optional advanced lessons for the expansion.
+- Before release, run the two-browser Play a friend check off a network that blocks the PeerJS broker: the other player's private choice shows only "Your opponent is choosing…", the guest's dialogs match the host's, a clock-answered choice closes its dialog, and a concede gives **Verified — fair match**.
+
+**Deferred from the reviews (minor):**
+- The choice dialog can disable Confirm through `checkTargets` without showing why (unreachable with today's cards); mirror `#prep-issue` as `#choice-issue`.
+- `#prep-issue` is inserted with its text already set, so screen readers may not announce it; render the live region empty and fill it.
+- `togglePick` (prepare.mjs) and `pickChoiceTarget` (choices.mjs) duplicate the pick rule.
+- The Reuse reason shows the first way's issues while the price is the cheapest way's.
+- Identical untouched tokens share a candidate label in cost selectors.
+- Test gaps: the Task 1 test stubs `globalThis.document` without cleanup; the "observe" test asserts only no-throw; no escaping test for `prepDialog`; the `app.mjs` preparation and choice state machine has no unit tests.
