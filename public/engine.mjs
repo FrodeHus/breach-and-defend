@@ -28,8 +28,10 @@ export const PHASE_NAMES = {
   main2: 'Main II',
   end: 'End step',
   cleanup: 'Discard to seven',
-}; // Card fields that only exist while an effect has set them. Nothing survives a zone change.
+};
+// Card fields that only exist while an effect has set them. Nothing survives a zone change.
 const TRANSIENT = ['kw', 'locked', 'used'];
+const clearTransient = c => TRANSIENT.forEach(k => delete c[k]);
 export class Game {
   constructor(faction = 'blue', random = Math.random, {first = 0, mode = 'solo', pool = DEFAULT_POOL} = {}) {
     this.random = random;
@@ -335,6 +337,7 @@ export class Game {
           f.card.bt += d.toughnessBoost;
           break;
         case 'recover':
+          clearTransient(f.card);
           this.players[p].grave = this.players[p].grave.filter(x => x.uid !== f.card.uid);
           Object.assign(f.card, {uid: ++this.uid, tapped: false, sick: true, damage: 0, bp: 0, bt: 0});
           this.players[p].hand.push(f.card);
@@ -358,6 +361,7 @@ export class Game {
     // Tokens stop existing when they leave the battlefield; they never reach a discard.
     if (d.token) this.note(`${d.name} is removed.`);
     else {
+      clearTransient(c);
       this.players[p].grave.push(c);
       this.note(`${d.name} goes to discard.`);
     }
@@ -366,7 +370,7 @@ export class Game {
   bounce(p, c) {
     this.players[p].field = this.players[p].field.filter(x => x.uid !== c.uid);
     if (this.data(c).token) return this.note(`${this.data(c).name} is removed.`);
-    for (const k of TRANSIENT) delete c[k];
+    clearTransient(c);
     Object.assign(c, {uid: ++this.uid, tapped: false, sick: true, damage: 0, bp: 0, bt: 0});
     this.players[p].hand.push(c);
   }
@@ -383,6 +387,7 @@ export class Game {
   // The archive is public and final: nothing brings a card back from it.
   archiveCard(p, c) {
     this.players[p].grave = this.players[p].grave.filter(x => x.uid !== c.uid);
+    clearTransient(c);
     this.players[p].archive.push(c);
     this.note(`${this.data(c).name} is archived.`);
   }

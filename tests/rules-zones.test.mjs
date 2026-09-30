@@ -82,3 +82,27 @@ test('expansion state is saved only when it is not empty', () => {
     [u.uid],
   );
 });
+
+test('effect fields never survive a move to discard, the archive, or back from discard', () => {
+  const stale = {kw: ['overflow'], locked: true, used: ['x']};
+  const has = c => ['kw', 'locked', 'used'].some(k => Object.hasOwn(c, k));
+  const g = table();
+  const a = put(g, 0, 'r7');
+  Object.assign(a, structuredClone(stale));
+  g.remove(0, a);
+  assert.equal(has(a), false);
+  Object.assign(a, structuredClone(stale));
+  g.archiveCard(0, a);
+  assert.equal(has(a), false);
+  const b = put(g, 0, 'r7');
+  Object.assign(b, structuredClone(stale));
+  g.retire(0, b);
+  assert.equal(has(b), false);
+  Object.assign(b, structuredClone(stale));
+  const r = g.card(CARDS.find(c => c.name === 'Rebuild Foothold').id);
+  g.stack.push({p: 0, card: r, target: {kind: 'card', uid: b.uid}});
+  g.resolve();
+  const back = g.players[0].hand[0];
+  assert.ok(back, 'recovered to hand');
+  assert.equal(has(back), false);
+});
