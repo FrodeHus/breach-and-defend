@@ -86,7 +86,28 @@ body.landing-view main {
 .hero {
   position: relative;
   overflow: hidden;
-  height: clamp(260px, 43vw, 620px);
+}
+/* Past its display width the art stops growing; a blurred, dimmed copy fills the sides and the edges fade into it. */
+.hero:before {
+  content: '';
+  position: absolute;
+  inset: -40px;
+  background: url('art/splash-960.webp') center 18% / cover;
+  filter: blur(36px) brightness(0.45) saturate(1.2);
+}
+.hero picture {
+  position: relative;
+  display: block;
+  width: min(100%, 1440px);
+  min-height: 260px;
+  margin: 0 auto;
+  aspect-ratio: 100 / 43;
+}
+@media (min-width: 1441px) {
+  .hero picture {
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  }
 }
 .hero img {
   display: block;
@@ -454,6 +475,13 @@ body.landing-view .mode-card[aria-pressed='true']:hover:not(:disabled) {
   .hero {
     height: auto;
     overflow: visible;
+  }
+  .hero:before {
+    display: none;
+  }
+  .hero picture {
+    aspect-ratio: auto;
+    min-height: 0;
   }
   .hero img {
     height: 300px;
