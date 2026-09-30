@@ -833,6 +833,10 @@
 .card.tile.can-activate {
   box-shadow: 0 0 0 2px var(--gold);
 }
+/* The ready badge spans 4px–24px from the left; keep the name clear of it. */
+.card.tile.can-activate .tile-name {
+  padding-left: 28px;
+}
 .card-actions {
   display: flex;
   flex-direction: column;
