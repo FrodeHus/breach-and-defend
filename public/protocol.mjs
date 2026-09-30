@@ -1,7 +1,7 @@
 // @ts-check
 // Shared by the host referee and the guest's audit, so both apply identical rules and redaction.
 import {Game, PHASE_NAMES} from './engine.mjs';
-import {BY_ID, CARDS} from './cards.mjs';
+import {BY_ID, CARDS, DEFAULT_POOL, POOLS} from './cards.mjs';
 import {seededRandom} from './rng.mjs';
 
 export const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -24,9 +24,9 @@ export function canonical(v) {
 }
 
 export const seedHex = (hostSecret, guestSecret) => sha256Hex(`${hostSecret}:${guestSecret}`);
-export function versusGame(seed, hostFaction) {
+export function versusGame(seed, hostFaction, pool = DEFAULT_POOL) {
   const bytes = hexBytes(seed);
-  return new Game(hostFaction, seededRandom(bytes.slice(0, 16)), {mode: 'versus', first: bytes[16] & 1});
+  return new Game(hostFaction, seededRandom(bytes.slice(0, 16)), {mode: 'versus', first: bytes[16] & 1, pool});
 }
 
 const other = p => (p === 0 || p === 1 ? 1 - p : p);
@@ -243,7 +243,11 @@ export function sanitizeView(view) {
   };
 
   safeKeys(view);
-  obj(view, VIEW_KEYS, 'view');
+  // The default pool is never spelled out (Game.toJSON omits it), so there is one encoding and old digests hold.
+  const pooled = !!view && typeof view === 'object' && Object.hasOwn(view, 'pool');
+  obj(view, pooled ? [...VIEW_KEYS, 'pool'].sort() : VIEW_KEYS, 'view');
+  if (pooled && (typeof view.pool !== 'string' || !Object.hasOwn(POOLS, view.pool) || view.pool === DEFAULT_POOL))
+    fail('pool');
   if (view.mode !== 'versus') fail('mode');
   seat(view.first, 'first');
   seat(view.active, 'active');

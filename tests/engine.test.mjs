@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {Game} from '../public/engine.mjs';
-import {CARDS, BY_ID, deck} from '../public/cards.mjs';
+import {CARDS, BY_ID, POOLS, deck, releasedCards} from '../public/cards.mjs';
+import {seededRandom} from '../public/rng.mjs';
 const id = name => CARDS.find(c => c.name === name).id;
 function setup() {
   const g = new Game();
@@ -22,13 +23,13 @@ function resolve(g) {
   g.pass(g.priority);
   g.pass(g.priority);
 }
-test('50 illustrated cards; each faction has a legal 60-card starter', () => {
-  assert.equal(CARDS.length, 50);
+test('50 illustrated First Breach cards; each faction has a legal 60-card starter', () => {
+  assert.equal(CARDS.filter(c => c.set === 'first-breach').length, 50);
   for (const f of ['red', 'blue']) {
     assert.equal(deck(f).length, 60);
-    assert.equal(CARDS.filter(c => c.faction === f).length, 25);
+    assert.equal(CARDS.filter(c => c.set === 'first-breach' && c.faction === f).length, 25);
   }
-  for (const c of CARDS) assert.ok(fs.existsSync(new URL(`../public/art/${c.art}.webp`, import.meta.url)));
+  for (const c of releasedCards()) assert.ok(fs.existsSync(new URL(`../public/art/${c.art}.webp`, import.meta.url)));
 });
 test('London mulligan bottoms chosen cards and skips first draw', () => {
   const g = new Game();
@@ -329,4 +330,32 @@ test('blocks must name attackers by canonical uid with a list of blockers', () =
   assert.equal(g.phase, 'block');
   g.blockers(1, {[a.uid]: [b.uid]});
   assert.deepEqual(g.blocks, {[a.uid]: [b.uid]});
+});
+
+test('a match records its card pool; First Breach saves keep the pre-expansion format', t => {
+  const g = new Game('blue', seededRandom([1, 2, 3, 4]));
+  assert.equal(g.pool, 'first-breach');
+  assert.equal(Object.hasOwn(g.toJSON(), 'pool'), false);
+  assert.equal(Game.fromJSON(g.toJSON()).pool, 'first-breach');
+
+  const same = new Game('blue', seededRandom([1, 2, 3, 4]), {pool: 'first-breach'});
+  assert.deepEqual(same.toJSON(), g.toJSON());
+
+  POOLS.mirror = {name: 'Mirror', sets: ['first-breach'], deck: f => [...POOLS['first-breach'].deck(f)].reverse()};
+  t.after(() => delete POOLS.mirror);
+  const m = new Game('blue', seededRandom([1, 2, 3, 4]), {pool: 'mirror'});
+  assert.equal(m.toJSON().pool, 'mirror');
+  assert.equal(Game.fromJSON(m.toJSON()).pool, 'mirror');
+  assert.notDeepEqual(
+    m.players[0].hand.map(c => c.id),
+    g.players[0].hand.map(c => c.id),
+    'the pool decides the decks',
+  );
+  assert.throws(() => new Game('blue', Math.random, {pool: 'nope'}), /Unknown card pool/);
+});
+
+test('a save from before card pools resumes as First Breach', () => {
+  const json = new Game().toJSON();
+  delete json.pool;
+  assert.equal(Game.fromJSON(json).pool, 'first-breach');
 });

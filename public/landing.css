@@ -182,6 +182,18 @@ body.landing-view main {
 .landing .tutorial-opt-in input {
   accent-color: var(--blue);
 }
+.step-head .step-options {
+  margin: 0 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.step-head .step-options > * {
+  margin: 0;
+}
+.landing .expansion-opt-in input:disabled + span {
+  opacity: 0.6;
+}
 .side-note {
   color: var(--muted);
 }

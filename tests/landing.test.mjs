@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {landing, MODES} from '../public/landing.mjs';
+import {BY_ID, CARDS, POOLS, releasedCards} from '../public/cards.mjs';
 
 test('computer mode: mode pressed, tutorial opt-in, and Play buttons wired to data-start', () => {
   const html = landing({mode: 'solo'});
@@ -65,4 +66,39 @@ test('each side button sits in an unclipped cta-slot so its focus glow is visibl
       mode,
     );
   }
+});
+
+test('the hero counts the released cards', t => {
+  assert.match(landing(), new RegExp(`${releasedCards().length} cards · every card teaches`));
+  CARDS.push({...BY_ID.r1, id: 'x1'});
+  t.after(() => CARDS.pop());
+  assert.match(landing(), /51 cards · every card teaches/);
+});
+
+test('no expansion opt-in while First Breach is the only released pool', () => {
+  assert.doesNotMatch(landing({mode: 'solo'}), /includeExpansion/);
+  assert.doesNotMatch(landing({mode: 'friend'}), /includeExpansion/);
+});
+
+test('a released expansion adds an opt-in in both modes, disabled while the guided game is chosen', t => {
+  POOLS.mirror = {
+    name: 'First Breach + Mirror',
+    optIn: 'Mirror',
+    sets: ['first-breach'],
+    deck: POOLS['first-breach'].deck,
+  };
+  t.after(() => delete POOLS.mirror);
+  const pools = ['first-breach', 'mirror'];
+  const off = landing({mode: 'solo', pools});
+  assert.match(off, /<input id="includeExpansion" type="checkbox" value="mirror"\s+aria-describedby="expansionOffer">/);
+  assert.match(off, /<strong>Include Mirror<\/strong>/);
+  assert.match(off, /Both players use decks that mix First Breach with Mirror\./);
+  assert.match(
+    landing({mode: 'solo', pools, pool: 'mirror'}),
+    /id="includeExpansion" type="checkbox" value="mirror" checked/,
+  );
+  const guided = landing({mode: 'solo', pools, pool: 'mirror', guide: true});
+  assert.match(guided, /id="includeExpansion" type="checkbox" value="mirror" checked disabled/);
+  assert.match(guided, /Guided games use First Breach cards only\./);
+  assert.match(landing({mode: 'friend', pools}), /id="includeExpansion"/);
 });

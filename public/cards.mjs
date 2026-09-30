@@ -1,19 +1,26 @@
 // Original teaching set. Mechanics are abstractions, not operational instructions.
 import {LORE} from './lore.mjs';
+// A set stays out of the library and the start screen until `released`: every card has lore and art by then.
+export const SETS = {
+  'first-breach': {name: 'First Breach', code: 'FB1', released: true},
+};
 const cards = [];
-function add(faction, name, cost, type, text, extra = {}) {
-  const id = faction[0] + cards.filter(c => c.faction === faction).length;
-  const {flavor, by: flavorBy, learn: lesson} = LORE[name];
+function add(set, faction, name, cost, type, text, extra = {}) {
+  // First Breach ids come from position and must never shift; later sets give explicit ids.
+  const id = extra.id ?? faction[0] + cards.filter(c => c.faction === faction && c.set === 'first-breach').length;
+  const lore = LORE[name];
+  if (!lore && SETS[set].released) throw Error(`${name} has no lore.`);
   cards.push({
     id,
+    set,
     faction,
     name,
     cost,
     type,
     text,
-    flavor,
-    flavorBy,
-    lesson,
+    flavor: lore?.flavor,
+    flavorBy: lore?.by,
+    lesson: lore?.learn,
     ...extra,
     art: `cards/${name
       .toLowerCase()
@@ -21,8 +28,8 @@ function add(faction, name, cost, type, text, extra = {}) {
       .replace(/^-|-$/g, '')}`,
   });
 }
-const R = (...a) => add('red', ...a),
-  B = (...a) => add('blue', ...a);
+const R = (...a) => add('first-breach', 'red', ...a),
+  B = (...a) => add('first-breach', 'blue', ...a);
 R('Relay Node', 0, 'Infrastructure', 'Tap: Add 1 compute.');
 R('Recon Operator', 1, 'Unit', '', {power: 1, toughness: 2, subtype: 'Operator'});
 R('Credential Broker', 2, 'Unit', 'Recharge', {power: 2, toughness: 1, keywords: ['recharge'], subtype: 'Identity'});
@@ -133,13 +140,31 @@ B('Phishing-Resistant MFA', 3, 'Control', 'Prevent damage to you from sources wi
 B('Configuration Audit', 2, 'Operation', 'Destroy target Tool or Control.', {effect: 'destroy', target: 'support'});
 export const CARDS = cards;
 export const BY_ID = Object.fromEntries(cards.map(c => [c.id, c]));
-export function deck(faction) {
-  const set = cards.filter(c => c.faction === faction);
+// The shipped starters: 24 infrastructure, two of each unit, one of everything else. Order matters: seeded shuffles
+// start from it, so changing it would change every saved and audited match.
+function starter(faction) {
+  const own = cards.filter(c => c.faction === faction && c.set === 'first-breach');
   return [
-    ...Array(24).fill(set[0].id),
-    ...set.filter(c => c.type === 'Unit').flatMap(c => [c.id, c.id]),
-    ...set.filter(c => !['Unit', 'Infrastructure'].includes(c.type)).map(c => c.id),
+    ...Array(24).fill(own[0].id),
+    ...own.filter(c => c.type === 'Unit').flatMap(c => [c.id, c.id]),
+    ...own.filter(c => !['Unit', 'Infrastructure'].includes(c.type)).map(c => c.id),
   ];
+}
+export const DEFAULT_POOL = 'first-breach';
+// A match's card pool: which sets it uses and the deck each faction plays. `optIn` names it on the start screen.
+export const POOLS = {
+  'first-breach': {name: 'First Breach', sets: ['first-breach'], deck: starter},
+};
+export const poolReleased = id =>
+  typeof id === 'string' && Object.hasOwn(POOLS, id) && POOLS[id].sets.every(s => SETS[s]?.released);
+export const releasedPools = () => Object.keys(POOLS).filter(poolReleased);
+export const releasedCards = () => cards.filter(c => SETS[c.set].released);
+// Guided games teach First Breach, and a stored choice may name a pool this version no longer offers.
+export const playablePool = (choice, {guided = false} = {}) =>
+  !guided && poolReleased(choice) ? choice : DEFAULT_POOL;
+export function deck(faction, pool = DEFAULT_POOL) {
+  if (typeof pool !== 'string' || !Object.hasOwn(POOLS, pool)) throw Error(`Unknown card pool: ${pool}.`);
+  return POOLS[pool].deck(faction);
 }
 export const KEYWORDS = {
   rapid: 'May attack the turn it enters.',

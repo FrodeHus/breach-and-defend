@@ -3,6 +3,7 @@
 import {Match} from './match.mjs';
 import {Seat} from './remote.mjs';
 import {audit} from './audit.mjs';
+import {DEFAULT_POOL, poolReleased} from './cards.mjs';
 import {
   bottomCommit,
   canonical,
@@ -74,10 +75,20 @@ export class HostSession extends Session {
   chains = ['queue', 'outbox'];
 
   // `random` exists so tests can fix the secrets (and with them the shuffles); the app never passes it.
-  static async create({net, store, hostFaction, matchId = newMatchId(), clock, random = randomHex}) {
+  static async create({
+    net,
+    store,
+    hostFaction,
+    pool = DEFAULT_POOL,
+    matchId = newMatchId(),
+    clock,
+    random = randomHex,
+  }) {
+    if (!poolReleased(pool)) throw Error(`Unknown card pool: ${pool}.`);
     const hostSecret = random();
     const record = {
       hostFaction,
+      pool,
       hostSecret,
       seedCommit: await sha256Hex(hostSecret),
       guestToken: random(),
@@ -108,6 +119,8 @@ export class HostSession extends Session {
     this.outbox = Promise.resolve();
     record.bottomCommits ??= {};
     this.faction = record.hostFaction;
+    // Records saved before card pools existed are First Breach matches.
+    this.pool = record.pool ?? DEFAULT_POOL;
     this.audit = record.audit;
     this.seat = new Seat((action, seq) => {
       const result = this.match
@@ -257,6 +270,7 @@ export class HostSession extends Session {
         hostToken: r.hostToken,
         seedCommit: r.seedCommit,
         hostFaction: r.hostFaction,
+        pool: this.pool,
       });
       return;
     }
@@ -289,7 +303,7 @@ export class HostSession extends Session {
     r.joined = true;
     this.attach(
       await Match.create(
-        {hostFaction: r.hostFaction, hostSecret: r.hostSecret, guestSecret, seedCommit: r.seedCommit},
+        {hostFaction: r.hostFaction, pool: this.pool, hostSecret: r.hostSecret, guestSecret, seedCommit: r.seedCommit},
         this.clockOptions,
       ),
     );
@@ -396,6 +410,7 @@ export class GuestSession extends Session {
       hostToken: null,
       seedCommit: null,
       hostFaction: null,
+      pool: null,
       guestSecret: null,
       pledged: false,
       seq: 0,
@@ -417,6 +432,7 @@ export class GuestSession extends Session {
     if (saved?.started && !saved.audit) timing.gapFrom ??= now();
     if (saved) store.set(`guest:${matchId}`, this.record);
     this.faction = this.record.hostFaction && other(this.record.hostFaction);
+    this.pool = this.record.pool ?? DEFAULT_POOL;
     this.audit = this.record.audit;
     this.seat = new Seat(
       (action, seq) => {
@@ -514,20 +530,35 @@ export class GuestSession extends Session {
         if (msg.code === 'replaced') return this.stepAside();
         this.dispose(msg.code === 'full');
         return this.set('error', {error: msg.code});
-      case 'welcome':
+      case 'welcome': {
         if (r.hostToken && msg.hostToken !== r.hostToken) return this.impostor();
+        // A host from before card pools sends none: that is First Breach.
+        const pool = msg.pool ?? DEFAULT_POOL;
+        // The terms are fixed at the first welcome. A host that changed its seed commitment after learning this
+        // guest's secret could choose the shuffle; one that changed the pool would play cards the guest never agreed to.
+        if (r.seedCommit && (msg.seedCommit !== r.seedCommit || msg.hostFaction !== r.hostFaction))
+          return this.impostor();
+        if (r.pool && r.pool !== pool) return this.impostor();
+        // A pool this build hasn't released may have different cards from the host's build.
+        if (!poolReleased(pool)) {
+          this.dispose(true);
+          return this.set('error', {error: 'unknown-pool'});
+        }
         Object.assign(r, {
           guestToken: msg.guestToken,
           hostToken: msg.hostToken,
           seedCommit: msg.seedCommit,
           hostFaction: msg.hostFaction,
+          pool,
         });
+        this.pool = pool;
         r.guestSecret ??= this.random();
         this.faction = other(r.hostFaction);
         this.save();
         this.conn.send({type: 'seed', guestSecret: r.guestSecret});
         if (r.pledged) this.conn.send({type: 'pledge'});
         return this.set(r.pledged ? 'pledged' : 'pledge');
+      }
       case 'resume':
         if (msg.hostToken !== r.hostToken) return this.impostor();
         if (r.pledged && !msg.pledged && !msg.started) this.conn.send({type: 'pledge'});

@@ -1,4 +1,4 @@
-import {BY_ID, deck} from './cards.mjs';
+import {BY_ID, DEFAULT_POOL, deck} from './cards.mjs';
 import {seededRandom} from './rng.mjs';
 export const PHASES = [
   'upkeep',
@@ -30,15 +30,16 @@ export const PHASE_NAMES = {
   cleanup: 'Discard to seven',
 };
 export class Game {
-  constructor(faction = 'blue', random = Math.random, {first = 0, mode = 'solo'} = {}) {
+  constructor(faction = 'blue', random = Math.random, {first = 0, mode = 'solo', pool = DEFAULT_POOL} = {}) {
     this.random = random;
     this.mode = mode;
+    this.pool = pool;
     this.first = first;
     this.uid = 0;
     this.players = [faction, faction === 'blue' ? 'red' : 'blue'].map(f => ({
       faction: f,
       life: 20,
-      deck: this.shuffle(deck(f).map(id => this.card(id))),
+      deck: this.shuffle(deck(f, pool).map(id => this.card(id))),
       hand: [],
       field: [],
       grave: [],
@@ -588,11 +589,14 @@ export class Game {
   }
   toJSON() {
     const {random, ...state} = this;
+    // First Breach matches keep the pre-expansion format, so their saves, views and audit digests don't change.
+    if (state.pool === DEFAULT_POOL) delete state.pool;
     return structuredClone({...state, rng: random.state ?? null});
   }
   static fromJSON(json) {
     const {rng, ...state} = structuredClone(json);
     const g = Object.assign(Object.create(Game.prototype), state);
+    g.pool ??= DEFAULT_POOL;
     g.random = rng ? seededRandom(rng) : Math.random;
     return g;
   }

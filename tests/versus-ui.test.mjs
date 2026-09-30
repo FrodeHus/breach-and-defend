@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as ui from '../public/versus-ui.mjs';
+import {POOLS} from '../public/cards.mjs';
 
 test('the invite lobby escapes the link, offers share only when supported, and warns without storage', () => {
   const html = ui.lobby({status: 'waiting'}, {url: 'https://x.test/#join=a"b', canShare: false, storageOk: false});
@@ -74,4 +75,13 @@ test('audit lines cover every result and escape reasons', () => {
   assert.match(ui.auditLine({result: 'verified'}), /Verified/);
   assert.match(ui.auditLine({result: 'tampered', turn: 4, reason: '<b>x</b>'}), /turn 4\. &lt;b&gt;x&lt;\/b&gt;/);
   assert.match(ui.auditLine({result: 'unverified', reason: 'gone'}), /Unverified\. gone/);
+});
+
+test('the lobby names a non-default card pool before the pledge, and explains an unknown one', t => {
+  POOLS.mirror = {name: 'First Breach + Mirror', sets: ['first-breach'], deck: POOLS['first-breach'].deck};
+  t.after(() => delete POOLS.mirror);
+  assert.doesNotMatch(ui.lobby({status: 'pledge', pool: 'first-breach'}), /class="lobby-pool"/);
+  assert.match(ui.lobby({status: 'pledge', pool: 'mirror'}), /class="lobby-pool">Cards: First Breach \+ Mirror</);
+  assert.match(ui.lobby({status: 'waiting', pool: 'mirror'}, {url: 'u'}), /Cards: First Breach \+ Mirror/);
+  assert.match(ui.lobby({status: 'error', error: 'unknown-pool'}), /cards this version of the game doesn’t have/);
 });

@@ -1,7 +1,7 @@
 // public/card-view.mjs
 // Card markup for the hand, battlefield, library and dialogs. Pure strings: each function takes the UI state `s`
 // ({game, selected, blocks, blocker}) it needs, so it can be tested without a browser.
-import {BY_ID, KEYWORDS, KEYWORD_NAMES} from './cards.mjs';
+import {BY_ID, KEYWORDS, KEYWORD_NAMES, SETS} from './cards.mjs';
 import {COMBAT_STEPS} from './engine.mjs';
 import {esc} from './html.mjs';
 
@@ -67,7 +67,7 @@ export function card(s, c, {zone = '', p = null, detail = false} = {}) {
       Object.values(game.blocks).flat().includes(c.uid));
   const stats = live && p !== null && zone === 'field' ? game.stats(c, p) : {power: d.power, toughness: d.toughness};
   if (live && zone === 'field' && !detail) return tile(d, c, p, {stats, status, attacking, blocking, chosen});
-  return `<${detail ? 'div' : 'button'} class="card ${d.faction} ${attacking ? 'attack-selected' : ''} ${blocking ? 'block-selected' : ''} ${c.tapped && zone === 'field' ? 'tapped' : ''} ${chosen ? 'selected' : ''} ${game && zone === 'hand' && game.legal(0, c) ? 'playable' : ''}" ${detail ? '' : `data-motion-uid="${c.uid || ''}" data-card="${d.id}" data-uid="${c.uid || ''}" data-zone="${zone}" aria-label="${esc(d.name)}${d.type === 'Unit' ? `, ${stats.power} power, ${stats.toughness} toughness` : ''}"`}><div class="card-top"><span class="card-title">${d.name}</span><span class="cost">${d.type === 'Infrastructure' ? '◇' : d.cost}</span></div><div class="art" role="img" aria-label="${esc(d.name)} cyberpunk illustration" style="background-image:url('${art(d)}')"></div><div class="card-type">${d.type}${d.subtype ? ' · ' + d.subtype : ''}</div><div class="card-text">${d.text || 'Deploy this unit to attack or block.'}</div>${status.length ? `<div class="card-status">${status.join(' · ')}</div>` : ''}<div class="card-bottom"><span>${d.faction.toUpperCase()} / FB1</span>${d.type === 'Unit' ? `<span class="stats">${stats.power}/${stats.toughness}</span>` : '<span>◇</span>'}</div></${detail ? 'div' : 'button'}>`;
+  return `<${detail ? 'div' : 'button'} class="card ${d.faction} ${attacking ? 'attack-selected' : ''} ${blocking ? 'block-selected' : ''} ${c.tapped && zone === 'field' ? 'tapped' : ''} ${chosen ? 'selected' : ''} ${game && zone === 'hand' && game.legal(0, c) ? 'playable' : ''}" ${detail ? '' : `data-motion-uid="${c.uid || ''}" data-card="${d.id}" data-uid="${c.uid || ''}" data-zone="${zone}" aria-label="${esc(d.name)}${d.type === 'Unit' ? `, ${stats.power} power, ${stats.toughness} toughness` : ''}"`}><div class="card-top"><span class="card-title">${d.name}</span><span class="cost">${d.type === 'Infrastructure' ? '◇' : d.cost}</span></div><div class="art" role="img" aria-label="${esc(d.name)} cyberpunk illustration" style="background-image:url('${art(d)}')"></div><div class="card-type">${d.type}${d.subtype ? ' · ' + d.subtype : ''}</div><div class="card-text">${d.text || 'Deploy this unit to attack or block.'}</div>${status.length ? `<div class="card-status">${status.join(' · ')}</div>` : ''}<div class="card-bottom"><span>${d.faction.toUpperCase()} / ${SETS[d.set].code}</span>${d.type === 'Unit' ? `<span class="stats">${stats.power}/${stats.toughness}</span>` : '<span>◇</span>'}</div></${detail ? 'div' : 'button'}>`;
 }
 export function playStatus(s, c) {
   const {game} = s;
