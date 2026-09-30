@@ -235,8 +235,16 @@ export class Game {
   playIssues(p, c, options = {}) {
     if (this.winner !== null)
       return [{code: 'finished', message: 'This match has ended. Start a new match to play cards.'}];
-    if (!c || !this.players[p].hand.some(x => x.uid === c.uid))
-      return [{code: 'not-in-hand', message: 'This card is not in your hand.'}];
+    const zone = options.reuse ? 'grave' : 'hand';
+    if (!c || !this.players[p][zone].some(x => x.uid === c.uid))
+      return [
+        {
+          code: options.reuse ? 'not-in-discard' : 'not-in-hand',
+          message: options.reuse ? 'This card is not in your discard.' : 'This card is not in your hand.',
+        },
+      ];
+    if (options.reuse && (this.data(c).reuse == null || !['Operation', 'Response'].includes(this.data(c).type)))
+      return [{code: 'reuse', message: `${this.data(c).name} can’t be cast from your discard.`}];
     if (this.pending) return [{code: 'pending', message: 'Finish the pending choice first.'}];
     const d = this.data(c),
       issues = [];
@@ -286,8 +294,8 @@ export class Game {
     }
     return issues;
   }
-  costOf(d, {overclock = false} = {}) {
-    return d.cost + (overclock && d.overclock ? d.overclock.cost : 0);
+  costOf(d, {overclock = false, reuse = false} = {}) {
+    return (reuse ? d.reuse : d.cost) + (overclock && d.overclock ? d.overclock.cost : 0);
   }
   // A rule card can be cast when some way of casting it (a mode, with or without Overclock) has its targets.
   ruleIssues(p, d, {mode = null, overclock = false} = {}) {
@@ -305,7 +313,7 @@ export class Game {
   }
   play(p, uid, target = null, options = {}) {
     const q = this.players[p],
-      c = q.hand.find(c => c.uid === uid),
+      c = (options.reuse ? q.grave : q.hand).find(c => c.uid === uid),
       issues = this.playIssues(p, c, options);
     if (issues.length) throw Error(issues.map(issue => issue.message).join(' '));
     const d = this.data(c);
@@ -322,8 +330,10 @@ export class Game {
       opts = {targets: structuredClone(options.targets ?? {})};
       if (options.overclock) opts.overclock = true;
       if (d.modes) opts.mode = options.mode;
+      if (options.reuse) opts.reuse = true;
     }
-    q.hand = q.hand.filter(x => x.uid !== uid);
+    if (options.reuse) q.grave = q.grave.filter(x => x.uid !== uid);
+    else q.hand = q.hand.filter(x => x.uid !== uid);
     if (d.type === 'Infrastructure') {
       if (d.entersTapped) c.tapped = true;
       q.field.push(c);
@@ -339,7 +349,7 @@ export class Game {
     this.events.push({name: d.name, lesson: d.lesson, faction: d.faction});
     this.passes = 0;
     this.casts[p]++;
-    this.emit({type: 'cast', p, uid: c.uid, count: this.casts[p], fromGrave: false});
+    this.emit({type: 'cast', p, uid: c.uid, count: this.casts[p], fromGrave: !!options.reuse});
     this.note(
       `${this.label(p)} ${this.verb(p, 'cast', 'casts')} ${d.name}${opts?.overclock ? ', overclocked' : ''}${target ? ` → ${this.targetName(target)}` : ''}.`,
     );
@@ -579,7 +589,9 @@ export class Game {
     }
   }
   leaveStack(entry) {
-    this.players[entry.p].grave.push(entry.card);
+    const q = this.players[entry.p];
+    // A card cast with Reuse is archived however it leaves the stack: resolved, countered or without targets.
+    (entry.opts?.reuse ? q.archive : q.grave).push(entry.card);
   }
   entryName(s) {
     return s.card ? this.data(s.card).name : `${BY_ID[s.ability.card].name} (${abilityOf(s.ability).label})`;
