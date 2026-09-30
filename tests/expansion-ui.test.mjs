@@ -220,3 +220,63 @@ test('ready with the game refuses picks the engine would refuse', t => {
   assert.equal(ready(swap, same), true);
   assert.equal(ready(swap, same, g), false, 'a card paying a cost is also a target');
 });
+
+import {archiveDialog, cardActions} from '../public/expansion-view.mjs';
+import {card} from '../public/card-view.mjs';
+
+test('battlefield tiles show live keywords, lockdown, token identity and ready abilities, never by colour alone', () => {
+  const g = table();
+  compute(g, 0, 1);
+  const loader = put(g, 0, pt('Staged Loader'));
+  const locked = put(g, 1, 'b8');
+  Object.assign(locked, {tapped: true, locked: true});
+  const b = g.createToken(0, 'pt-backdoor');
+  const s = state(g);
+  assert.match(card(s, loader, {zone: 'field', p: 0}), /aria-label="[^"]*rapid/);
+  assert.match(card(s, locked, {zone: 'field', p: 1}), /skips next untap/);
+  const tile = card(s, b, {zone: 'field', p: 0});
+  assert.match(tile, /class="tile-kind">Token</);
+  assert.match(tile, /ability ready/);
+  assert.match(card(s, b, {detail: true}), /Tool · Token/);
+});
+
+test('identical tokens are grouped with a count, and each stays its own button', () => {
+  const g = table();
+  const tokens = [g.createToken(0, 'pt-backdoor'), g.createToken(0, 'pt-backdoor'), g.createToken(0, 'pt-indicator')];
+  const html = arena.zone(state(g), 0);
+  assert.match(html, /class="token-group" role="group" aria-label="2 Backdoor tokens"/);
+  for (const t of tokens) assert.match(html, new RegExp(`data-uid="${t.uid}"`));
+});
+
+test('a card dialog offers each ability and Reuse with cost and reason, and First Breach dialogs are unchanged', () => {
+  const g = table();
+  compute(g, 0, 1);
+  const i = g.createToken(0, 'pt-indicator');
+  const actions = cardActions(state(g), i, 'field');
+  assert.match(actions, /<button[^>]*data-ability="analyze"[^>]*disabled/);
+  assert.match(actions, /Analyze · 2 compute/);
+  assert.match(actions, /Needs 2 compute/);
+  const map = put(g, 0, pt('Map Trust Relationships'), 'grave');
+  compute(g, 0, 2);
+  assert.match(cardActions(state(g), map, 'grave'), /<button[^>]*id="reuse"[^>]*>Reuse · 3 compute</);
+  assert.equal(cardActions(state(g), put(g, 0, 'r7'), 'field'), '');
+  assert.equal(cardActions(state(g), put(g, 1, 'b7', 'grave'), 'grave'), '', 'not your discard');
+});
+
+test('the archive has its own read-only pile and viewer, shown only when it has cards', () => {
+  const g = table();
+  assert.doesNotMatch(arena.playerBar(state(g), 0), /data-archive/);
+  const c = put(g, 0, 'r7', 'grave');
+  g.archiveCard(0, c);
+  assert.match(arena.playerBar(state(g), 0), /data-archive="0"[^>]*aria-label="View your archive, 1 card/);
+  const html = archiveDialog(state(g), 0);
+  assert.match(html, /Your archive/);
+  assert.doesNotMatch(html, /<button[^>]*id="reuse"/);
+});
+
+test('your discard marks castable Reuse cards and lets you open them', () => {
+  const g = table();
+  compute(g, 0, 3);
+  put(g, 0, pt('Map Trust Relationships'), 'grave');
+  assert.match(arena.graveDialog(state(g), 0), /class="card red[^"]*playable[^"]*"[^>]*data-zone="grave"/);
+});

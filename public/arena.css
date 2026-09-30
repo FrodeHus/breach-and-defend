@@ -768,3 +768,61 @@
     position: relative;
   }
 }
+/* Expansion cards on the table: token groups, ready abilities, card-dialog actions and the archive pile. */
+.token-group {
+  display: inline-flex;
+  align-items: stretch;
+  position: relative;
+  flex: 0 0 auto;
+}
+.token-group > .card + .card {
+  margin-left: -60%;
+}
+.token-group > .card:hover,
+.token-group > .card:focus-visible {
+  z-index: 2;
+}
+.token-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 3;
+  padding: 1px 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--bg);
+  background: var(--gold);
+  border-radius: 9px;
+}
+.tile-ready {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 2;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--bg);
+  background: var(--gold);
+  border-radius: 50%;
+}
+.card.tile.can-activate {
+  box-shadow: 0 0 0 2px var(--gold);
+}
+.card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+.action-reason {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+.archive-pile {
+  color: var(--gold);
+  border-style: dashed;
+}

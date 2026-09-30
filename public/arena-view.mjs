@@ -8,7 +8,7 @@ import {lorePanel} from './lore-panel.mjs';
 import * as versusUi from './versus-ui.mjs';
 import {esc} from './html.mjs';
 import {card, label, playStatus} from './card-view.mjs';
-import {stackItem} from './expansion-view.mjs';
+import {cardActions, stackItem, tokenGroups} from './expansion-view.mjs';
 
 export const poolEyebrow = game => (POOLS[game.pool]?.name ?? POOLS['first-breach'].name).toUpperCase();
 export function opening(s) {
@@ -18,7 +18,7 @@ export function opening(s) {
 export function playerBar(s, p) {
   const {game, versus} = s;
   const q = game.players[p];
-  return `<div data-player="${p}" class="player-bar ${p === 0 ? 'you' : ''} ${game.actor() === p ? 'has-priority' : ''}"><div class="avatar" style="color:var(--${q.faction})"><img class="faction-emblem" src="art/${q.faction}-emblem.png" alt="${label(q.faction)} emblem" width="64" height="64"></div><div class="player-info"><strong>${p === 0 ? 'YOU' : versus ? 'OPPONENT' : 'COMPUTER'} / ${label(q.faction)}</strong><small>${game.actor() === p ? 'Your action' : game.active === p ? 'Active turn' : 'On standby'} · ${q.hand.length} in hand</small></div><div class="hp" style="color:var(--${q.faction})" aria-label="${p === 0 ? 'Your' : versus ? 'Opponent' : 'Computer'} capacity ${q.life}">${q.life}<small>CAPACITY</small></div><div class="card-piles"><div class="pile deck-pile ${q.faction}" aria-label="${q.deck.length} cards in deck"><b>${q.deck.length}</b><span>Deck</span></div><button class="pile discard-pile" data-grave="${p}" aria-label="View ${p === 0 ? 'your' : 'opponent’s'} discard, ${q.grave.length} cards"><b>${q.grave.length}</b><span>Discard</span></button></div></div>`;
+  return `<div data-player="${p}" class="player-bar ${p === 0 ? 'you' : ''} ${game.actor() === p ? 'has-priority' : ''}"><div class="avatar" style="color:var(--${q.faction})"><img class="faction-emblem" src="art/${q.faction}-emblem.png" alt="${label(q.faction)} emblem" width="64" height="64"></div><div class="player-info"><strong>${p === 0 ? 'YOU' : versus ? 'OPPONENT' : 'COMPUTER'} / ${label(q.faction)}</strong><small>${game.actor() === p ? 'Your action' : game.active === p ? 'Active turn' : 'On standby'} · ${q.hand.length} in hand</small></div><div class="hp" style="color:var(--${q.faction})" aria-label="${p === 0 ? 'Your' : versus ? 'Opponent' : 'Computer'} capacity ${q.life}">${q.life}<small>CAPACITY</small></div><div class="card-piles"><div class="pile deck-pile ${q.faction}" aria-label="${q.deck.length} cards in deck"><b>${q.deck.length}</b><span>Deck</span></div><button class="pile discard-pile" data-grave="${p}" aria-label="View ${p === 0 ? 'your' : 'opponent’s'} discard, ${q.grave.length} cards"><b>${q.grave.length}</b><span>Discard</span></button>${q.archive?.length ? `<button class="pile archive-pile" data-archive="${p}" aria-label="View ${p === 0 ? 'your' : 'opponent’s'} archive, ${q.archive.length} card${q.archive.length === 1 ? '' : 's'}"><b>${q.archive.length}</b><span>Archive</span></button>` : ''}</div></div>`;
 }
 export function resources(s, p) {
   const {game} = s;
@@ -32,7 +32,18 @@ export function zone(s, p) {
   const {game} = s;
   const field = game.players[p].field.filter(c => BY_ID[c.id].type !== 'Infrastructure');
   const name = p === 0 ? 'Your battlefield' : 'Opponent battlefield';
-  return `<div class="zone-head battlefield-heading"><span class="lane-label"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6Z"/><path d="m8 12 3 3 5-6"/></svg>${name}</span><span class="deployed-counter" role="img" aria-label="${field.length} deployed cards" title="${field.length} deployed cards"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 16H3V3h12v2M9 20H7V7h12v2"/><rect x="11" y="11" width="10" height="12" rx="1"/></svg><strong aria-hidden="true">${field.length}</strong></span></div><div class="board-row">${field.length ? field.map(c => card(s, c, {zone: 'field', p})).join('') : `<div class="empty-zone"><span>${p === 0 ? 'Deploy units, tools, and controls from your hand.' : 'No opposing units or controls deployed.'}</span></div>`}</div>`;
+  return `<div class="zone-head battlefield-heading"><span class="lane-label"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6Z"/><path d="m8 12 3 3 5-6"/></svg>${name}</span><span class="deployed-counter" role="img" aria-label="${field.length} deployed cards" title="${field.length} deployed cards"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 16H3V3h12v2M9 20H7V7h12v2"/><rect x="11" y="11" width="10" height="12" rx="1"/></svg><strong aria-hidden="true">${field.length}</strong></span></div><div class="board-row">${
+    field.length
+      ? tokenGroups(
+          s,
+          [
+            ...field.filter(c => !BY_ID[c.id].token),
+            ...field.filter(c => BY_ID[c.id].token).sort((a, b) => a.id.localeCompare(b.id)),
+          ],
+          p,
+        )
+      : `<div class="empty-zone"><span>${p === 0 ? 'Deploy units, tools, and controls from your hand.' : 'No opposing units or controls deployed.'}</span></div>`
+  }</div>`;
 }
 export function phaseGroup(s) {
   const {game} = s;
@@ -157,7 +168,7 @@ export function cardDialog(s, id, c, zone) {
   const {game, loreSide} = s;
   const d = BY_ID[id],
     can = c && zone === 'hand' && game.legal(0, c);
-  return `<div class="eyebrow">FIRST BREACH / ${d.faction.toUpperCase()} TEAM</div><div class="modal-card">${card(s, c || id, {detail: true})}<div><h2>${d.name}</h2>${lorePanel(d, loreSide)}${(d.keywords || []).map(k => `<p><strong>${KEYWORD_NAMES[k]}</strong><br>${KEYWORDS[k]}</p>`).join('')}${zone === 'hand' ? `<div id="castRequirements">${playStatus(s, c)}</div><button id="cast" class="primary" aria-describedby="castRequirements" ${can ? '' : 'disabled'}>${d.type === 'Infrastructure' ? 'Play infrastructure' : 'Cast card'}${d.cost ? ' · ' + d.cost + ' compute' : ''}</button>` : ''}</div></div>`;
+  return `<div class="eyebrow">FIRST BREACH / ${d.faction.toUpperCase()} TEAM</div><div class="modal-card">${card(s, c || id, {detail: true})}<div><h2>${d.name}</h2>${lorePanel(d, loreSide)}${(d.keywords || []).map(k => `<p><strong>${KEYWORD_NAMES[k]}</strong><br>${KEYWORDS[k]}</p>`).join('')}${zone === 'hand' ? `<div id="castRequirements">${playStatus(s, c)}</div><button id="cast" class="primary" aria-describedby="castRequirements" ${can ? '' : 'disabled'}>${d.type === 'Infrastructure' ? 'Play infrastructure' : 'Cast card'}${d.cost ? ' · ' + d.cost + ' compute' : ''}</button>` : ''}${cardActions(s, c, zone)}</div></div>`;
 }
 export function targetDialog(s, d, ts) {
   const {game} = s;
@@ -170,7 +181,7 @@ export function targetDialog(s, d, ts) {
 }
 export function graveDialog(s, p) {
   const {game} = s;
-  return `<h2>${p === 0 ? 'Your' : 'Opponent’s'} discard</h2><div class="grid">${game.players[p].grave.map(c => card(s, c)).join('') || '<p>No discarded cards yet.</p>'}</div>`;
+  return `<h2>${p === 0 ? 'Your' : 'Opponent’s'} discard</h2><div class="grid">${game.players[p].grave.map(c => card(s, c, {zone: 'grave'})).join('') || '<p>No discarded cards yet.</p>'}</div>`;
 }
 export function leaveDialog(s) {
   const {versus} = s;

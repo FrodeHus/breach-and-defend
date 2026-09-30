@@ -18,8 +18,13 @@ const KEYWORD_ICONS = {
   firewall: 'M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z',
 };
 const icon = path => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${path}"/></svg>`;
-function tile(d, c, p, {stats, status, attacking, blocking, chosen}) {
-  const sick = d.type === 'Unit' && c.sick && !d.keywords?.includes('rapid');
+function tile(d, c, p, {game, stats, status, attacking, blocking, chosen}) {
+  const kws = game && p !== null ? [...game.keywords(c)] : (d.keywords ?? []);
+  const sick = d.type === 'Unit' && c.sick && !kws.includes('rapid');
+  const readyAbility =
+    p === 0 &&
+    game &&
+    (d.abilities ?? []).some(a => a.kind === 'activated' && !game.activationIssues(0, c.uid, a.id).length);
   const damage = c.damage || 0,
     left = d.type === 'Unit' ? stats.toughness - damage : 0;
   const states = [
@@ -28,10 +33,12 @@ function tile(d, c, p, {stats, status, attacking, blocking, chosen}) {
     damage && `${damage} damage`,
     attacking && 'attacking',
     blocking && 'blocking',
+    c.locked && 'skips next untap',
+    readyAbility && 'ability ready',
   ].filter(Boolean);
   const combat = status.filter(s => /^↳|blocker/.test(s));
-  const label = `${d.name}${d.type === 'Unit' ? `, ${stats.power} power, ${left} of ${stats.toughness} toughness` : `, ${d.type}`}${(d.keywords || []).map(k => `, ${k}`).join('')}${states.length ? `, ${states.join(', ')}` : ''}`;
-  return `<button class="card tile ${d.faction} ${p === 0 ? 'mine' : 'theirs'} ${attacking ? 'attack-selected' : ''} ${blocking ? 'block-selected' : ''} ${c.tapped ? 'tapped' : ''} ${chosen ? 'selected' : ''} ${sick ? 'sick' : ''}" data-motion-uid="${c.uid}" data-card="${d.id}" data-uid="${c.uid}" data-zone="field" aria-label="${esc(label)}"><div class="art" style="background-image:url('${art(d)}')"></div><div class="tile-name">${d.name}</div>${d.keywords?.length ? `<div class="tile-keywords">${d.keywords.map(k => `<span title="${esc(KEYWORD_NAMES[k])}: ${esc(KEYWORDS[k])}">${icon(KEYWORD_ICONS[k])}</span>`).join('')}</div>` : ''}${d.type === 'Unit' ? `<span class="stats tile-pt">${stats.power}/<span class="${damage ? 'hurt' : ''}">${left}</span></span>` : `<span class="tile-kind">${d.type}</span>`}${sick ? '<span class="tile-sick" title="New arrival: cannot attack this turn">z<small>z</small></span>' : ''}${combat.length ? `<div class="card-status">${combat.join(' · ')}</div>` : ''}</button>`;
+  const label = `${d.name}${d.type === 'Unit' ? `, ${stats.power} power, ${left} of ${stats.toughness} toughness` : `, ${d.type}`}${kws.map(k => `, ${k}`).join('')}${states.length ? `, ${states.join(', ')}` : ''}`;
+  return `<button class="card tile ${d.faction} ${p === 0 ? 'mine' : 'theirs'} ${attacking ? 'attack-selected' : ''} ${blocking ? 'block-selected' : ''} ${c.tapped ? 'tapped' : ''} ${chosen ? 'selected' : ''} ${sick ? 'sick' : ''}${readyAbility ? ' can-activate' : ''}" data-motion-uid="${c.uid}" data-card="${d.id}" data-uid="${c.uid}" data-zone="field" aria-label="${esc(label)}"><div class="art" style="background-image:url('${art(d)}')"></div><div class="tile-name">${d.name}</div>${kws.length ? `<div class="tile-keywords">${kws.map(k => `<span title="${esc(KEYWORD_NAMES[k])}: ${esc(KEYWORDS[k])}">${icon(KEYWORD_ICONS[k])}</span>`).join('')}</div>` : ''}${d.type === 'Unit' ? `<span class="stats tile-pt">${stats.power}/<span class="${damage ? 'hurt' : ''}">${left}</span></span>` : `<span class="tile-kind">${d.token ? 'Token' : d.type}</span>`}${readyAbility ? '<span class="tile-ready" aria-hidden="true">⚡</span>' : ''}${sick ? '<span class="tile-sick" title="New arrival: cannot attack this turn">z<small>z</small></span>' : ''}${combat.length ? `<div class="card-status">${combat.join(' · ')}</div>` : ''}</button>`;
 }
 export function card(s, c, {zone = '', p = null, detail = false} = {}) {
   const {game, selected, blocks, blocker} = s;
@@ -40,8 +47,10 @@ export function card(s, c, {zone = '', p = null, detail = false} = {}) {
   let status = [];
   if (live && zone === 'field') {
     if (c.tapped) status.push('Tapped');
-    if (d.type === 'Unit' && c.sick && !d.keywords?.includes('rapid')) status.push('New arrival');
+    if (d.type === 'Unit' && c.sick && !(game && p !== null ? game.has(c, 'rapid') : d.keywords?.includes('rapid')))
+      status.push('New arrival');
     if (c.damage) status.push(`${c.damage} damage`);
+    if (c.locked) status.push('Skips next untap');
     if (game.attacks.includes(c.uid)) status.push('↗ Attacking');
     const a = Object.entries(blocks).find(([, bs]) => bs.includes(c.uid));
     if (a) {
@@ -66,8 +75,15 @@ export function card(s, c, {zone = '', p = null, detail = false} = {}) {
       Object.values(blocks).flat().includes(c.uid) ||
       Object.values(game.blocks).flat().includes(c.uid));
   const stats = live && p !== null && zone === 'field' ? game.stats(c, p) : {power: d.power, toughness: d.toughness};
-  if (live && zone === 'field' && !detail) return tile(d, c, p, {stats, status, attacking, blocking, chosen});
-  return `<${detail ? 'div' : 'button'} class="card ${d.faction} ${attacking ? 'attack-selected' : ''} ${blocking ? 'block-selected' : ''} ${c.tapped && zone === 'field' ? 'tapped' : ''} ${chosen ? 'selected' : ''} ${game && zone === 'hand' && game.legal(0, c) ? 'playable' : ''}" ${detail ? '' : `data-motion-uid="${c.uid || ''}" data-card="${d.id}" data-uid="${c.uid || ''}" data-zone="${zone}" aria-label="${esc(d.name)}${d.type === 'Unit' ? `, ${stats.power} power, ${stats.toughness} toughness` : ''}"`}><div class="card-top"><span class="card-title">${d.name}</span><span class="cost">${d.type === 'Infrastructure' ? '◇' : d.cost}</span></div><div class="art" role="img" aria-label="${esc(d.name)} cyberpunk illustration" style="background-image:url('${art(d)}')"></div><div class="card-type">${d.type}${d.subtype ? ' · ' + d.subtype : ''}</div><div class="card-text">${d.text || 'Deploy this unit to attack or block.'}</div>${status.length ? `<div class="card-status">${status.join(' · ')}</div>` : ''}<div class="card-bottom"><span>${d.faction.toUpperCase()} / ${SETS[d.set].code}</span>${d.type === 'Unit' ? `<span class="stats">${stats.power}/${stats.toughness}</span>` : '<span>◇</span>'}</div></${detail ? 'div' : 'button'}>`;
+  if (live && zone === 'field' && !detail) return tile(d, c, p, {game, stats, status, attacking, blocking, chosen});
+  const reusable =
+    game &&
+    zone === 'grave' &&
+    live &&
+    game.players[0].grave.some(x => x.uid === c.uid) &&
+    d.reuse != null &&
+    !game.playIssues(0, c, {reuse: true}).length;
+  return `<${detail ? 'div' : 'button'} class="card ${d.faction} ${attacking ? 'attack-selected' : ''} ${blocking ? 'block-selected' : ''} ${c.tapped && zone === 'field' ? 'tapped' : ''} ${chosen ? 'selected' : ''} ${(game && zone === 'hand' && game.legal(0, c)) || reusable ? 'playable' : ''}" ${detail ? '' : `data-motion-uid="${c.uid || ''}" data-card="${d.id}" data-uid="${c.uid || ''}" data-zone="${zone}" aria-label="${esc(d.name)}${d.type === 'Unit' ? `, ${stats.power} power, ${stats.toughness} toughness` : ''}"`}><div class="card-top"><span class="card-title">${d.name}</span><span class="cost">${d.type === 'Infrastructure' ? '◇' : d.cost}</span></div><div class="art" role="img" aria-label="${esc(d.name)} cyberpunk illustration" style="background-image:url('${art(d)}')"></div><div class="card-type">${d.type}${d.token ? ' · Token' : ''}${d.subtype ? ' · ' + d.subtype : ''}</div><div class="card-text">${d.text || 'Deploy this unit to attack or block.'}</div>${status.length ? `<div class="card-status">${status.join(' · ')}</div>` : ''}<div class="card-bottom"><span>${d.faction.toUpperCase()} / ${SETS[d.set].code}</span>${d.type === 'Unit' ? `<span class="stats">${stats.power}/${stats.toughness}</span>` : '<span>◇</span>'}</div></${detail ? 'div' : 'button'}>`;
 }
 export function playStatus(s, c) {
   const {game} = s;
