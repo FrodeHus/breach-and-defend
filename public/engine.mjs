@@ -1,5 +1,6 @@
 import {BY_ID, DEFAULT_POOL, deck} from './cards.mjs';
 import {seededRandom} from './rng.mjs';
+import {OPS, abilityOf, candidates, checkTargets, isRule, recheck, ruleOf, spellRule} from './rules.mjs';
 export const PHASES = [
   'upkeep',
   'draw',
@@ -202,7 +203,7 @@ export class Game {
     if (d.target === 'opponent') return [{kind: 'player', p: 1 - p}];
     if (d.target === 'spell')
       return this.stack
-        .filter(s => ['Response', 'Operation'].includes(this.data(s.card).type))
+        .filter(s => s.card && ['Response', 'Operation'].includes(this.data(s.card).type))
         .map(s => ({kind: 'spell', uid: s.card.uid}));
     if (d.target === 'grave')
       return this.players[p].grave.filter(x => this.data(x).type === 'Unit').map(x => ({kind: 'card', uid: x.uid}));
@@ -216,7 +217,7 @@ export class Game {
       );
     return [];
   }
-  playIssues(p, c) {
+  playIssues(p, c, options = {}) {
     if (this.winner !== null)
       return [{code: 'finished', message: 'This match has ended. Start a new match to play cards.'}];
     if (!c || !this.players[p].hand.some(x => x.uid === c.uid))
@@ -244,12 +245,13 @@ export class Game {
       if (this.players[p].landPlayed)
         add('infrastructure-limit', 'You have already played infrastructure this turn. Wait until your next turn.');
     } else {
-      const ready = this.mana(p);
-      if (ready < d.cost) {
+      const ready = this.mana(p),
+        cost = this.costOf(d, options);
+      if (ready < cost) {
         const total = this.players[p].field.filter(x => this.data(x).type === 'Infrastructure').length;
         add(
           'compute',
-          `Needs ${d.cost} compute; only ${ready} available. ${total >= d.cost ? 'Tapped infrastructure becomes ready on your next turn.' : 'Build more infrastructure during your main phases, one per turn.'}`,
+          `Needs ${cost} compute; only ${ready} available. ${total >= cost ? 'Tapped infrastructure becomes ready on your next turn.' : 'Build more infrastructure during your main phases, one per turn.'}`,
         );
       }
       if (d.target && !this.targets(p, c).length) {
@@ -262,20 +264,45 @@ export class Game {
         };
         add(`target-${d.target}`, missing[d.target] || 'There is no valid target for this card.');
       }
+      if (options.overclock && !d.overclock) add('overclock', `${d.name} has no Overclock.`);
+      else if (isRule(d)) issues.push(...this.ruleIssues(p, d, options));
     }
     return issues;
+  }
+  costOf(d, {overclock = false} = {}) {
+    return d.cost + (overclock && d.overclock ? d.overclock.cost : 0);
+  }
+  // A rule card can be cast when some way of casting it (a mode, with or without Overclock) has its targets.
+  ruleIssues(p, d, {mode = null, overclock = false} = {}) {
+    if (d.modes && mode != null && !d.modes[mode]) return [{code: 'mode', message: 'Choose one of this card’s modes.'}];
+    const modes = d.modes ? (mode == null ? d.modes.map((_, i) => i) : [mode]) : [null];
+    const reachable = modes.some(m =>
+      spellRule(d, {mode: m, overclock}).targets.every(
+        spec => spec.optional || spec.upTo || candidates(this, p, spec).length,
+      ),
+    );
+    return reachable ? [] : [{code: 'target', message: 'There is no legal target for this card.'}];
   }
   legal(p, c) {
     return this.playIssues(p, c).length === 0;
   }
-  play(p, uid, target = null) {
+  play(p, uid, target = null, options = {}) {
     const q = this.players[p],
       c = q.hand.find(c => c.uid === uid),
-      issues = this.playIssues(p, c);
+      issues = this.playIssues(p, c, options);
     if (issues.length) throw Error(issues.map(issue => issue.message).join(' '));
     const d = this.data(c);
     if (d.target && !this.targets(p, c).some(t => JSON.stringify(t) === JSON.stringify(target)))
       throw Error('Choose a legal target.');
+    let opts = null;
+    if (isRule(d)) {
+      if (d.modes && options.mode == null) throw Error('Choose one of this card’s modes.');
+      const problem = checkTargets(this, p, spellRule(d, options).targets, options.targets ?? {});
+      if (problem) throw Error(problem);
+      opts = {targets: structuredClone(options.targets ?? {})};
+      if (options.overclock) opts.overclock = true;
+      if (d.modes) opts.mode = options.mode;
+    }
     q.hand = q.hand.filter(x => x.uid !== uid);
     if (d.type === 'Infrastructure') {
       q.field.push(c);
@@ -283,19 +310,19 @@ export class Game {
       this.note(`${this.label(p)} ${this.verb(p, 'play', 'plays')} ${d.name}.`);
       return;
     }
-    this.pay(p, d.cost);
-    this.stack.push({card: c, p, target});
+    this.pay(p, this.costOf(d, options));
+    this.stack.push(opts ? {card: c, p, target: null, opts} : {card: c, p, target});
     this.events.push({name: d.name, lesson: d.lesson, faction: d.faction});
     this.passes = 0;
     this.note(
-      `${this.label(p)} ${this.verb(p, 'cast', 'casts')} ${d.name}${target ? ` → ${this.targetName(target)}` : ''}.`,
+      `${this.label(p)} ${this.verb(p, 'cast', 'casts')} ${d.name}${opts?.overclock ? ', overclocked' : ''}${target ? ` → ${this.targetName(target)}` : ''}.`,
     );
   }
   targetName(t) {
     if (t.kind === 'player')
       return this.mode === 'solo' ? (t.p === 0 ? 'your capacity' : 'computer capacity') : `${this.label(t.p)} capacity`;
     if (t.kind === 'spell') {
-      const s = this.stack.find(s => s.card.uid === t.uid);
+      const s = this.stack.find(s => s.card?.uid === t.uid);
       return s ? this.data(s.card).name : 'resolved spell';
     }
     const f = this.find(t.uid);
@@ -316,8 +343,9 @@ export class Game {
     } else this.advance();
   }
   resolve() {
-    const s = this.stack.pop(),
-      {card, p, target} = s,
+    const s = this.stack.pop();
+    if (s.ability || s.opts) return this.resolveRule(s);
+    const {card, p, target} = s,
       d = this.data(card);
     const valid = !d.target || this.targets(p, card).some(t => JSON.stringify(t) === JSON.stringify(target));
     if (!valid) {
@@ -358,7 +386,7 @@ export class Game {
           this.players[p].hand.push(f.card);
           break;
         case 'counter': {
-          const i = this.stack.findIndex(x => x.card.uid === target.uid);
+          const i = this.stack.findIndex(x => x.card?.uid === target.uid);
           const other = this.stack.splice(i, 1)[0];
           this.players[other.p].grave.push(other.card);
           this.note(`${this.data(other.card).name} is countered.`);
@@ -369,6 +397,46 @@ export class Game {
       this.note(`${d.name} resolves.`);
     }
     this.check();
+  }
+  resolveRule(s) {
+    const {targets, fizzled} = recheck(this, s.p, ruleOf(s).targets, s.opts.targets);
+    if (fizzled) {
+      if (s.card) this.leaveStack(s);
+      this.note(`${this.entryName(s)} has no legal target and does not resolve.`);
+    } else
+      this.run({
+        entry: s,
+        i: 0,
+        targets,
+        p: s.p,
+        self: s.card?.uid ?? s.ability.uid,
+        source: {id: s.card?.id ?? s.ability.card},
+      });
+    this.check();
+  }
+  // Runs an entry's steps from frame.i. A step that needs a choice sets `pending` and the frame waits in it.
+  run(frame) {
+    const {steps} = ruleOf(frame.entry);
+    for (; frame.i < steps.length && this.winner === null; frame.i++) {
+      const step = steps[frame.i];
+      if (OPS[step.op](this, frame, step)) {
+        frame.i++;
+        this.pending.frame = frame;
+        return false;
+      }
+    }
+    this.finish(frame.entry);
+    return true;
+  }
+  finish(entry) {
+    if (entry.card) this.leaveStack(entry);
+    this.note(`${this.entryName(entry)} resolves.`);
+  }
+  leaveStack(entry) {
+    this.players[entry.p].grave.push(entry.card);
+  }
+  entryName(s) {
+    return s.card ? this.data(s.card).name : `${BY_ID[s.ability.card].name} (${abilityOf(s.ability).label})`;
   }
   remove(p, c) {
     this.players[p].field = this.players[p].field.filter(x => x.uid !== c.uid);
@@ -735,7 +803,7 @@ export class Game {
         const d = this.data(c),
           ts = this.targets(1, c);
         if (d.effect === 'counter') {
-          const top = [...this.stack].reverse().find(s => s.p === 0 && ts.some(t => t.uid === s.card.uid));
+          const top = [...this.stack].reverse().find(s => s.p === 0 && s.card && ts.some(t => t.uid === s.card.uid));
           if (top) {
             selected = c;
             target = {kind: 'spell', uid: top.card.uid};
