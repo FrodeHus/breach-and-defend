@@ -1,7 +1,7 @@
 // public/app.mjs
 // Controller: owns the UI state, renders the views (card-view, arena-view, library, guide, landing, about,
 // versus-ui) into #app, and turns clicks into engine moves. All markup lives in those view modules.
-import {BY_ID} from './cards.mjs';
+import {BY_ID, DEFAULT_POOL, POOLS, playablePool} from './cards.mjs';
 import {Game} from './engine.mjs';
 import {Tutorial} from './tutorial.mjs';
 import {installCardPreview} from './card-preview.mjs';
@@ -27,6 +27,8 @@ const $ = s => document.querySelector(s),
   modal = $('#modal');
 const store = createStore();
 store.prune();
+// The chosen card pool, remembered per browser; an unknown or unreleased one falls back to First Breach.
+let poolChoice = playablePool(store.get('pref:pool'));
 
 let game = null,
   view = 'arena',
@@ -296,7 +298,9 @@ function start(f, optIn = false) {
   guideChoice = false;
   tutorial = false;
   stepKey = '';
-  game = new Game(f);
+  const pool = playablePool(poolChoice, {guided: optIn});
+  store.set('pref:pool', poolChoice); // Rewritten on each start, so the weekly storage prune keeps it.
+  game = new Game(f, undefined, {pool});
   view = 'arena';
   selected.clear();
   blocks = {};
@@ -365,7 +369,7 @@ function page() {
   if (view === 'about') return about();
   if (versus && !versusReady())
     return versusUi.lobby(versus, {url: inviteUrl(), canShare: !!navigator.share, storageOk: store.available});
-  if (!game) return landing({mode: startMode, guide: guideChoice});
+  if (!game) return landing({mode: startMode, guide: guideChoice, pool: poolChoice});
   return game.phase === 'opening' ? arena.opening(ui()) : arena.battlefield(ui());
 }
 
@@ -487,8 +491,19 @@ const FIELDS = {
     filter.set = e.target.value;
     libraryCards();
   },
+  includeExpansion: e => {
+    poolChoice = e.target.checked ? e.target.value : DEFAULT_POOL;
+    store.set('pref:pool', poolChoice);
+  },
+  // Updates the expansion opt-in in place: re-rendering would move focus off this checkbox.
   guideFirstGame: e => {
     guideChoice = e.target.checked;
+    const box = $('#includeExpansion');
+    if (!box) return;
+    box.disabled = guideChoice;
+    $('#expansionOffer').textContent = guideChoice
+      ? 'Guided games use First Breach cards only.'
+      : `Both players use decks that mix First Breach with ${POOLS[box.value].optIn}.`;
   },
   pauseAll: e => {
     pauseAll = e.target.checked;
@@ -617,7 +632,7 @@ async function openVersus(role, open) {
 }
 function hostMatch(f) {
   openVersus('host', async () => {
-    const s = await HostSession.create({net, store, hostFaction: f});
+    const s = await HostSession.create({net, store, hostFaction: f, pool: playablePool(poolChoice)});
     history.replaceState(null, '', `#host=${s.matchId}`);
     return s;
   });
