@@ -1522,3 +1522,52 @@ Append a **Release** section to this plan with the table, the walkthrough result
 - [ ] Run `npm test && npm run typecheck && npm run format:check` on the branch tip.
 - [ ] Append "Follow-ups" to this plan: balance adjustments the author chooses from the playtest report; the Plan 5 deferred minors not taken here (`togglePick` and `pickChoiceTarget` share a rule; identical untouched tokens share a candidate label; test gaps in the `app.mjs` state machine).
 - [ ] Use superpowers:finishing-a-development-branch.
+
+## Release
+
+Released on 2026-09-30 in commit a34e3f3, with the author's 52 illustrations (webp at 768×512, averaging 76.6 KB against First Breach's 76.0 KB; PNG sources in Git LFS).
+
+**Walkthrough (in-app browser, no temporary edits).**
+
+- **Start screen:** **Include Persistent Threats** appears in both modes and is disabled with "Guided games use First Breach cards only." while **Guide my first game** is ticked. The hero reads 100 cards, the header `PERSISTENT THREATS / 02` and the nav `Card library 100`. At 375px the header's edition label is hidden by the existing styles and nothing scrolls sideways.
+- **Library:** "100 cards · 4 decks" and a per-pool deck note. All 50 expansion cards and both tokens load their art at 768 px. Searching "backdoor" finds the token, and its dialog shows its lore and the Retire glossary.
+- **Field Guide:** shows the Persistent Threats section (every term, triggered abilities, several targets, choices) and the updated rules scope.
+- **Solo matches:** a red and a blue expansion match, played to a result through the real interface with quick tips on. Tips appeared for Backdoors, paying for a counter, Probe, Indicators and Overclock. Probe and target choices worked, the recaps listed expansion lessons, and there were no console errors.
+- **First Breach:** a plain match (checkbox off) is unchanged: "FIRST BREACH / TRAINING MATCH", only FB1 cards, the usual tips, no archive pile or glossary.
+- **Accessibility:** for Burn Credentials, picks from both discards set the dialog's live region to "Choose cards from a single player’s discard.". Valid picks or Esc clear it, and the region is in the accessibility tree while the modal is open.
+- **Play a friend, two tabs, unblocked network:**
+  - Both lobbies show "Cards: First Breach + Persistent Threats" before the pledge.
+  - The guest answered two Probes and a Lockdown Coordinator target through the same dialogs as the host, and the host answered four Probes.
+  - Each side saw "Your opponent is choosing…" during the other's choices.
+  - After the host conceded, both recaps read "✓ Verified: fair match".
+  - A choice answered by the clock while its dialog is open was not exercised live; it is covered by code review.
+
+**Playtest report** (`npm run playtest -- 100`: 100 seeds × both starting players; computer vs computer):
+
+| Matchup | Games | Stalled | Red wins | First player wins | Turns (both players) | Tokens made | Tokens retired | Tokens unspent | Reuse casts | Overclocks | Choices |
+|---|---:|---:|---|---|---:|---:|---:|---:|---:|---:|---:|
+| PT vs PT | 200 | 0 | 67% (60–73) | 52% (45–58) | 21.4 | 10.3 | 6.8 | 3.3 | 1.0 | 0.1 | 8.2 |
+| PT red vs FB blue | 200 | 0 | 33% (26–39) | 56% (49–62) | 19.5 | 2.9 | 2.3 | 0.6 | 0.4 | 0.0 | 2.4 |
+| FB red vs PT blue | 200 | 0 | 76% (70–81) | 53% (46–60) | 20.4 | 6.8 | 3.6 | 3.1 | 0.5 | 0.1 | 4.5 |
+
+**Flagged for the author:**
+
+- Three faction win-rate intervals lie outside 40–60%. Red wins 67% of expansion mirrors. The expansion red deck wins only 33% against the First Breach blue starter, and the expansion blue deck wins only 24% against the First Breach red starter.
+- The expansion decks do not overpower the starters; the starters beat them.
+- The computer rarely uses Overclock (0.1 per game) or Reuse (≤1). Part of the gap may therefore be the computer's play of the new mechanics rather than the cards, and human playtests should separate the two.
+- Starting-player win rates are all within 40–60%.
+- Not measured: turns lost to tapped Infrastructure and time spent in choices. Clock timeouts don't exist in computer matches.
+- Caveats: the two games per seed share shuffles, and draws stay in the denominators.
+
+## Follow-ups
+
+- **Balance:** the author's decision from the report above, for example the design's "first adjustment" table, or improving the computer's use of Overclock and Reuse before tuning cards.
+- **Plan 5 deferred minors:**
+  - `togglePick` (prepare.mjs) and `pickChoiceTarget` (choices.mjs) share a pick rule.
+  - Identical untouched tokens share a candidate label.
+  - The `app.mjs` preparation and choice state machine has no unit tests.
+- **Plan 6 deferred minors:**
+  - Closes that skip `announce()` (versus and new-game closes, target-dialog closes) can leave old live-region text for a non-choice dialog opened before the queued close.
+  - The close listener's `prep = null` has the same queued-close race.
+  - The `mechanicsOf` regex has no trailing word boundary.
+  - `tests/views.test.mjs` hard-codes "4 decks".
