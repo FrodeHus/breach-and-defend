@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {within, settle, blockTrace, busLines, state, changes} from '../public/motion.mjs';
+import {within, settle, blockTrace, busLines, state, changes, cardAround} from '../public/motion.mjs';
 import {Game} from '../public/engine.mjs';
 import {CARDS} from '../public/cards.mjs';
 
@@ -156,4 +156,11 @@ test('changes is empty when nothing moved', () => {
   const g = table();
   put(g, 0, 'field', 'SOC Trainee');
   assert.deepEqual(changes(state(g), state(g)), []);
+});
+
+test('cardAround centres a hand-sized card on a stack row', () => {
+  const r = cardAround({left: 1025, top: 164, width: 216, height: 52}, 100, 140);
+  assert.deepEqual([r.left, r.top, r.width, r.height], [1083, 120, 100, 140]);
+  assert.equal(r.right - r.left, 100);
+  assert.equal(r.bottom - r.top, 140);
 });

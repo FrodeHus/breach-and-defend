@@ -328,6 +328,16 @@ const fallback = (job, css) =>
     return css();
   });
 const kindOf = zone => (zone === 'field' ? 'tile' : 'hand');
+// A stack entry is a text row, not a card: it flies and flips as a hand-sized card centred on the row.
+export function cardAround(r, width = 110, height = 140) {
+  const left = r.left + r.width / 2 - width / 2,
+    top = r.top + r.height / 2 - height / 2;
+  return {x: left, y: top, left, top, width, height, right: left + width, bottom: top + height};
+}
+const onStack = el => !!el?.classList?.contains('stack-item');
+// Stack rows carry no data-card, so the id comes from the card wherever the game now holds it.
+const cardId = (game, uid, el) =>
+  el?.dataset?.card || game.find?.(uid)?.card?.id || game.stack?.find(s => s.card?.uid === uid)?.card?.id;
 function statsOf(game, uid) {
   const f = game.find?.(uid);
   return f?.card ? {...game.stats(f.card, f.p), damage: f.card.damage || 0} : null;
@@ -336,16 +346,17 @@ async function enter3d(before, e, item, game) {
   const old = before.visual.get(e.uid)?.r,
     origin = old || (e.zone === 'hand' ? before.decks?.[e.owner] : null) || before.players[e.owner];
   if (!origin) return;
-  const f = await faces({
-    id: item.el.dataset.card,
-    faction: game.players[e.owner].faction,
-    from: kindOf(e.from),
-    to: kindOf(e.zone),
-    width: item.r.width,
-    height: item.r.height,
-    stats: e.zone === 'field' ? statsOf(game, e.uid) : null,
-  });
-  await stage3d.fly({els: [item.el], from: origin, to: item.r, faces: f, flip: old ? null : 'up'});
+  const to = onStack(item.el) ? cardAround(item.r) : item.r,
+    f = await faces({
+      id: cardId(game, e.uid, item.el) || before.visual.get(e.uid)?.el.dataset.card,
+      faction: game.players[e.owner].faction,
+      from: kindOf(e.from),
+      to: kindOf(e.zone),
+      width: to.width,
+      height: to.height,
+      stats: e.zone === 'field' ? statsOf(game, e.uid) : null,
+    });
+  await stage3d.fly({els: [item.el], from: origin, to, faces: f, flip: old ? null : 'up'});
 }
 // Spell damage and damage to a player: the burst without a lunge, in the colours of whoever is not being hit.
 async function hit3d(r, el, e, game) {
@@ -368,17 +379,18 @@ async function hit3d(r, el, e, game) {
   await stage3d.burst({rect: r, faction, amount: e.amount, knock});
 }
 async function leave3d(from, pile, e, game) {
-  const f = await faces({
-    id: from.el.dataset?.card,
-    faction: game.players[e.fromOwner].faction,
-    from: kindOf(e.from),
-    to: kindOf(e.from),
-    width: from.r.width,
-    height: from.r.height,
-    stats: null,
-  });
-  if (e.destroyed) return stage3d.shatter({rect: from.r, faces: f, faction: game.players[e.fromOwner].faction});
-  if (pile) return stage3d.fly({els: [], from: from.r, to: pile, faces: f, flip: 'down', duration: 650});
+  const r = onStack(from.el) ? cardAround(from.r) : from.r,
+    f = await faces({
+      id: cardId(game, e.uid, from.el),
+      faction: game.players[e.fromOwner].faction,
+      from: kindOf(e.from),
+      to: kindOf(e.from),
+      width: r.width,
+      height: r.height,
+      stats: null,
+    });
+  if (e.destroyed) return stage3d.shatter({rect: r, faces: f, faction: game.players[e.fromOwner].faction});
+  if (pile) return stage3d.fly({els: [], from: r, to: pile, faces: f, flip: 'down', duration: 650});
 }
 export async function transitions(before, game) {
   if (still()) return;
