@@ -59,6 +59,11 @@ franchises or stock sites. If the art is AI-generated, add the prompt to
 `docs/art-prompts/`. Ship `.webp` files sized like the existing ones in
 `public/art/cards/`.
 
+Full-size source images in `art-source/` are stored with
+[Git LFS](https://git-lfs.com/). Install it (`git lfs install`) before adding
+or changing them. Without it you get small pointer files in their place,
+which is fine for playing, testing and changing everything else.
+
 ## Licensing of contributions
 
 By submitting a pull request you agree that your code is licensed under the
