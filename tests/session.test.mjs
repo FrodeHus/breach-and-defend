@@ -634,3 +634,13 @@ test('a host that leaves the moment the match ends still gets the final view and
   assert.equal(ctx.guest.status, 'ended');
   assert.deepEqual(ctx.guest.audit, {result: 'verified'});
 });
+
+test('the host ignores guest messages carrying prototype keys', async () => {
+  const ctx = await pair();
+  ctx.guest.conn.send(JSON.parse('{"type":"audit","result":{"__proto__":{"result":"verified"}}}'));
+  await settle(ctx);
+  assert.equal(ctx.host.audit, null);
+  ctx.guest.conn.send({type: 'audit', result: {result: 'verified'}});
+  await settle(ctx);
+  assert.deepEqual(ctx.host.audit, {result: 'verified'});
+});
