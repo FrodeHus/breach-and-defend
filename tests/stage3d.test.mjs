@@ -12,6 +12,7 @@ import {
   toWorld,
   toScreen,
 } from '../public/stage3d-curves.mjs';
+import {init, ready, resetStage, standIn} from '../public/stage3d.mjs';
 
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
 
@@ -67,4 +68,94 @@ test('particle budget never exceeds the cap', () => {
   assert.equal(budget(0, 50), 50);
   assert.equal(budget(MAX_PARTICLES - 10, 50), 10);
   assert.equal(budget(MAX_PARTICLES + 5, 50), 0);
+});
+
+function manualClock() {
+  const timers = new Set();
+  return {
+    schedule: (fn, ms) => {
+      const h = {fn, ms};
+      timers.add(h);
+      return h;
+    },
+    cancel: h => timers.delete(h),
+    fire() {
+      for (const h of [...timers]) {
+        timers.delete(h);
+        h.fn();
+      }
+    },
+  };
+}
+const el = () => ({style: {visibility: ''}});
+
+test('init never loads three.js when reduced motion is requested', async () => {
+  resetStage();
+  let loaded = false;
+  assert.equal(await init({reduced: true, load: async () => (loaded = true)}), false);
+  assert.equal(loaded, false);
+  assert.equal(ready(), false);
+});
+
+test('init stays off when the import or WebGL fails', async () => {
+  resetStage();
+  assert.equal(await init({reduced: false, load: () => Promise.reject(new Error('offline'))}), false);
+  assert.equal(ready(), false);
+  resetStage();
+  const doc = {createElement: () => ({className: '', setAttribute() {}, addEventListener() {}}), body: {append() {}}};
+  const load = async () => ({
+    WebGLRenderer: class {
+      constructor() {
+        throw new Error('no webgl');
+      }
+    },
+  });
+  assert.equal(await init({reduced: false, load, doc}), false);
+  assert.equal(ready(), false);
+});
+
+test('standIn hides cards while running and restores them after it resolves', async () => {
+  const a = el();
+  let seen;
+  const v = await standIn(
+    [a, null],
+    () => {
+      seen = a.style.visibility;
+      return 7;
+    },
+    1000,
+  );
+  assert.equal(seen, 'hidden');
+  assert.equal(v, 7);
+  assert.equal(a.style.visibility, '');
+});
+
+test('standIn restores cards when the animation throws', async () => {
+  const a = el();
+  await assert.rejects(
+    standIn([a], () => Promise.reject(new Error('boom')), 1000),
+    /boom/,
+  );
+  assert.equal(a.style.visibility, '');
+});
+
+test('standIn gives up after its time limit, restores cards and aborts the animation', async () => {
+  const a = el(),
+    clock = manualClock();
+  let ctl;
+  const run = standIn(
+    [a],
+    c => {
+      ctl = c;
+      return new Promise(() => {});
+    },
+    500,
+    clock,
+  );
+  await Promise.resolve();
+  assert.equal(a.style.visibility, 'hidden');
+  clock.fire();
+  assert.equal(await run, undefined);
+  assert.equal(a.style.visibility, '');
+  assert.equal(ctl.aborted, true);
 });
