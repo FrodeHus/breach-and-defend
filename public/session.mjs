@@ -534,7 +534,10 @@ export class GuestSession extends Session {
         if (r.hostToken && msg.hostToken !== r.hostToken) return this.impostor();
         // A host from before card pools sends none: that is First Breach.
         const pool = msg.pool ?? DEFAULT_POOL;
-        // The guest agreed to the pool it was first offered; a host that changes it later is not playing fair.
+        // The terms are fixed at the first welcome. A host that changed its seed commitment after learning this
+        // guest's secret could choose the shuffle; one that changed the pool would play cards the guest never agreed to.
+        if (r.seedCommit && (msg.seedCommit !== r.seedCommit || msg.hostFaction !== r.hostFaction))
+          return this.impostor();
         if (r.pool && r.pool !== pool) return this.impostor();
         // A pool this build hasn't released may have different cards from the host's build.
         if (!poolReleased(pool)) {

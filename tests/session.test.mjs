@@ -930,3 +930,15 @@ test('a repeated welcome that changes the card pool is refused', async t => {
   assert.equal(ctx.guest.error, 'impostor');
   assert.equal(ctx.guest.pool, 'first-breach');
 });
+
+test('a repeated welcome that changes the seed commitment or faction is refused', async () => {
+  for (const changes of [{seedCommit: 'f'.repeat(64)}, {hostFaction: 'red'}]) {
+    const ctx = await pair();
+    const commit = ctx.guest.record.seedCommit;
+    rewelcome(ctx, changes);
+    await settle(ctx);
+    assert.equal(ctx.guest.status, 'error', JSON.stringify(changes));
+    assert.equal(ctx.guest.error, 'impostor');
+    assert.equal(ctx.guest.record.seedCommit, commit, 'the audit still checks the original commitment');
+  }
+});
