@@ -1,5 +1,6 @@
 // Original teaching set. Mechanics are abstractions, not operational instructions.
 import {LORE} from './lore.mjs';
+import {PERSISTENT_THREATS} from './persistent-threats.mjs';
 // A set stays out of the library and the start screen until `released`: every card has lore and art by then.
 export const SETS = {
   'first-breach': {name: 'First Breach', code: 'FB1', released: true},
@@ -139,6 +140,9 @@ B('Phishing-Resistant MFA', 3, 'Control', 'Prevent damage to you from sources wi
   effect: 'antiPhishing',
 });
 B('Configuration Audit', 2, 'Operation', 'Destroy target Tool or Control.', {effect: 'destroy', target: 'support'});
+// The Persistent Threats cards: unreleased (no lore or art yet), with their own stable ids.
+for (const {faction, name, cost, type, text, ...extra} of PERSISTENT_THREATS)
+  add('persistent-threats', faction, name, cost, type, text, extra);
 export const CARDS = cards;
 export const BY_ID = Object.fromEntries(cards.map(c => [c.id, c]));
 // Tokens are created during play: they are looked up by id like cards, but are never in CARDS or a deck.
@@ -200,6 +204,67 @@ export const DEFAULT_POOL = 'first-breach';
 // A match's card pool: which sets it uses and the deck each faction plays. `optIn` names it on the start screen.
 export const POOLS = {
   'first-breach': {name: 'First Breach', sets: ['first-breach'], deck: starter},
+};
+// The design's two mixed decks: 24 infrastructure, 20 units and 16 other cards each.
+const RECIPES = {
+  red: [
+    ['Relay Node', 20],
+    ...[
+      'Ghost Relay',
+      'Reconnaissance Outpost',
+      'Attack Surface Mapper',
+      'Beachhead Scout',
+      'Staged Loader',
+      'Dormant Implant',
+      'Access Broker',
+      'Living-off-the-Land Operator',
+      'Redundant Handler',
+      'Coordinated Intrusion Lead',
+      'Long-Haul Campaign',
+      'Phishing Courier',
+      'Map Trust Relationships',
+      'Seed Access',
+      'Burn the Channel',
+      'Exploit the Handoff',
+      'Signal Spoof',
+      'Reopened Connection',
+      'Exfiltration Buffer',
+      'Distributed Command',
+    ].map(n => [n, 2]),
+  ],
+  blue: [
+    ['Secure Datacenter', 20],
+    ...[
+      'Forensic Repository',
+      'Instrumented Datacenter',
+      'Alert Triage Analyst',
+      'Canary Service',
+      'Telemetry Curator',
+      'Behavioral Monitor',
+      'Case Analyst',
+      'Lockdown Coordinator',
+      'Restoration Lead',
+      'Incident Commander',
+      'Resilient Service Mesh',
+      'Incident Responder',
+      'Reconstruct the Timeline',
+      'Preserve the Scene',
+      'Scoped Remediation',
+      'Verify Provenance',
+      'Live Response',
+      'Break the Chain',
+      'Analysis Workbench',
+      'Continuous Validation',
+    ].map(n => [n, 2]),
+  ],
+};
+const idOf = name => cards.find(c => c.name === name).id;
+export const EXPANSION_POOL = 'first-breach+persistent-threats';
+POOLS[EXPANSION_POOL] = {
+  name: 'First Breach + Persistent Threats',
+  optIn: 'Persistent Threats',
+  sets: ['first-breach', 'persistent-threats'],
+  deck: faction => RECIPES[faction].flatMap(([name, n]) => Array(n).fill(idOf(name))),
 };
 export const poolReleased = id =>
   typeof id === 'string' && Object.hasOwn(POOLS, id) && POOLS[id].sets.every(s => SETS[s]?.released);

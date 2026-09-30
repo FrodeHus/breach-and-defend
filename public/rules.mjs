@@ -68,6 +68,12 @@ export function checkTargets(g, p, specs, chosen) {
       if (!list.every(t => legalTarget(g, p, spec, t))) return 'Choose legal targets.';
       if (spec.onePlayer && new Set(list.map(t => g.find(t.uid)?.p)).size > 1)
         return 'Choose cards from a single player’s discard.';
+      if (spec.sameOwnerAs) {
+        const anchor = chosen[spec.sameOwnerAs],
+          owner = anchor ? g.find(anchor.uid)?.p : undefined;
+        if (list.some(t => g.find(t.uid)?.p !== owner))
+          return 'Choose cards from that permanent’s controller’s discard.';
+      }
     } else if (v == null) {
       if (!spec.optional) return 'Choose a legal target.';
     } else if (!legalTarget(g, p, spec, v)) return 'Choose a legal target.';
@@ -115,7 +121,20 @@ export const OPS = {
     g.players[f.p].life += s.n;
   },
   damage: (g, f, s) => {
-    for (const x of onField(g, f, s.to)) x.card.damage += s.amount;
+    for (const x of onField(g, f, s.to))
+      x.card.damage += s.tappedAmount != null && x.card.tapped ? s.tappedAmount : s.amount;
+  },
+  // Leaving the discard makes a new object: a unit returned to the battlefield is a new arrival.
+  recover: (g, f, s) => {
+    for (const x of refs(g, f, s.to)) if (x.zone === 'grave') g.recover(x.p, x.card, s.zone, {tapped: !!s.tapped});
+  },
+  tapAll: (g, f, s) => {
+    const q = s.side === 'you' ? f.p : 1 - f.p;
+    for (const c of g.players[q].field)
+      if (data(c).type === 'Unit') {
+        c.tapped = true;
+        if (s.lock) c.locked = true;
+      }
   },
   damageAll: (g, f, s) => {
     for (const q of g.players) for (const c of q.field) if (data(c).type === 'Unit') c.damage += s.amount;

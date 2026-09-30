@@ -163,7 +163,8 @@ export class Game {
   }
   holds(p, cond) {
     if (cond.control) return this.players[p].field.some(x => x.id === cond.control);
-    return false;
+    if (cond.attackedWith) return p === this.active && this.attacks.length >= cond.attackedWith;
+    throw Error(`Unknown condition: ${JSON.stringify(cond)}.`);
   }
   mana(p) {
     return this.players[p].field.filter(c => this.data(c).type === 'Infrastructure' && !c.tapped).length;
@@ -243,7 +244,10 @@ export class Game {
           message: options.reuse ? 'This card is not in your discard.' : 'This card is not in your hand.',
         },
       ];
-    if (options.reuse && (this.data(c).reuse == null || !['Operation', 'Response'].includes(this.data(c).type)))
+    if (
+      options.reuse &&
+      (this.data(c).reuse == null || !['Operation', 'Response'].includes(this.data(c).type) || !isRule(this.data(c)))
+    )
       return [{code: 'reuse', message: `${this.data(c).name} can’t be cast from your discard.`}];
     if (this.pending) return [{code: 'pending', message: 'Finish the pending choice first.'}];
     const d = this.data(c),
@@ -298,13 +302,21 @@ export class Game {
     return (reuse ? d.reuse : d.cost) + (overclock && d.overclock ? d.overclock.cost : 0);
   }
   // A rule card can be cast when some way of casting it (a mode, with or without Overclock) has its targets.
-  ruleIssues(p, d, {mode = null, overclock = false} = {}) {
+  ruleIssues(p, d, {mode = null, overclock = false, reuse = false} = {}) {
     if (d.modes && mode != null && !(Number.isInteger(mode) && mode >= 0 && mode < d.modes.length))
       return [{code: 'mode', message: 'Choose one of this card’s modes.'}];
     const modes = d.modes ? (mode == null ? d.modes.map((_, i) => i) : [mode]) : [null];
+    // Overclock can widen the targets (a bigger unit), so it counts when the player can afford it.
+    const ways = overclock
+      ? [true]
+      : d.overclock && this.mana(p) >= this.costOf(d, {overclock: true, reuse})
+        ? [false, true]
+        : [false];
     const reachable = modes.some(m =>
-      spellRule(d, {mode: m, overclock}).targets.every(
-        spec => spec.optional || spec.upTo || candidates(this, p, spec).length,
+      ways.some(o =>
+        spellRule(d, {mode: m, overclock: o}).targets.every(
+          spec => spec.optional || spec.upTo || candidates(this, p, spec).length,
+        ),
       ),
     );
     return reachable ? [] : [{code: 'target', message: 'There is no legal target for this card.'}];
@@ -653,6 +665,16 @@ export class Game {
     this.players[p].archive.push(c);
     this.note(`${this.data(c).name} is archived.`);
   }
+  // Leaving the discard makes a new object, like returning to hand.
+  recover(p, c, zone, {tapped = false} = {}) {
+    const q = this.players[p];
+    q.grave = q.grave.filter(x => x.uid !== c.uid);
+    clearTransient(c);
+    Object.assign(c, {uid: ++this.uid, tapped: zone === 'field' && tapped, sick: true, damage: 0, bp: 0, bt: 0});
+    (zone === 'field' ? q.field : q.hand).push(c);
+    this.note(`${this.data(c).name} returns to ${zone === 'field' ? 'the battlefield' : 'its owner’s hand'}.`);
+    if (zone === 'field') this.emit({type: 'enter', p, uid: c.uid});
+  }
   hurt(victim, amount, source, owner) {
     if (
       this.data(source).tags?.includes('phishing') &&
@@ -708,11 +730,13 @@ export class Game {
   }
   triggersFor(e) {
     const found = [];
-    const consider = (c, p) => {
+    const consider = (c, p, onField = true) => {
       for (const a of this.data(c).abilities ?? []) {
         if (a.kind !== 'triggered' || !ON[a.on](e, c, p, a)) continue;
-        // Counted when it triggers, even if the trigger is later countered or removed.
-        if (a.once) {
+        if (a.if && !this.holds(p, a.if)) continue;
+        // Counted when it triggers, even if the trigger is later countered or removed. Only battlefield objects
+        // have a turn to count in; a card triggering from the discard is not marked.
+        if (a.once && onField) {
           if (c.used?.includes(a.id)) continue;
           (c.used ??= []).push(a.id);
         }
@@ -723,7 +747,7 @@ export class Game {
     // A card's own "when this is defeated" ability triggers from the discard it went to.
     if (e.type === 'defeated') {
       const f = this.find(e.uid);
-      if (f?.zone === 'grave') consider(f.card, e.p);
+      if (f?.zone === 'grave') consider(f.card, e.p, false);
     }
     return found;
   }
@@ -1035,12 +1059,12 @@ export class Game {
     g.random = rng ? seededRandom(rng) : Math.random;
     return g;
   }
-  aiAction() {
-    const p = this.actor();
-    if (p !== 1 || this.winner !== null) return;
-    if (this.pending) return this.choose(1, this.defaultChoice());
-    const me = this.players[1],
-      foe = this.players[0];
+  aiAction(p = 1) {
+    if (this.actor() !== p || this.winner !== null) return;
+    if (this.pending) return this.choose(p, this.aiChoice());
+    const q = 1 - p,
+      me = this.players[p],
+      foe = this.players[q];
     if (this.phase === 'cleanup') {
       this.discard(
         [...me.hand]
@@ -1051,12 +1075,12 @@ export class Game {
       return;
     }
     if (this.phase === 'attack') {
-      const ready = me.field.filter(c => this.canAttack(1, c));
+      const ready = me.field.filter(c => this.canAttack(p, c));
       this.attackers(
-        1,
+        p,
         ready
           .filter(c => {
-            const a = this.stats(c, 1);
+            const a = this.stats(c, p);
             const threats = foe.field.filter(b => this.canBlock(b, c));
             return !threats.length || this.has(c, 'alwaysOn') || a.power >= 2;
           })
@@ -1070,31 +1094,33 @@ export class Game {
       for (const uid of this.attacks) {
         const a = this.find(uid);
         if (!a || a.zone !== 'field') continue;
-        const as = this.stats(a.card, 0);
+        const as = this.stats(a.card, q);
         let choices = available
           .filter(b => this.canBlock(b, a.card))
           .sort((b, c) => {
-            let bs = this.stats(b, 1),
-              cs = this.stats(c, 1);
+            let bs = this.stats(b, p),
+              cs = this.stats(c, p);
             return (cs.toughness > as.power ? 10 : 0) + cs.power - ((bs.toughness > as.power ? 10 : 0) + bs.power);
           });
         let b =
-          choices.find(b => this.stats(b, 1).toughness > as.power || this.stats(b, 1).power >= as.toughness) ||
+          choices.find(b => this.stats(b, p).toughness > as.power || this.stats(b, p).power >= as.toughness) ||
           (me.life <= 8 || as.power >= 4 ? choices[0] : null);
         if (b) {
           assignments[uid] = [b.uid];
           available.splice(available.indexOf(b), 1);
         }
       }
-      this.blockers(1, assignments);
+      this.blockers(p, assignments);
       return;
     }
-    const legal = me.hand.filter(c => this.legal(1, c));
-    const main = this.active === 1 && ['main1', 'main2'].includes(this.phase) && !this.stack.length;
+    const legal = me.hand.filter(c => this.legal(p, c));
+    const main = this.active === p && ['main1', 'main2'].includes(this.phase) && !this.stack.length;
     let selected = null,
       target = null;
     if (main) {
-      selected = legal.find(c => this.data(c).type === 'Infrastructure');
+      selected = legal
+        .filter(c => this.data(c).type === 'Infrastructure')
+        .sort((a, b) => !!this.data(a).entersTapped - !!this.data(b).entersTapped)[0];
       if (!selected)
         selected = legal
           .filter(c => ['Unit', 'Control', 'Tool'].includes(this.data(c).type))
@@ -1103,9 +1129,9 @@ export class Game {
     if (!selected)
       for (const c of legal) {
         const d = this.data(c),
-          ts = this.targets(1, c);
+          ts = this.targets(p, c);
         if (d.effect === 'counter') {
-          const top = [...this.stack].reverse().find(s => s.p === 0 && s.card && ts.some(t => t.uid === s.card.uid));
+          const top = [...this.stack].reverse().find(s => s.p === q && s.card && ts.some(t => t.uid === s.card.uid));
           if (top) {
             selected = c;
             target = {kind: 'spell', uid: top.card.uid};
@@ -1117,14 +1143,14 @@ export class Game {
           break;
         } else if (['destroy', 'damage', 'bounce'].includes(d.effect) && d.target !== 'opponent') {
           const enemies = ts
-            .filter(t => this.find(t.uid)?.p === 0)
+            .filter(t => this.find(t.uid)?.p === q)
             .sort((a, b) => this.data(this.find(b.uid).card).cost - this.data(this.find(a.uid).card).cost);
           const t = enemies.find(
             t =>
               d.effect !== 'damage' ||
-              this.stats(this.find(t.uid).card, 0).toughness - this.find(t.uid).card.damage <= d.amount,
+              this.stats(this.find(t.uid).card, q).toughness - this.find(t.uid).card.damage <= d.amount,
           );
-          if (t && (main || this.active === 0 || this.stack.length)) {
+          if (t && (main || this.active === q || this.stack.length)) {
             selected = c;
             target = t;
             break;
@@ -1143,7 +1169,7 @@ export class Game {
           const ts2 = ts.filter(t => {
             const f = this.find(t.uid);
             return (
-              f.p === (d.powerBoost > 0 ? 1 : 0) &&
+              f.p === (d.powerBoost > 0 ? p : q) &&
               (this.attacks.includes(t.uid) || Object.values(this.blocks).flat().includes(t.uid))
             );
           });
@@ -1154,7 +1180,187 @@ export class Game {
           }
         }
       }
-    if (selected) this.play(1, selected.uid, target);
-    else this.pass(1);
+    if (selected) return this.play(p, selected.uid, target);
+    // Expansion cards: a rule spell with a useful plan, one cast again from the discard, then an ability.
+    for (const c of legal) {
+      if (!isRule(this.data(c))) continue;
+      const plan = this.aiPlan(p, c, main);
+      if (plan) return this.play(p, c.uid, null, plan);
+    }
+    for (const c of me.grave) {
+      if (this.data(c).reuse == null || !isRule(this.data(c))) continue;
+      const plan = this.aiPlan(p, c, main, true);
+      if (plan) return this.play(p, c.uid, null, {...plan, reuse: true});
+    }
+    const ability = main && this.aiAbility(p);
+    if (ability) return this.activate(p, ability.uid, ability.id, ability.options);
+    this.pass(p);
+  }
+  // The computer's answer to its own pending choice: the fixed default, except that it pays when asked
+  // (it is only asked when it can) and takes an optional retire.
+  aiChoice() {
+    const c = this.pending;
+    if (c.kind === 'pay') return {pay: true};
+    if (c.kind === 'optional') return {uid: c.options[0]};
+    return this.defaultChoice(c);
+  }
+  // A way to cast a rule card that does something useful now: {mode?, overclock?, targets, costUids}, or null.
+  // Overclock only when the plain cast finds nothing worth doing.
+  aiPlan(p, c, main, reuse = false) {
+    const d = this.data(c);
+    for (const mode of d.modes ? d.modes.map((_, i) => i) : [null])
+      for (const overclock of d.overclock ? [false, true] : [false]) {
+        const o = {mode, overclock, reuse};
+        if (this.playIssues(p, c, o).length) continue;
+        const rule = spellRule(d, o),
+          targets = this.aiTargets(p, rule);
+        if (!targets || !this.aiWorthIt(p, d, rule, targets, main)) continue;
+        const costUids = [];
+        if (d.extraCost?.retire) {
+          const pick = this.aiRetire(p, d.extraCost.retire);
+          if (!pick || pickedTargets(targets).includes(pick.uid)) continue;
+          costUids.push(pick.uid);
+        }
+        return {...(d.modes ? {mode} : {}), ...(overclock ? {overclock} : {}), targets, costUids};
+      }
+    return null;
+  }
+  // The card the computer retires for a cost: a token first, then the cheapest.
+  aiRetire(p, spec, sourceUid = null) {
+    return retireOptions(this, p, spec, sourceUid).sort(
+      (a, b) => !!this.data(b).token - !!this.data(a).token || this.data(a).cost - this.data(b).cost,
+    )[0];
+  }
+  // Uids of p's units the opponent's spell or ability on top of the stack would destroy, bounce or defeat.
+  aiThreatened(p) {
+    const s = this.stack.at(-1),
+      hit = [];
+    if (!s || s.p === p) return hit;
+    const lethal = (uid, amount, tappedAmount) => {
+      const u = this.find(uid);
+      if (u?.p !== p || u.zone !== 'field') return false;
+      const n = tappedAmount != null && u.card.tapped ? tappedAmount : amount;
+      return this.stats(u.card, p).toughness - u.card.damage <= n;
+    };
+    if (s.opts?.targets) {
+      for (const step of ruleOf(s).steps) {
+        if (step.op !== 'destroy' && step.op !== 'damage') continue;
+        for (const t of [s.opts.targets[step.to]].flat())
+          if (
+            t?.uid != null &&
+            (step.op === 'destroy' ? lethal(t.uid, Infinity) : lethal(t.uid, step.amount, step.tappedAmount))
+          )
+            hit.push(t.uid);
+      }
+    } else if (s.card && s.target?.uid != null) {
+      const d = this.data(s.card);
+      if (
+        ['destroy', 'bounce'].includes(d.effect)
+          ? lethal(s.target.uid, Infinity)
+          : d.effect === 'damage' && lethal(s.target.uid, d.amount)
+      )
+        hit.push(s.target.uid);
+    }
+    return hit;
+  }
+  // Targets chosen by what the steps do to them: harm the opponent's best, help your own units in combat,
+  // recover your best card. null when a required target has no sensible choice.
+  aiTargets(p, rule) {
+    const targets = {},
+      own = t => this.find(t.uid)?.p === p,
+      cost = t => this.data(this.find(t.uid).card).cost,
+      byCost = (a, b) => cost(b) - cost(a),
+      fighting = t => this.attacks.includes(t.uid) || Object.values(this.blocks).flat().includes(t.uid);
+    for (const spec of rule.targets) {
+      const ops = rule.steps.filter(s => s.to === spec.key).map(s => s.op);
+      let options = candidates(this, p, spec);
+      if (spec.zone === 'stack')
+        options = options.filter(t => this.stack.find(s => s.card?.uid === t.uid)?.p !== p).reverse();
+      else if (spec.zone === 'grave')
+        options = ops.includes('recover') ? options.filter(own).sort(byCost) : options.filter(t => !own(t));
+      else if (ops.some(op => op === 'buff' || op === 'untap'))
+        options = options.filter(t => own(t) && this.phase === 'afterBlock' && fighting(t));
+      else if (spec.side === 'you') {
+        // Bouncing your own unit is only worth it to save it from the opponent's removal.
+        const threatened = ops.includes('bounce') ? this.aiThreatened(p) : [];
+        options = options.filter(t => threatened.includes(t.uid)).sort(byCost);
+      } else {
+        options = options.filter(t => !own(t)).sort(byCost);
+        const hit = rule.steps.find(s => s.op === 'damage' && s.to === spec.key);
+        if (hit)
+          options = options.filter(t => {
+            const u = this.find(t.uid).card;
+            const amount = hit.tappedAmount != null && u.tapped ? hit.tappedAmount : hit.amount;
+            return this.stats(u, 1 - p).toughness - u.damage <= amount;
+          });
+      }
+      if (spec.upTo) {
+        let list = options;
+        const ownerOf = t => this.find(t.uid).p;
+        if (spec.sameOwnerAs)
+          list = targets[spec.sameOwnerAs] ? list.filter(t => ownerOf(t) === ownerOf(targets[spec.sameOwnerAs])) : [];
+        if (spec.onePlayer && list.length) list = list.filter(t => ownerOf(t) === ownerOf(list[0]));
+        targets[spec.key] = list.slice(0, spec.upTo);
+      } else if (options.length) targets[spec.key] = options[0];
+      else if (!spec.optional) return null;
+    }
+    return targets;
+  }
+  aiWorthIt(p, d, rule, targets, main) {
+    const ops = rule.steps.map(s => s.op);
+    const wipe = rule.steps.find(s => s.op === 'damageAll');
+    if (wipe) {
+      const lost = q =>
+        this.players[q].field
+          .filter(c => this.data(c).type === 'Unit' && this.stats(c, q).toughness - c.damage <= wipe.amount)
+          .reduce((sum, c) => sum + this.data(c).cost, 0);
+      return main && lost(1 - p) > lost(p);
+    }
+    if (ops.includes('tapAll'))
+      return (
+        this.phase === 'main1' &&
+        this.players[1 - p].field.filter(c => this.data(c).type === 'Unit' && !c.tapped).length >= 2
+      );
+    const aimed = Object.values(targets).some(v => (Array.isArray(v) ? v.length : v));
+    if (rule.targets.length) return aimed;
+    return main;
+  }
+  // An activated ability worth using now: boosts before combat, everything else after it. Infrastructure that
+  // retires itself would lose a compute source for good, so the computer leaves it.
+  aiAbility(p) {
+    for (const c of this.players[p].field) {
+      const d = this.data(c);
+      for (const a of d.abilities ?? []) {
+        if (a.kind !== 'activated' || this.activationIssues(p, c.uid, a.id).length) continue;
+        const cost = a.cost ?? {};
+        if (cost.retire === 'self' && d.type === 'Infrastructure') continue;
+        if (a.steps.some(s => s.op === 'heal') && this.players[p].life > 14) continue;
+        if (a.steps.some(s => s.op === 'buff') !== (this.phase === 'main1')) continue;
+        const targets = {};
+        let ok = true;
+        for (const spec of a.targets ?? []) {
+          const attackers = candidates(this, p, spec)
+            .filter(t => this.canAttack(p, this.find(t.uid).card))
+            .sort((x, y) => this.stats(this.find(y.uid).card, p).power - this.stats(this.find(x.uid).card, p).power);
+          if (!attackers.length) ok = false;
+          else targets[spec.key] = attackers[0];
+        }
+        if (!ok) continue;
+        const picks = [];
+        if (cost.retire && cost.retire !== 'self') {
+          const r = this.aiRetire(p, cost.retire, c.uid);
+          if (!r) continue;
+          picks.push(r.uid);
+        }
+        if (cost.archive) {
+          const r = archiveOptions(this, p, cost.archive)[0];
+          if (!r) continue;
+          picks.push(r.uid);
+        }
+        if (picks.some(u => pickedTargets(targets).includes(u))) continue;
+        return {uid: c.uid, id: a.id, options: {targets, costUids: picks}};
+      }
+    }
+    return null;
   }
 }

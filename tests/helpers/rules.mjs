@@ -35,3 +35,14 @@ export function resolveTop(g) {
   g.pass(g.priority);
   g.pass(g.priority);
 }
+// One combat for the active player: declare, let the defender block, resolve block triggers, deal damage.
+// Leaves the game in endCombat with any combat-damage triggers on the stack.
+export function fight(g, uids, blocks = {}) {
+  g.phase = 'attack';
+  g.attackers(g.active, uids);
+  while (g.phase === 'afterAttack') g.pass(g.priority);
+  g.blockers(1 - g.active, blocks);
+  while (g.stack.length) resolveTop(g);
+  g.pass(g.priority);
+  g.pass(g.priority);
+}
