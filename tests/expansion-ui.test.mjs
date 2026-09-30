@@ -6,7 +6,7 @@ import * as arena from '../public/arena-view.mjs';
 import {stackItem} from '../public/expansion-view.mjs';
 import {hoverCard} from '../public/card-view.mjs';
 import {lorePanel} from '../public/lore-panel.mjs';
-import {compute, put, resolveTop, table} from './helpers/rules.mjs';
+import {compute, define, put, resolveTop, table} from './helpers/rules.mjs';
 
 const pt = name => CARDS.find(c => c.name === name).id;
 const ref = uid => ({kind: 'card', uid});
@@ -176,4 +176,47 @@ test('abilities are ways too, with compute, tap and cost-card selectors', () => 
   const [analyze] = abilityWays(g, 0, i);
   assert.deepEqual([analyze.abilityId, analyze.selectors, analyze.issues], ['analyze', [], []]);
   assert.deepEqual(abilityWays(g, 0, put(g, 0, 'r7')), []);
+});
+
+test('ready with the game refuses picks the engine would refuse', t => {
+  const g = table();
+  compute(g, 0, 8);
+  const a = put(g, 0, 'b7', 'grave'),
+    z = put(g, 1, 'b1', 'grave');
+  const creds = castWays(g, 0, put(g, 0, pt('Burn Credentials'), 'hand'))[0];
+  const both = togglePick(creds, togglePick(creds, {}, 'g', 0), 'g', 1);
+  assert.equal(ready(creds, both), true, 'by counts alone');
+  assert.equal(ready(creds, both, g), false, 'one discard card from each player');
+  assert.equal(ready(creds, togglePick(creds, {}, 'g', 0), g), true);
+
+  const tool = g.createToken(1, 'pt-backdoor');
+  const chain = castWays(g, 0, put(g, 0, pt('Break the Chain'), 'hand'))[1];
+  let picks = togglePick(chain, {}, 't', 0);
+  const mine = chain.selectors[1].candidates.findIndex(c => c.uid === a.uid);
+  picks = togglePick(chain, picks, 'g', mine);
+  assert.equal(ready(chain, picks), true);
+  assert.equal(ready(chain, picks, g), false, 'archive card is not from the Tool’s controller');
+  const theirs = chain.selectors[1].candidates.findIndex(c => c.uid === z.uid);
+  assert.equal(ready(chain, togglePick(chain, {t: picks.t}, 'g', theirs), g), true);
+  void tool;
+
+  define(t, {
+    id: 'x-swap',
+    type: 'Operation',
+    cost: 0,
+    extraCost: {retire: {types: ['Unit']}},
+    targets: [{key: 't', zone: 'field', side: 'any', types: ['Unit']}],
+    steps: [{op: 'bounce', to: 't'}],
+  });
+  const u = put(g, 0, 'r7');
+  const swap = castWays(g, 0, put(g, 0, 'x-swap', 'hand'))[0];
+  const own = swap.selectors[0].candidates.findIndex(c => c.uid === u.uid);
+  const same = togglePick(
+    swap,
+    togglePick(swap, {}, 't', own),
+    'retire',
+    swap.selectors[1].candidates.findIndex(c => c.uid === u.uid),
+  );
+  assert.equal(ready(swap, same), true);
+  assert.equal(ready(swap, same, g), false, 'a card paying a cost is also a target');
 });

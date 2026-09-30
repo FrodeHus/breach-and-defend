@@ -2,7 +2,7 @@
 // How a player can cast a card or activate an ability right now, as data the interface renders: each way with its
 // total cost, what blocks it, and the choices (targets and cost cards) it needs. Nothing here changes the game.
 import {BY_ID} from './cards.mjs';
-import {archiveOptions, candidates, isRule, retireOptions, spellRule} from './rules.mjs';
+import {archiveOptions, candidates, checkTargets, isRule, retireOptions, spellRule} from './rules.mjs';
 
 const targetSelector = (game, p, spec) => ({
   key: spec.key,
@@ -43,7 +43,8 @@ export function castWays(game, p, c, zone = 'hand') {
         ...(reuse ? {reuse: true} : {}),
       };
       const rule = spellRule(d, {mode, overclock});
-      const selectors = rule.targets.map(spec => targetSelector(game, p, spec));
+      const specs = rule.targets;
+      const selectors = specs.map(spec => targetSelector(game, p, spec));
       if (d.extraCost?.retire) selectors.push(cardSelector(game, 'retire', retireOptions(game, p, d.extraCost.retire)));
       ways.push(
         explain({
@@ -56,6 +57,8 @@ export function castWays(game, p, c, zone = 'hand') {
           totalCost: game.costOf(d, options),
           issues: game.playIssues(p, c, options),
           selectors,
+          p,
+          specs,
         }),
       );
     }
@@ -68,7 +71,8 @@ export function abilityWays(game, p, c) {
     .filter(a => a.kind === 'activated')
     .map(a => {
       const cost = a.cost ?? {};
-      const selectors = (a.targets ?? []).map(spec => targetSelector(game, p, spec));
+      const specs = a.targets ?? [];
+      const selectors = specs.map(spec => targetSelector(game, p, spec));
       if (cost.retire && cost.retire !== 'self')
         selectors.push(cardSelector(game, 'retire', retireOptions(game, p, cost.retire, c.uid)));
       if (cost.archive) selectors.push(cardSelector(game, 'archive', archiveOptions(game, p, cost.archive)));
@@ -80,6 +84,9 @@ export function abilityWays(game, p, c) {
         totalCost: cost.compute ?? 0,
         issues: game.activationIssues(p, c.uid, a.id),
         selectors,
+        p,
+        specs,
+        selfRetire: cost.retire === 'self' ? c.uid : null,
       });
     });
 }
@@ -98,9 +105,19 @@ export function togglePick(way, picks, key, index) {
         : now;
   return {...picks, [key]: next};
 }
-export const ready = (way, picks) =>
-  !way.issues.length &&
-  way.selectors.every(s => (picks[s.key] ?? []).length >= s.min && (picks[s.key] ?? []).length <= s.max);
+// Counts always; with the game it also runs the engine's own target check and refuses a cost card that is a target.
+export function ready(way, picks, game) {
+  const counts =
+    !way.issues.length &&
+    way.selectors.every(s => (picks[s.key] ?? []).length >= s.min && (picks[s.key] ?? []).length <= s.max);
+  if (!counts || !game) return counts;
+  const {targets, costUids} = toOptions(way, picks);
+  if (checkTargets(game, way.p, way.specs, targets)) return false;
+  const targeted = Object.values(targets)
+    .flat()
+    .map(t => t.uid);
+  return !costUids.some(u => targeted.includes(u)) && !(way.selfRetire != null && targeted.includes(way.selfRetire));
+}
 export function toOptions(way, picks) {
   const targets = {},
     costUids = [];
