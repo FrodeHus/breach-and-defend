@@ -6,7 +6,8 @@ import {createStore} from '../public/storage.mjs';
 import {fakeNet} from './helpers/fake-net.mjs';
 import {fakeTime, memoryBackend} from './helpers/versus.mjs';
 import {choose, perform} from './helpers/policy.mjs';
-import {redactEntry} from '../public/protocol.mjs';
+import {redactEntry, timeoutAction} from '../public/protocol.mjs';
+import {OPENING_MS} from '../public/match.mjs';
 import {audit} from '../public/audit.mjs';
 
 const flush = async (n = 5) => {
@@ -41,6 +42,7 @@ async function pair({hostStore = store(), guestStore = store(), net = fakeNet(),
     matchId: host.matchId,
     retry,
     random: secrets(seed + 500),
+    now: clock.now, // Both ends on one clock, as real browsers share wall time.
   });
   const ctx = {host, guest, net, hostStore, guestStore, waiting};
   await settle(ctx);
@@ -799,4 +801,26 @@ test('the host ignores guest messages carrying prototype keys', async () => {
   ctx.guest.conn.send({type: 'audit', result: {result: 'verified'}});
   await settle(ctx);
   assert.deepEqual(ctx.host.audit, {result: 'verified'});
+});
+
+test('a guest timed out by the referee audits verified; one recorded early is caught', async () => {
+  const clock = fakeTime();
+  const ctx = await start(await pair({clock, seed: 5}));
+  clock.advance(OPENING_MS); // neither keeps in time: the referee keeps for both
+  await settle(ctx);
+  assert.ok(ctx.host.match.log.some(e => e.by === 1 && e.timeout));
+  await finish(ctx);
+  assert.deepEqual(ctx.guest.audit, {result: 'verified'});
+
+  // A host that records a timeout for the guest the moment it is the guest's move.
+  const cheat = await start(await pair({clock: fakeTime(), seed: 6}));
+  await keepBoth(cheat);
+  await drive(cheat, () => [cheat.host.seat]); // the host plays until the guest must act
+  const m = cheat.host.match;
+  assert.equal(m.game.actor(), 1);
+  m.apply(1, timeoutAction(m.game, 1), null, true);
+  await settle(cheat);
+  await finish(cheat);
+  assert.equal(cheat.guest.audit.result, 'tampered');
+  assert.match(cheat.guest.audit.reason, /before your clock ran out/);
 });

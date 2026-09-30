@@ -367,8 +367,8 @@ export class GuestSession extends Session {
   role = 'guest';
   chains = ['queue'];
 
-  static async join({net, store, matchId, retry = backoff, random = randomHex}) {
-    const s = new GuestSession({net, store, matchId, retry, random});
+  static async join({net, store, matchId, retry = backoff, random = randomHex, now = Date.now}) {
+    const s = new GuestSession({net, store, matchId, retry, random, now});
     try {
       await s.connect();
     } catch (e) {
@@ -379,8 +379,9 @@ export class GuestSession extends Session {
     return s;
   }
 
-  constructor({net, store, matchId, retry, random = randomHex}) {
+  constructor({net, store, matchId, retry, random = randomHex, now = Date.now}) {
     super();
+    this.now = now;
     this.net = net;
     this.store = store;
     this.matchId = matchId;
@@ -409,6 +410,11 @@ export class GuestSession extends Session {
     // that finds someone else's id there (or a record ahead of its own) steps aside instead of playing on.
     this.owner = randomHex(8);
     this.record.owner = this.owner;
+    // When the match started, when each entry arrived and when this guest was away, all by this browser's clock,
+    // so the audit can check that a timeout recorded for this guest came after its clock had really run out.
+    const timing = (this.record.timing ??= {startedAt: null, times: {}, gaps: []});
+    // A reload: the host paused the clock when this tab went away. Counting from now errs toward the host.
+    if (saved?.started && !saved.audit) timing.gapFrom ??= now();
     if (saved) store.set(`guest:${matchId}`, this.record);
     this.faction = this.record.hostFaction && other(this.record.hostFaction);
     this.audit = this.record.audit;
@@ -430,27 +436,33 @@ export class GuestSession extends Session {
     if (this.closed) return conn.close();
     this.conn = conn;
     this.attempts = 0;
-    conn.onmessage = msg =>
+    conn.onmessage = msg => {
+      const at = this.now(); // Arrival time, before any wait in the queue.
       this.enqueue(
         'queue',
-        () => this.fromHost(msg, conn),
+        () => this.fromHost(msg, conn, at),
         e => this.failed(e),
       );
+    };
     // A close is handled in turn with the messages that arrived before it, never ahead of them.
-    conn.onclose = () =>
+    conn.onclose = () => {
+      const at = this.now();
       this.enqueue(
         'queue',
-        () => this.lost(conn),
+        () => this.lost(conn, at),
         e => this.failed(e),
       );
+    };
     conn.send({type: 'hello', guestToken: this.record.guestToken, have: this.record.log.length});
   }
 
-  lost(conn) {
+  lost(conn, at = this.now()) {
     if (this.closed || this.conn !== conn) return;
     this.conn = null;
     conn.onmessage = () => {}; // Late messages on a dead connection must not act on the session.
     if (this.status === 'ended') return; // Revealed and audited: nothing is left to reconnect for.
+    this.record.timing.gapFrom ??= at;
+    this.save();
     if (!this.record.guestToken) {
       this.dispose();
       return this.set('error', {error: 'no-connection'});
@@ -479,9 +491,10 @@ export class GuestSession extends Session {
     this.set('error', {error: 'internal'});
   }
 
-  async fromHost(msg, conn = this.conn) {
+  async fromHost(msg, conn = this.conn, at = this.now()) {
     if (this.closed || conn !== this.conn) return;
-    const r = this.record;
+    const r = this.record,
+      timing = r.timing;
     if (msg?.type === 'view' || msg?.type === 'resume') {
       // The host is untrusted: its view is rendered, so anything but the exact view shape stops the match.
       try {
@@ -490,6 +503,10 @@ export class GuestSession extends Session {
       } catch {
         return this.impostor();
       }
+    }
+    if (timing.gapFrom != null && ['welcome', 'resume', 'view'].includes(msg?.type)) {
+      timing.gaps.push([timing.gapFrom, at]); // Back in touch: the host restarted the clock on reconnecting.
+      delete timing.gapFrom;
     }
     switch (msg?.type) {
       case 'error':
@@ -532,7 +549,11 @@ export class GuestSession extends Session {
           if (msg.log.slice(0, have - from).some((e, i) => canonical(e) !== canonical(r.log[from + i])))
             return this.impostor();
           r.started = true;
-          for (const entry of msg.log.slice(have - from)) r.log.push(entry);
+          timing.startedAt ??= at;
+          for (const entry of msg.log.slice(have - from)) {
+            r.log.push(entry);
+            timing.times[entry.n] = at; // Missed while away: the audit dates them to when the guest lost touch.
+          }
           r.digests[r.log.length] ??= await digest(msg.view);
         }
         this.save();
@@ -542,6 +563,7 @@ export class GuestSession extends Session {
       case 'view': {
         const {entry} = msg;
         r.started = true;
+        timing.startedAt ??= at;
         if (entry) {
           // A missing message means the channel broke; reconnecting resends the entries this guest lacks.
           if (entry.n !== r.log.length + 1) {
@@ -549,6 +571,7 @@ export class GuestSession extends Session {
             return;
           }
           r.log.push(entry);
+          timing.times[entry.n] = at;
           r.digests[entry.n] = await digest(msg.view);
         } else if (!r.log.length) r.digests[0] ??= await digest(msg.view);
         this.save();

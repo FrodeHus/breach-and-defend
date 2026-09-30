@@ -14,6 +14,7 @@ import {
   versusGame,
   viewFor,
 } from './protocol.mjs';
+import {freshClock, runningClock} from './match.mjs';
 
 const PARTS = {
   you: 'Your cards or capacity',
@@ -21,6 +22,30 @@ const PARTS = {
   table: 'The turn, stack or combat state',
 };
 const same = (a, b) => canonical(actionFields(a)) === canonical(actionFields(b));
+
+// Network delay and the two ends noticing a dropped connection at slightly different moments can make an honest
+// timeout arrive a little before the guest's own clock says it is due.
+export const TIMEOUT_GRACE_MS = 5000;
+
+// The guest's own copy of the referee's clock, run on the guest's timestamps: when the match started, when each
+// entry arrived, and when the guest was disconnected (the referee pauses the clock then). It needs no clock values
+// from the host, so a host that invents a timeout for the guest cannot also invent the time that ran out.
+function guestClock(game, {startedAt, times, gaps}) {
+  const c = freshClock();
+  let running = null;
+  const paused = (from, to) => gaps.reduce((sum, [a, b]) => sum + Math.max(0, Math.min(to, b) - Math.max(from, a)), 0);
+  const used = at => (running ? at - running.since - paused(running.since, at) : 0);
+  const restart = (at, fresh) => {
+    if (running) c[running.kind] -= used(at);
+    running = game.winner === null ? {kind: runningClock(c, game, fresh), since: at} : null;
+  };
+  restart(startedAt, false);
+  return {
+    timeOf: n => times[n],
+    left: at => (running ? c[running.kind] - used(at) : Infinity),
+    moved: at => restart(at, true),
+  };
+}
 
 // Replays a finished match from the revealed seed and compares it with what this player actually saw.
 // `log` is what the guest received, with the host's mulligan bottoms redacted to a count; `bottoms` is what the
@@ -34,6 +59,7 @@ export async function audit({
   bottoms = null,
   digests = [],
   sent = {},
+  timing = null,
 }) {
   const unverified = reason => ({result: 'unverified', reason});
   const tampered = (turn, reason) => ({result: 'tampered', turn, reason});
@@ -68,15 +94,21 @@ export async function audit({
     );
   };
 
+  // Records saved before timing was kept have none, so their timeouts are checked for their move only.
+  let clock = timing?.startedAt != null && timing.times ? guestClock(game, {gaps: [], ...timing}) : null;
   let problem = await compare(0, 1);
   let lastSeq = 0;
   for (const [i, entry] of log.entries()) {
     if (problem) return problem;
     const turn = game.turn;
     if (entry.n !== i + 1) return unverified('Your saved record of this match is incomplete.');
+    const at = clock?.timeOf(entry.n);
+    if (at == null) clock = null; // Without this arrival time the copy loses step; later timeouts go unchecked.
     if (entry.timeout) {
       if (!same(entry, timeoutAction(game, entry.by)))
         return tampered(turn, 'A move was recorded as a timeout that is not the automatic timeout move.');
+      if (entry.by === 1 && clock && clock.left(at) > TIMEOUT_GRACE_MS)
+        return tampered(turn, 'Your opponent recorded a timeout for you before your clock ran out.');
     } else if (entry.by === 1) {
       if (!(entry.seq > lastSeq) || !(sent[entry.seq] && same(unflipAction(sent[entry.seq]), entry))) {
         return tampered(turn, 'A move was recorded for you that you never made.');
@@ -88,6 +120,7 @@ export async function audit({
     } catch {
       return tampered(turn, 'Your opponent made a move the rules do not allow.');
     }
+    clock?.moved(at);
     problem = await compare(i + 1, turn);
   }
   if (problem) return problem;
