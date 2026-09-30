@@ -17,7 +17,7 @@ import {
 import {Seat} from '../public/remote.mjs';
 import {aiMatch} from './helpers/simulate.mjs';
 import {openedMatch} from './helpers/versus.mjs';
-import {compute, put, resolveTop, table} from './helpers/rules.mjs';
+import {compute, define, put, resolveTop, table} from './helpers/rules.mjs';
 
 const pt = name => CARDS.find(c => c.name === name).id;
 const ref = uid => ({kind: 'card', uid});
@@ -284,4 +284,84 @@ test('the host’s Probe answers are redacted in the guest’s log, then restore
   const a = await choiceCommit('s', 2, {discard: [], order: [9, 8]}),
     b = await choiceCommit('s', 2, {discard: [], order: [8, 9]});
   assert.notEqual(a, b);
+});
+
+// The engine reads a null target as "none chosen"; the guest's view check allows no null target, so it is dropped.
+test('a null target is dropped before it is stored, so the guest accepts the view', t => {
+  define(
+    t,
+    {
+      id: 'x-hook',
+      type: 'Infrastructure',
+      abilities: [
+        {
+          id: 'hook',
+          kind: 'activated',
+          label: 'Hook',
+          targets: [{key: 'a', zone: 'field', side: 'opponent', types: ['Unit'], optional: true}],
+          steps: [{op: 'tap', to: 'a'}],
+        },
+      ],
+    },
+    {
+      id: 'x-pick',
+      type: 'Unit',
+      cost: 0,
+      power: 1,
+      toughness: 1,
+      abilities: [
+        {
+          id: 'e',
+          kind: 'triggered',
+          label: 'Pick',
+          on: 'enter',
+          steps: [{op: 'heal', n: 1}],
+          targets: [
+            {key: 'a', zone: 'grave', side: 'any', optional: true},
+            {key: 'b', zone: 'field', side: 'opponent', types: ['Tool']},
+          ],
+        },
+      ],
+    },
+  );
+  const cast = targets => {
+    const g = table();
+    g.mode = 'versus';
+    compute(g, 0, 1);
+    put(g, 1, 'b1', 'grave');
+    applyAction(g, 0, {
+      type: 'play',
+      uid: put(g, 0, pt('Burn Credentials'), 'hand').uid,
+      target: null,
+      options: {targets},
+    });
+    return g;
+  };
+  const g = cast({g: null});
+  assert.deepEqual(g.stack[0].opts.targets, {});
+  assert.doesNotThrow(() => sanitizeView(viewFor(g, 1)));
+  resolveTop(g);
+  const empty = cast({g: []});
+  resolveTop(empty);
+  assert.deepEqual([g.pending?.kind, g.players[1].grave.length], [empty.pending?.kind, empty.players[1].grave.length]);
+
+  const h = table();
+  h.mode = 'versus';
+  const hook = put(h, 0, 'x-hook');
+  applyAction(h, 0, {type: 'activate', uid: hook.uid, abilityId: 'hook', options: {targets: {a: null}}});
+  assert.deepEqual(h.stack[0].opts.targets, {});
+  assert.doesNotThrow(() => sanitizeView(viewFor(h, 1)));
+
+  const k = table();
+  k.mode = 'versus';
+  put(k, 0, 'r1', 'grave');
+  const tool = k.createToken(1, 'pt-backdoor');
+  k.createToken(1, 'pt-backdoor');
+  applyAction(k, 0, {type: 'play', uid: put(k, 0, 'x-pick', 'hand').uid, target: null});
+  resolveTop(k);
+  assert.equal(k.pending?.kind, 'targets');
+  applyAction(k, 0, {type: 'choose', selection: {targets: {a: null, b: ref(tool.uid)}}});
+  assert.deepEqual(k.stack[0].opts.targets, {b: ref(tool.uid)});
+  k.events = []; // A test card has no lesson in the catalog the guest checks events against.
+  assert.doesNotThrow(() => sanitizeView(viewFor(k, 1)));
 });

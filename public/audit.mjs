@@ -7,6 +7,7 @@ import {
   canonical,
   choiceCommit,
   digest,
+  playOptions,
   restoreBottoms,
   restoreChoices,
   seedHex,
@@ -24,7 +25,13 @@ const PARTS = {
   foe: 'Your opponent’s cards or capacity',
   table: 'The turn, stack or combat state',
 };
-const same = (a, b) => canonical(actionFields(a)) === canonical(actionFields(b));
+// The host logs a play's options cut to the fields the engine reads (see Match.apply), while the guest keeps what it
+// sent, so both sides are cut the same way before they are compared.
+const fields = a =>
+  (a.type === 'play' || a.type === 'activate') && a.options !== undefined
+    ? actionFields({...a, options: playOptions(a.options)})
+    : actionFields(a);
+const same = (a, b) => canonical(fields(a)) === canonical(fields(b));
 
 // Network delay and the two ends noticing a dropped connection at slightly different moments can make an honest
 // timeout arrive a little before the guest's own clock says it is due.
@@ -137,6 +144,9 @@ export async function audit({
       }
       lastSeq = entry.seq;
     }
+    // Only a Probe answer names hidden cards, so only it may be withheld until the reveal.
+    if (entry.by === 0 && entry.secret && !(entry.type === 'choose' && game.pending?.kind === 'probe'))
+      return tampered(turn, 'Your opponent hid a move that wasn’t a private choice.');
     try {
       applyAction(game, entry.by, entry);
     } catch {

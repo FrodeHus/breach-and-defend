@@ -344,12 +344,14 @@ export class HostSession extends Session {
   }
 
   // What the guest needs to audit: the seed, the host's mulligan bottoms it was only told the count of, and the
-  // host's Probe answers it was only given commitments to.
+  // host's Probe answers it was only given commitments to (sent only when there were any, so a First Breach reveal
+  // is exactly what it was before).
   reveal() {
+    const choices = hostChoices(this.match.log);
     return {
       hostSecret: this.record.hostSecret,
       bottoms: hostBottoms(this.match.log),
-      choices: hostChoices(this.match.log),
+      ...(Object.keys(choices).length ? {choices} : {}),
     };
   }
 

@@ -267,15 +267,69 @@ test('an expansion match with secret host Probe answers verifies after the revea
   assert.deepEqual(await audit(rec), {result: 'verified'});
 });
 
-test('a host that changes a Probe answer after the match, or never reveals it, is caught', async () => {
+test('a host that changes a Probe answer after the match, never reveals it or drops its commitment is caught', async () => {
   const rec = await expansionRecord(2);
   const n = Number(Object.keys(rec.choices)[0]);
   const changed = structuredClone(rec);
   const sel = changed.choices[n];
   changed.choices[n] =
     sel.order.length > 1 ? {...sel, order: [...sel.order].reverse()} : {discard: sel.order, order: sel.discard};
-  assert.equal((await audit(changed)).result, 'tampered');
-  assert.equal((await audit({...rec, choices: {}})).result, 'tampered');
+  const caught = async (r, reason) => {
+    const result = await audit(r);
+    assert.equal(result.result, 'tampered');
+    assert.match(result.reason, reason);
+  };
+  await caught(changed, /changed a private choice/);
+  await caught({...rec, choices: {}}, /didn’t reveal/);
+  const uncommitted = structuredClone(rec);
+  delete uncommitted.log[n - 1].selectionCommit;
+  await caught(uncommitted, /changed a private choice/);
+});
+
+// An honest guest may send option fields the engine ignores; the host logs only the ones it reads.
+test('a guest move sent with extra or empty options verifies against the host’s trimmed log entry', async () => {
+  const loose = (g, p) => {
+    const a = aiIntent(g, p);
+    if (p !== 1 || (a.type !== 'play' && a.type !== 'activate')) return a;
+    return {...a, options: a.options ? {overclock: false, reuse: 0, ...a.options, junk: 1} : null};
+  };
+  const rec = await record(undefined, 2, EXPANSION_POOL, loose);
+  const guestMoves = Object.values(rec.sent).filter(a => a.type === 'play' || a.type === 'activate');
+  assert.ok(
+    guestMoves.some(a => a.options === null),
+    'the guest played without options',
+  );
+  assert.ok(
+    guestMoves.some(a => a.options?.junk === 1),
+    'the guest sent extra option fields',
+  );
+  assert.ok(rec.log.every(e => !e.options || !Object.hasOwn(e.options, 'junk')));
+  assert.deepEqual(await audit(rec), {result: 'verified'});
+});
+
+// Only a Probe answer may be hidden: a host that hides another move behind a commitment is caught even though the
+// move it reveals replays cleanly.
+test('a host entry hidden as a private choice that is not a Probe answer is caught', async () => {
+  const rec = await expansionRecord(2);
+  const hide = async (r, e, selection) => {
+    r.log[e.n - 1] = {
+      ...redactEntry({...e, secret: true, selection}),
+      selectionCommit: await choiceCommit(r.hostSecret, e.n, selection),
+    };
+    r.choices = {...r.choices, [e.n]: selection};
+    return r;
+  };
+  const pass = rec.log.find(e => e.by === 0 && e.type === 'pass');
+  const choice = rec.log.find(e => e.by === 0 && e.type === 'choose' && !e.secret);
+  assert.ok(choice, 'the host made a public choice');
+  for (const r of [
+    await hide(structuredClone(rec), pass, {}),
+    await hide(structuredClone(rec), choice, choice.selection),
+  ]) {
+    const result = await audit(r);
+    assert.equal(result.result, 'tampered');
+    assert.equal(result.reason, 'Your opponent hid a move that wasn’t a private choice.');
+  }
 });
 
 test('a record from before secret answers audits exactly as before', async () => {

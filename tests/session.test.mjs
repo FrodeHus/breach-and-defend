@@ -557,6 +557,7 @@ test('a host mulligan never shows its bottom cards to the guest, live or on resu
   assert.deepEqual(hostKeepsWithUids(seen), []);
   const reveal = seen.find(m => m.type === 'reveal');
   assert.deepEqual(reveal.bottoms[keep.n], bottom, 'the bottoms are revealed at the end');
+  assert.equal(Object.hasOwn(reveal, 'choices'), false, 'a First Breach reveal is unchanged: it has no choices');
   assert.deepEqual(ctx.guest.audit, {result: 'verified'});
   assert.deepEqual(ctx.host.audit, {result: 'verified'});
 });
@@ -989,6 +990,10 @@ test('a complete expansion match between two browsers ends verified for both', a
   assert.ok(
     ctx.host.match.log.some(e => e.type === 'choose'),
     'choices crossed the wire',
+  );
+  assert.ok(
+    ctx.host.match.log.some(e => e.type === 'choose' && e.by === 1),
+    'a guest-authored choice crossed the wire',
   );
   assert.deepEqual(ctx.guest.audit, {result: 'verified'});
   assert.deepEqual(ctx.host.audit, {result: 'verified'});
