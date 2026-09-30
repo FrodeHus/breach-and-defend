@@ -197,3 +197,157 @@ test('Distributed Command creates a Backdoor at your end step only after attacki
     if (n === 2) assert.equal(g.stack[0].ability.id, 'regroup');
   }
 });
+
+const castSpell = (g, p, name, options = {}) => {
+  const c = put(g, p, pt(name), 'hand');
+  g.play(p, c.uid, null, options);
+  return c;
+};
+
+test('Map Trust Relationships probes 2, and can be reused from the discard for 3', () => {
+  const g = table();
+  compute(g, 0, 1);
+  castSpell(g, 0, 'Map Trust Relationships');
+  resolveTop(g);
+  assert.equal(g.pending.options.length, 2);
+  g.choose(0, g.defaultChoice());
+  compute(g, 0, 3);
+  const c = g.players[0].grave.find(x => x.id === pt('Map Trust Relationships'));
+  g.play(0, c.uid, null, {reuse: true});
+  resolveTop(g);
+  g.choose(0, g.defaultChoice());
+  assert.ok(g.players[0].archive.some(x => x.uid === c.uid));
+});
+
+test('Seed Access creates two Backdoors', () => {
+  const g = table();
+  compute(g, 0, 2);
+  castSpell(g, 0, 'Seed Access');
+  resolveTop(g);
+  assert.equal(count(g, 0, 'pt-backdoor'), 2);
+});
+
+test('Coordinated Pressure deals 4 to an opposing unit, or 6 overclocked', () => {
+  const g = table();
+  compute(g, 0, 8);
+  const a = put(g, 1, 'b8'),
+    b = put(g, 1, 'b7');
+  castSpell(g, 0, 'Coordinated Pressure', {targets: {t: ref(a.uid)}});
+  resolveTop(g);
+  assert.ok(
+    g.players[1].grave.some(c => c.uid === a.uid),
+    '4 defeats a 3/4',
+  );
+  castSpell(g, 0, 'Coordinated Pressure', {overclock: true, targets: {t: ref(b.uid)}});
+  resolveTop(g);
+  assert.ok(
+    g.players[1].grave.some(c => c.uid === b.uid),
+    '6 defeats a 1/5',
+  );
+});
+
+test('Burn the Channel retires a Tool to destroy an opposing unit', () => {
+  const g = table();
+  compute(g, 0, 2);
+  const target = put(g, 1, 'b8');
+  const c = put(g, 0, pt('Burn the Channel'), 'hand');
+  assert.deepEqual(
+    g.playIssues(0, c).map(i => i.code),
+    ['retire'],
+  );
+  const b = g.createToken(0, 'pt-backdoor');
+  g.play(0, c.uid, null, {targets: {t: ref(target.uid)}, costUids: [b.uid]});
+  resolveTop(g);
+  assert.ok(g.players[1].grave.some(x => x.uid === target.uid));
+});
+
+test('Cascading Outage deals 2 to every unit, or 4 overclocked, including yours', () => {
+  const g = table();
+  compute(g, 0, 10);
+  const mine = put(g, 0, 'r7'),
+    small = put(g, 1, 'b1'),
+    big = put(g, 1, 'b8');
+  castSpell(g, 0, 'Cascading Outage');
+  resolveTop(g);
+  assert.deepEqual([mine.damage, big.damage], [2, 2]);
+  assert.ok(g.players[1].grave.some(x => x.uid === small.uid));
+  g.endTurn();
+  g.endTurn();
+  g.phase = 'main1';
+  castSpell(g, 0, 'Cascading Outage', {overclock: true});
+  resolveTop(g);
+  assert.ok(g.players[0].grave.some(x => x.uid === mine.uid));
+  assert.ok(g.players[1].grave.some(x => x.uid === big.uid));
+});
+
+test('Adaptive Payload gives +2/+0, or +2/+2 and Overflow overclocked', () => {
+  const g = table();
+  compute(g, 0, 4);
+  const u = put(g, 0, 'r7');
+  castSpell(g, 0, 'Adaptive Payload', {targets: {t: ref(u.uid)}});
+  resolveTop(g);
+  assert.deepEqual(g.stats(u, 0), {power: 5, toughness: 3});
+  castSpell(g, 0, 'Adaptive Payload', {overclock: true, targets: {t: ref(u.uid)}});
+  resolveTop(g);
+  assert.deepEqual(g.stats(u, 0), {power: 7, toughness: 5});
+  assert.equal(g.has(u, 'overflow'), true);
+});
+
+test('Exploit the Handoff deals 2, or 4 to a tapped unit', () => {
+  const g = table();
+  compute(g, 0, 4);
+  const ready = put(g, 1, 'b7'),
+    busy = put(g, 1, 'b7');
+  busy.tapped = true;
+  castSpell(g, 0, 'Exploit the Handoff', {targets: {t: ref(ready.uid)}});
+  resolveTop(g);
+  castSpell(g, 0, 'Exploit the Handoff', {targets: {t: ref(busy.uid)}});
+  resolveTop(g);
+  assert.deepEqual([ready.damage, busy.damage], [2, 4]);
+});
+
+test('Signal Spoof counters unless its controller pays 2, then probes 1', () => {
+  const g = table();
+  g.active = 1;
+  g.priority = 1;
+  compute(g, 1, 4);
+  const logs = put(g, 1, CARDS.find(c => c.name === 'Correlate Logs').id, 'hand');
+  g.play(1, logs.uid);
+  g.pass(1);
+  compute(g, 0, 2);
+  castSpell(g, 0, 'Signal Spoof', {targets: {t: {kind: 'spell', uid: logs.uid}}});
+  resolveTop(g);
+  assert.equal(g.pending.kind, 'pay');
+  g.choose(1, {pay: false});
+  assert.ok(g.players[1].grave.some(c => c.uid === logs.uid));
+  assert.equal(g.pending.kind, 'probe');
+  assert.equal(g.pending.actor, 0);
+});
+
+test('Reopened Connection returns your unit to hand and draws; Reuse archives it', () => {
+  const g = table();
+  compute(g, 0, 6);
+  const u = put(g, 0, 'r7');
+  const c = castSpell(g, 0, 'Reopened Connection', {targets: {t: ref(u.uid)}});
+  resolveTop(g);
+  assert.ok(g.players[0].hand.some(x => x.id === 'r7'));
+  assert.equal(g.players[0].hand.length, 2);
+  const v = put(g, 0, 'r7');
+  g.play(0, c.uid, null, {reuse: true, targets: {t: ref(v.uid)}});
+  resolveTop(g);
+  assert.ok(g.players[0].archive.some(x => x.uid === c.uid));
+});
+
+test('Burn Credentials archives up to two cards from one player’s discard, then probes 1', () => {
+  const g = table();
+  compute(g, 0, 2);
+  const a = put(g, 1, 'b7', 'grave'),
+    b = put(g, 1, 'b8', 'grave'),
+    mine = put(g, 0, 'r7', 'grave');
+  const c = put(g, 0, pt('Burn Credentials'), 'hand');
+  assert.throws(() => g.play(0, c.uid, null, {targets: {g: [ref(a.uid), ref(mine.uid)]}}), /single player/);
+  g.play(0, c.uid, null, {targets: {g: [ref(a.uid), ref(b.uid)]}});
+  resolveTop(g);
+  assert.equal(g.players[1].archive.length, 2);
+  assert.equal(g.pending.kind, 'probe');
+});
