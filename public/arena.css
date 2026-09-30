@@ -884,8 +884,11 @@
   content: '✓ ';
 }
 /* Answering a pending choice: one row per card or ability, its name then its controls, wrapping on a phone. */
+/* Rows are flex, which hides list markers, so the numbers come from a counter. A card set aside for discard isn't
+   counted: the numbers are the order the kept cards go back in. */
 .choice-list {
-  list-style: decimal inside;
+  list-style: none;
+  counter-reset: choice;
   margin: 12px 0;
   padding: 0;
   display: grid;
@@ -899,6 +902,15 @@
   padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
+}
+.choice-list li:not(.to-discard) {
+  counter-increment: choice;
+}
+.choice-list li:not(.to-discard)::before {
+  content: counter(choice) '.';
+  min-width: 1.5em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 .choice-list li > span {
   flex: 1 1 10rem;

@@ -705,3 +705,12 @@ test('a pending target choice is ready only when the engine would accept it', t 
   assert.equal(choiceReady(g, st), false, 'cards from both discards are refused');
   assert.match(choiceDialog(state(g), st), /<button class="primary" id="choiceConfirm" disabled>/);
 });
+
+test('Probe and order rows are numbered, counting only the cards that stay on top', async () => {
+  const {readFile} = await import('node:fs/promises');
+  const css = await readFile(new URL('../public/arena.css', import.meta.url), 'utf8');
+  const rule = sel => css.match(new RegExp(`(?:^|\\n)${sel.replace(/[.()*:]/g, '\\$&')}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+  assert.match(rule('.choice-list'), /counter-reset:\s*choice/);
+  assert.match(rule('.choice-list li:not(.to-discard)'), /counter-increment:\s*choice/);
+  assert.match(rule('.choice-list li:not(.to-discard)::before'), /content:\s*counter\(choice\) '\.'/);
+});
