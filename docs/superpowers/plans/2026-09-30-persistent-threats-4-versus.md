@@ -997,3 +997,33 @@ git commit -m "Play a complete expansion match between two browsers"
   - the lobby and recap wording for a verified expansion match;
   - anything the reviews defer.
 - [ ] Use superpowers:finishing-a-development-branch.
+
+## Follow-ups found while building this plan
+
+Recorded by the task and whole-branch reviews.
+
+**Plan 5 (interface)**
+- There's no interface for pending choices in play-a-friend yet. Human players can't answer a Probe, a discard, a pay, an optional retire, a trigger order or a target choice; only timeouts answer them.
+- When a choice's time runs out on the guest's own turn, the expired turn clock also times out the rest of that turn. This is the existing First Breach rule, but a choice makes it much easier to hit. Consider giving choices their own short clock, or warn the player.
+- Clamp any loop over view numbers (`count`, `min`, `max`, `upTo`). A malicious host can send huge values; `sanitizeView` doesn't bound them.
+- Build `pendingView` from an allow-list of fields when new choice kinds arrive (it currently strips `frame`/`data` and passes the rest through).
+- Refs inside `options.targets` and `waiting[].targets` aren't flipped. That's safe while rule cards only target cards and spells (global uids). A card that targets a player would need `unflipAction`/`flip` to handle it.
+- Show the lobby and recap wording for a verified expansion match.
+
+**Hardening (no known exploit)**
+- Guest `selection` objects are logged as sent (extra inner keys persist). Trimming per choice kind would match how options are handled.
+- The options/candidates cap (60) is below `MAX_ZONE` (200). Only a field with more than 60 permanents could hit it.
+- Expansion shapes are accepted in views even without a pool key. Only a host that is already stalling the match could use this.
+- The options trim runs in both `Match.apply` and the audit; one shared helper would keep them in step.
+- Pre-existing on `main`: a guest can play an untargeted card with a junk `target`, or send a string `mode`. The engine stores it, and the guest's own next view fails its check (it only hurts that guest).
+
+**Test gaps**
+- There are negative tests for most of the new view checkers, but not all:
+  - an extra key in a ref;
+  - a target array longer than 4;
+  - an unknown option key;
+  - a mode out of range;
+  - `data` on the wrong choice kind;
+  - `cards` on a non-Probe choice.
+- The positive sweep has no per-kind coverage counters.
+- The timeout test depends on seed 3 producing a guest choice on the host's turn. It fails loudly if that changes.
