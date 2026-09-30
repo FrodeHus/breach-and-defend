@@ -12,7 +12,7 @@ import {
   toWorld,
   toScreen,
 } from '../public/stage3d-curves.mjs';
-import {init, ready, resetStage, standIn} from '../public/stage3d.mjs';
+import {fail, frame, init, ready, resetStage, standIn} from '../public/stage3d.mjs';
 
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
 
@@ -158,4 +158,17 @@ test('standIn gives up after its time limit, restores cards and aborts the anima
   assert.equal(await run, undefined);
   assert.equal(a.style.visibility, '');
   assert.equal(ctl.aborted, true);
+});
+
+test('frame throws after a failure so pending 3D jobs reject and fall back to CSS', () => {
+  resetStage();
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    fail(new Error('boom'));
+  } finally {
+    console.warn = warn;
+  }
+  assert.throws(() => frame(() => false), /off/);
+  resetStage();
 });

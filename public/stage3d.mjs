@@ -96,7 +96,7 @@ function resize() {
   camera.far = view.distance * 4;
   camera.position.set(0, 0, view.distance);
   camera.updateProjectionMatrix();
-  renderer.setSize(width, height, false);
+  renderer.setSize(width, height); // also sets the CSS size, so it always equals the viewport the stand-ins are placed in
   floor.scale.set(width * 2, height * 2, 1);
   sun.position.set(-0.3 * width, 0.45 * height, view.distance);
   Object.assign(sun.shadow.camera, {
@@ -110,8 +110,9 @@ function resize() {
   sun.shadow.camera.updateProjectionMatrix();
 }
 // Runs update(dt) every frame until it returns false; the loop and rendering stop when nothing is left.
+// Throws once 3D has failed, so a job started afterwards rejects and its caller falls back to CSS.
 export function frame(update) {
-  if (failed) return;
+  if (failed) throw new Error('3D card motion is off');
   updaters.add(update);
   if (running) return;
   running = true;

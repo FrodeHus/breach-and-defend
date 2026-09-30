@@ -167,11 +167,19 @@ function tile(d, w, h, img, p, stats) {
   frame(g, w, h, 10, p.accent);
   if (d.type === 'Unit') {
     const s = stats || {power: d.power, toughness: d.toughness, damage: 0};
-    badge(g, `${s.power}/${s.toughness - (s.damage || 0)}`, (s.damage || 0) > 0, w - 4, h - 4, Math.max(9, w * 0.12), {
-      ...p,
-      stat: '#182b3a',
-      statBg: '#f7fafc',
-    });
+    badge(
+      g,
+      `${s.power}/${Math.max(0, s.toughness - (s.damage || 0))}`,
+      (s.damage || 0) > 0,
+      w - 4,
+      h - 4,
+      Math.max(9, w * 0.12),
+      {
+        ...p,
+        stat: '#182b3a',
+        statBg: '#f7fafc',
+      },
+    );
   }
   return c;
 }
@@ -204,13 +212,12 @@ export async function faces({id, faction, from = 'hand', to = 'tile', width, hei
   const d = BY_ID[id],
     side = d?.faction || faction,
     p = palette(side),
-    backImg = await art(`art/${side}-card-back.png`),
+    [backImg, img] = await Promise.all([art(`art/${side}-card-back.png`), d ? art(`art/${d.art}.webp`) : null]),
     rear = cached(faceKey(side, 'back', width, height, backImg ? '' : 'plain'), () =>
       back(side, width, height, backImg, p),
     );
   if (!d) return {from: rear, to: rear, back: rear};
-  const img = await art(`art/${d.art}.webp`),
-    state = stats ? `${stats.power}/${stats.toughness}/${stats.damage || 0}` : '',
+  const state = stats ? `${stats.power}/${stats.toughness}/${stats.damage || 0}` : '',
     draw = kind =>
       cached(faceKey(id, kind, width, height, `${kind === 'tile' ? state : ''}${img ? '' : '|noart'}`), () =>
         kind === 'tile' ? tile(d, width, height, img, p, stats) : hand(d, width, height, img, p),

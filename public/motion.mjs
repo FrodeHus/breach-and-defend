@@ -168,10 +168,17 @@ async function lungeCss(from, destinations) {
     from.el.style.visibility = '';
   }
 }
-async function lunge3d(from, destinations, uid, game, hits) {
+async function lunge3d(from, destinations, uid, game, hits, damage) {
   const size = {width: from.r.width, height: from.r.height},
     faction = factionOf(from.el),
-    f = await faces({id: from.el.dataset.card, faction, from: 'tile', to: 'tile', ...size, stats: statsOf(game, uid)});
+    f = await faces({
+      id: from.el.dataset.card,
+      faction,
+      from: 'tile',
+      to: 'tile',
+      ...size,
+      stats: statsOf(game, uid, damage.get(uid)),
+    });
   for (const target of destinations) {
     if (!target.r) continue;
     const knock = target.el
@@ -184,7 +191,7 @@ async function lunge3d(from, destinations, uid, game, hits) {
             to: 'tile',
             width: target.r.width,
             height: target.r.height,
-            stats: statsOf(game, target.uid),
+            stats: statsOf(game, target.uid, damage.get(target.uid)),
           }),
         }
       : null;
@@ -194,7 +201,11 @@ async function lunge3d(from, destinations, uid, game, hits) {
       from: from.r,
       to: target.r,
       faces: f,
-      onImpact: () => (landed = stage3d.burst({rect: target.r, faction, amount: hits.get(target.key) || 0, knock})),
+      onImpact: () => {
+        const amount = hits.get(target.key) || 0;
+        hits.delete(target.key); // one total per target, however many attackers hit it
+        landed = stage3d.burst({rect: target.r, faction, amount, knock});
+      },
     });
     await landed;
   }
@@ -217,7 +228,7 @@ export async function combat(before, game) {
       const defender = 1 - before.active,
         destinations = targets.length ? targets : [{r: before.players[defender], key: `p${defender}`}];
       return stage3d.ready()
-        ? fallback(lunge3d(from, destinations, uid, game, hits), () => lungeCss(from, destinations))
+        ? fallback(lunge3d(from, destinations, uid, game, hits, before.damage), () => lungeCss(from, destinations))
         : lungeCss(from, destinations);
     }),
   );
@@ -338,25 +349,32 @@ const onStack = el => !!el?.classList?.contains('stack-item');
 // Stack rows carry no data-card, so the id comes from the card wherever the game now holds it.
 const cardId = (game, uid, el) =>
   el?.dataset?.card || game.find?.(uid)?.card?.id || game.stack?.find(s => s.card?.uid === uid)?.card?.id;
-function statsOf(game, uid) {
+// `damage` overrides the card's current damage, for faces drawn as they looked before combat resolved.
+function statsOf(game, uid, damage) {
   const f = game.find?.(uid);
-  return f?.card ? {...game.stats(f.card, f.p), damage: f.card.damage || 0} : null;
+  return f?.card ? {...game.stats(f.card, f.p), damage: damage ?? (f.card.damage || 0)} : null;
 }
 async function enter3d(before, e, item, game) {
   const old = before.visual.get(e.uid)?.r,
     origin = old || (e.zone === 'hand' ? before.decks?.[e.owner] : null) || before.players[e.owner];
   if (!origin) return;
-  const to = onStack(item.el) ? cardAround(item.r) : item.r,
-    f = await faces({
-      id: cardId(game, e.uid, item.el) || before.visual.get(e.uid)?.el.dataset.card,
-      faction: game.players[e.owner].faction,
-      from: kindOf(e.from),
-      to: kindOf(e.zone),
-      width: to.width,
-      height: to.height,
-      stats: e.zone === 'field' ? statsOf(game, e.uid) : null,
-    });
-  await stage3d.fly({els: [item.el], from: origin, to, faces: f, flip: old ? null : 'up'});
+  item.el.style.visibility = 'hidden'; // else the card shows in its slot while the faces load, then vanishes to fly in
+  try {
+    const to = onStack(item.el) ? cardAround(item.r) : item.r,
+      from = old && onStack(before.visual.get(e.uid).el) ? cardAround(old) : origin,
+      f = await faces({
+        id: cardId(game, e.uid, item.el) || before.visual.get(e.uid)?.el.dataset.card,
+        faction: game.players[e.owner].faction,
+        from: kindOf(e.from),
+        to: kindOf(e.zone),
+        width: to.width,
+        height: to.height,
+        stats: e.zone === 'field' ? statsOf(game, e.uid) : null,
+      });
+    await stage3d.fly({els: [item.el], from, to, faces: f, flip: old ? null : 'up'});
+  } finally {
+    item.el.style.visibility = '';
+  }
 }
 // Spell damage and damage to a player: the burst without a lunge, in the colours of whoever is not being hit.
 async function hit3d(r, el, e, game) {
@@ -372,7 +390,11 @@ async function hit3d(r, el, e, game) {
             to: 'tile',
             width: r.width,
             height: r.height,
-            stats: statsOf(game, e.uid),
+            stats: statsOf(
+              game,
+              e.uid,
+              e.type === 'damaged' ? Math.max(0, (game.find?.(e.uid)?.card.damage || 0) - e.amount) : undefined,
+            ),
           }),
         }
       : null;
