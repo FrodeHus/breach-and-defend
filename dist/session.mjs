@@ -135,6 +135,7 @@ export class HostSession extends Session {
 
   async fromGuest(conn, msg) {
     if (this.closed || !msg || typeof msg !== 'object') return; // A disposed host only finishes sending.
+    try { safeKeys(msg); } catch { return; } // The guest is untrusted too: no prototype keys or non-plain objects.
     if (msg.type === 'hello') return this.hello(conn, msg);
     if (conn !== this.conn) return;
     switch (msg.type) {

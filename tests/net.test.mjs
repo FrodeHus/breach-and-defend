@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {peerId, netError, loadPeer, toFrames, fromFrames, wrap, FRAME_CHARS} from '../dist/net.mjs';
+import {peerId, netError, loadPeer, toFrames, fromFrames, wrap, FRAME_CHARS, MAX_FRAMES} from '../dist/net.mjs';
 import {fakeNet, MESSAGE_LIMIT} from './helpers/fake-net.mjs';
 
 const flush = () => new Promise(r => setImmediate(r));
@@ -138,4 +138,10 @@ test('the fake transport enforces the PeerJS message limit when framing is off',
   await flush();
   assert.deepEqual(got, [big(400)]);
   assert.deepEqual(framed.tooBig, []);
+});
+
+test('a frame claiming too many parts, or an oversized part, is refused instead of buffered', () => {
+  for (const bad of [{n: MAX_FRAMES + 1, part: 'x'}, {n: 0, part: 'x'}, {n: 1.5, part: 'x'}, {n: 2, part: 'x'.repeat(FRAME_CHARS + 1)}, {n: 2, part: 7}]) {
+    assert.throws(() => fromFrames()({type: '__frame', id: 1, i: 0, ...bad}), RangeError);
+  }
 });
