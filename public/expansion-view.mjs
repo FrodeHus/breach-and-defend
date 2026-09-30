@@ -5,6 +5,7 @@ import {esc} from './html.mjs';
 import {BY_ID} from './cards.mjs';
 import {card} from './card-view.mjs';
 import {abilityWays, castWays, ready} from './prepare.mjs';
+import {cardName, choiceCards, choiceReady} from './choices.mjs';
 
 const who = (s, p) => (p === 0 ? 'You' : s.versus ? 'Opponent' : 'Computer');
 
@@ -118,4 +119,68 @@ export function prepDialog(s, prep) {
   const canConfirm = way && ready(way, prep.picks, game);
   const eyebrow = prep.kind === 'activate' ? 'ACTIVATE' : prep.zone === 'grave' ? 'REUSE FROM DISCARD' : 'CAST';
   return `<div class="eyebrow">${eyebrow} / ${esc((d.name ?? '').toUpperCase())}</div><h2>${title}</h2><p class="muted">${esc(d.text ?? '')}</p>${ways}${way?.issues.length && prep.kind === 'activate' ? reason('reason-prep', way.issues) : ''}${selectors}<div class="toolbar"><button class="primary" id="prepConfirm" ${canConfirm ? '' : 'disabled'}>Confirm${way ? ` · ${way.totalCost} compute` : ''}</button><button id="prepCancel">Cancel</button></div>`;
+}
+
+const move = (value, name, first, last) =>
+  `<button data-choice-up="${value}" aria-label="Move ${esc(name)} up" ${first ? 'disabled' : ''}>↑</button><button data-choice-down="${value}" aria-label="Move ${esc(name)} down" ${last ? 'disabled' : ''}>↓</button>`;
+// The player's pending choice. Pay and optional answer at once; the others confirm.
+export function choiceDialog(s, st) {
+  const {game} = s;
+  const c = game.pending;
+  const resolving = c.resolving ?? c.frame?.entry;
+  let body = '',
+    confirm = true;
+  if (c.kind === 'probe') {
+    const cards = choiceCards(game);
+    const kept = st.order.filter(u => !st.discard.includes(u));
+    body = `<p class="muted">Top of your deck first. Kept cards go back in this order.</p><ol class="choice-list">${st.order
+      .map(u => {
+        const name = cardName(cards.find(x => x.uid === u)?.id),
+          out = st.discard.includes(u),
+          k = kept.indexOf(u);
+        return `<li class="${out ? 'to-discard' : ''}"><span>${esc(name)}${out ? ' <small>(to discard)</small>' : ''}</span><button data-choice-toggle="${u}" aria-pressed="${out}">${out ? 'Keep on top' : 'Move to discard'}</button>${out ? '' : move(u, name, k === 0, k === kept.length - 1)}</li>`;
+      })
+      .join('')}</ol>`;
+  } else if (c.kind === 'discard') {
+    body = `<div class="choice-grid">${c.options
+      .map(u => {
+        const f = game.find(u),
+          on = (st.picks.discard ?? []).includes(u);
+        return `<button data-choice-toggle="${u}" aria-pressed="${on}">${esc(cardName(f?.card.id))}</button>`;
+      })
+      .join('')}</div><p class="muted">Selected ${(st.picks.discard ?? []).length} of ${esc(String(c.min))}.</p>`;
+  } else if (c.kind === 'pay') {
+    confirm = false;
+    body = `<div class="toolbar"><button class="primary" data-pay="yes">Pay ${esc(String(c.data?.amount ?? ''))} compute</button><button data-pay="no">Don’t pay</button></div>`;
+  } else if (c.kind === 'optional') {
+    confirm = false;
+    body = `<div class="toolbar">${c.options
+      .map(u =>
+        u === null
+          ? '<button data-optional="">Don’t retire</button>'
+          : `<button class="primary" data-optional="${u}">Retire ${esc(cardName(game.find(u)?.card.id))}</button>`,
+      )
+      .join('')}</div>`;
+  } else if (c.kind === 'order') {
+    body = `<p class="muted">The first goes on the stack first and resolves last.</p><ol class="choice-list">${st.order
+      .map((id, i) => {
+        const w = game.waiting.find(t => t.id === id),
+          name = w ? game.entryName({ability: w.ability}) : 'Ability';
+        return `<li><span>${esc(name)}</span>${move(id, name, i === 0, i === st.order.length - 1)}</li>`;
+      })
+      .join('')}</ol>`;
+  } else if (c.kind === 'targets') {
+    body = c.options
+      .map(
+        o =>
+          `<fieldset class="prep-selector"><legend>${o.upTo ? `Choose up to ${o.upTo}` : 'Choose a target'}</legend>${o.candidates
+            .map(
+              (t, i) =>
+                `<button data-choice-pick="${o.key}:${i}" aria-pressed="${(st.picks[o.key] ?? []).includes(i)}">${esc(game.targetName(t))}</button>`,
+            )
+            .join('')}</fieldset>`,
+      )
+      .join('');
+  }
+  return `<div class="eyebrow">YOUR CHOICE</div><h2>${esc(c.prompt)}</h2>${resolving ? `<p class="muted">Resolving: ${esc(game.entryName(resolving))}</p>` : ''}${body}${confirm ? `<div class="toolbar"><button class="primary" id="choiceConfirm" ${choiceReady(game, st) ? '' : 'disabled'}>Confirm</button></div>` : ''}`;
 }

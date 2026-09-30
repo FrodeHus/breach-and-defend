@@ -61,6 +61,10 @@ export function phaseGroup(s) {
 export function hint(s) {
   const {game, versus, selected, blocker, blocks} = s;
   if (game.winner !== null) return 'Match complete. Review the lessons from your cards.';
+  if (game.pending) {
+    if (game.pending.actor === 0) return `Make a choice: ${esc(game.pending.prompt)}`;
+    return versus ? 'Your opponent is choosing…' : 'Computer is choosing…';
+  }
   if (game.actor() === 1) return versus ? 'Waiting for your opponent…' : 'Computer is considering its next move…';
   if (game.phase === 'attack')
     return `Select ready units to attack. ${selected.size} selected. Units that attack usually tap and cannot block next turn.`;
@@ -79,6 +83,7 @@ export function hint(s) {
 }
 export function buttonAction(s) {
   const {game, selected, blocks} = s;
+  if (game.pending?.actor === 0) return {label: 'Make your choice', command: 'choose'};
   if (game.phase === 'attack')
     return selected.size
       ? {label: `Attack with ${selected.size}`, command: `attack --with ${selected.size}`}

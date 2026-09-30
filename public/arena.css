@@ -879,3 +879,43 @@
 #modalBody [aria-pressed='true']::before {
   content: '✓ ';
 }
+/* Answering a pending choice: one row per card or ability, its name then its controls, wrapping on a phone. */
+.choice-list {
+  list-style: decimal inside;
+  margin: 12px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.choice-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.choice-list li > span {
+  flex: 1 1 10rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* A card set aside for discard is struck through and labelled, not only dimmed. */
+.choice-list li.to-discard {
+  border-style: dashed;
+}
+.choice-list li.to-discard > span {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.choice-list li.to-discard small {
+  display: inline-block;
+  text-decoration: none;
+}
+.choice-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}

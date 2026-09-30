@@ -391,3 +391,134 @@ test('tokens group only while they look the same, so a tapped one is never hidde
   assert.doesNotMatch(group, new RegExp(`data-uid="${a[2].uid}"`), 'the tapped one stands alone');
   assert.match(html, new RegExp(`class="card tile[^"]*tapped[^"]*"[^>]*data-uid="${a[2].uid}"`));
 });
+
+import {
+  choiceCards,
+  choiceReady,
+  choiceSelection,
+  moveChoice,
+  pickChoiceTarget,
+  startChoice,
+  toggleChoice,
+} from '../public/choices.mjs';
+import {choiceDialog} from '../public/expansion-view.mjs';
+import {viewFor} from '../public/protocol.mjs';
+import {Game} from '../public/engine.mjs';
+
+function probing() {
+  const g = table();
+  compute(g, 0, 1);
+  g.play(0, put(g, 0, pt('Map Trust Relationships'), 'hand').uid);
+  resolveTop(g);
+  return g;
+}
+
+test('a Probe can move cards to discard and reorder the rest, and turns into a legal selection', () => {
+  const g = probing();
+  let st = startChoice(g.pending);
+  const [top, second] = g.pending.options;
+  assert.deepEqual(
+    choiceCards(g).map(c => c.uid),
+    [top, second],
+  );
+  st = moveChoice(st, second, -1);
+  assert.deepEqual(st.order, [second, top]);
+  st = toggleChoice(g, st, second);
+  assert.deepEqual(choiceSelection(g, st), {discard: [second], order: [top]});
+  assert.equal(choiceReady(g, st), true);
+  g.choose(0, choiceSelection(g, st));
+  assert.equal(g.pending, null);
+});
+
+test('the Probe dialog lists the cards with keyboard-operable discard and move buttons', () => {
+  const g = probing();
+  const st = startChoice(g.pending);
+  const html = choiceDialog(state(g), st);
+  assert.match(html, /Probe 2/);
+  assert.match(html, /Resolving: Map Trust Relationships/);
+  for (const u of g.pending.options) {
+    assert.match(
+      html,
+      new RegExp(`<button[^>]*data-choice-toggle="${u}"[^>]*aria-pressed="false"[^>]*>Move to discard`),
+    );
+    assert.match(html, new RegExp(`data-choice-up="${u}"[^>]*aria-label="Move [^"]+ up"`));
+  }
+  assert.match(html, /<button[^>]*id="choiceConfirm"/);
+});
+
+test('a versus guest sees its own probed cards; nobody sees the other player’s', () => {
+  const g = probing();
+  g.mode = 'versus';
+  const mine = Game.fromJSON(viewFor(g, 0)),
+    theirs = Game.fromJSON(viewFor(g, 1));
+  assert.deepEqual(
+    choiceCards(mine).map(c => c.uid),
+    g.pending.options,
+  );
+  assert.equal(theirs.pending.actor, 1);
+  assert.match(arena.hint(state(theirs, {versus: {}})), /opponent is choosing/i);
+});
+
+test('discard, pay, optional, order and targets each have their own controls', () => {
+  const g = table();
+  const pend = (kind, extra) => ({
+    id: 9,
+    actor: 0,
+    kind,
+    private: false,
+    prompt: 'Choose.',
+    min: 1,
+    max: 1,
+    options: [],
+    ...extra,
+  });
+  const hand = [put(g, 0, 'r7', 'hand'), put(g, 0, 'r1', 'hand')];
+  g.pending = pend('discard', {options: hand.map(c => c.uid)});
+  let st = toggleChoice(g, startChoice(g.pending), hand[1].uid);
+  assert.deepEqual(choiceSelection(g, st), {uids: [hand[1].uid]});
+  assert.match(choiceDialog(state(g), st), /data-choice-toggle/);
+  g.pending = pend('pay', {options: [true, false], data: {uid: 1, amount: 2}});
+  const pay = choiceDialog(state(g), startChoice(g.pending));
+  assert.match(pay, /<button[^>]*data-pay="yes"[^>]*>Pay 2 compute/);
+  assert.match(pay, /<button[^>]*data-pay="no"[^>]*>Don’t pay/);
+  const b = g.createToken(0, 'pt-backdoor');
+  g.pending = pend('optional', {options: [b.uid, null]});
+  const opt = choiceDialog(state(g), startChoice(g.pending));
+  assert.match(opt, new RegExp(`data-optional="${b.uid}"[^>]*>Retire Backdoor`));
+  assert.match(opt, /data-optional=""[^>]*>Don’t retire/);
+  g.pending = pend('order', {options: [21, 22], min: 2, max: 2});
+  g.waiting = [
+    {id: 21, p: 0, ability: {card: pt('Dormant Implant'), uid: 1, id: 'implant'}},
+    {id: 22, p: 0, ability: {card: pt('Telemetry Curator'), uid: 2, id: 'collect'}},
+  ];
+  st = moveChoice(startChoice(g.pending), 22, -1);
+  assert.deepEqual(choiceSelection(g, st), {order: [22, 21]});
+  assert.match(choiceDialog(state(g), st), /Dormant Implant \(Create a Backdoor\)/);
+  const u = put(g, 0, 'r7');
+  g.pending = pend('targets', {
+    options: [{key: 't', optional: false, upTo: 0, candidates: [{kind: 'card', uid: u.uid}]}],
+    data: {trigger: 21},
+  });
+  st = startChoice(g.pending);
+  assert.equal(choiceReady(g, st), false);
+  st = pickChoiceTarget(g, st, 't', 0);
+  assert.deepEqual(choiceSelection(g, st), {targets: {t: {kind: 'card', uid: u.uid}}});
+});
+
+test('while a choice is yours the command bar asks for it, and never offers to pass', () => {
+  const g = probing();
+  assert.equal(arena.buttonAction(state(g)).label, 'Make your choice');
+  assert.match(arena.hint(state(g)), /Probe 2/);
+});
+
+test('moving a kept Probe card steps over cards set aside for discard', () => {
+  const g = table();
+  const top = put(g, 0, 'r1', 'deck'),
+    mid = put(g, 0, 'r7', 'deck'),
+    bottom = put(g, 0, 'r7', 'deck');
+  g.pending = {id: 9, actor: 0, kind: 'probe', private: true, prompt: 'Probe 3.', min: 0, max: 3};
+  g.pending.options = [bottom.uid, mid.uid, top.uid];
+  let st = toggleChoice(g, startChoice(g.pending), mid.uid);
+  st = moveChoice(st, top.uid, -1);
+  assert.deepEqual(choiceSelection(g, st).order, [top.uid, bottom.uid]);
+});
