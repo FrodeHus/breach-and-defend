@@ -1,6 +1,6 @@
 // One see-through WebGL canvas over the page. While a card moves, a lit 3D stand-in takes its place;
 // the DOM card is only hidden meanwhile and is always shown again. Loaded lazily; the game never needs it.
-import {cameraDistance, toWorld} from './stage3d-curves.mjs';
+import {arc, cameraDistance, clamp01, ease, lerp, toWorld} from './stage3d-curves.mjs';
 
 export const T = 4; // card thickness, px
 let THREE = null,
@@ -98,6 +98,7 @@ function resize() {
 }
 // Runs update(dt) every frame until it returns false; the loop and rendering stop when nothing is left.
 export function frame(update) {
+  if (failed) return;
   updaters.add(update);
   if (running) return;
   running = true;
@@ -115,7 +116,13 @@ function tick(now) {
     }
   }
   if (failed) return void (running = false);
-  renderer.render(scene, camera);
+  try {
+    renderer.render(scene, camera);
+  } catch (err) {
+    fail(err);
+    running = false;
+    return;
+  }
   if (updaters.size) requestAnimationFrame(tick);
   else running = false;
 }
@@ -229,3 +236,35 @@ export function slab(rect, {front, next = null, back, edge = 0x1d3a44, radius = 
 }
 export const add = obj => scene.add(obj);
 export const remove = obj => scene.remove(obj);
+// Flies a stand-in between two rects, cross-fading from one face to the other; the slab is sized to `to`.
+export function fly({els, from, to, faces, flip = null, duration = 620}) {
+  return standIn(
+    els,
+    ctl =>
+      new Promise(resolve => {
+        const s = slab(to, {front: faces.from, next: faces.to, back: faces.back}),
+          a = {...center(from), rz: from.rz || 0},
+          b = center(to),
+          sx = from.width / to.width,
+          sy = from.height / to.height;
+        let t = 0;
+        const done = () => {
+          s.dispose();
+          resolve();
+          return false;
+        };
+        frame(dt => {
+          if (ctl.aborted) return done();
+          t = Math.min(1, t + (dt * 1000) / duration);
+          const pose = arc(a, b, t),
+            k = ease(t);
+          if (flip) pose.ry = flip === 'up' ? Math.PI * (1 - k) : Math.PI * k;
+          place(s.group, pose);
+          s.group.scale.set(lerp(sx, 1, k), lerp(sy, 1, k), 1);
+          s.mix(clamp01((t - 0.25) / 0.4));
+          if (t >= 1) return done();
+        });
+      }),
+    duration + 400,
+  );
+}

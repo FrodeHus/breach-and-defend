@@ -1,4 +1,6 @@
 // Visual transitions observe rules state; they never apply damage or move game cards.
+import * as stage3d from './stage3d.mjs';
+import {faces} from './card-faces.mjs';
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = s => document.querySelector(s);
 const nodes = () => [...document.querySelectorAll('#app [data-motion-uid]')];
@@ -273,6 +275,32 @@ function enter(before, e, item, game) {
     item.el.style.visibility = '';
   });
 }
+// A failed 3D animation replays with CSS; stage3d switches itself off after the first failure.
+const fallback = (job, css) =>
+  job.catch(err => {
+    stage3d.fail(err);
+    return css();
+  });
+const kindOf = zone => (zone === 'field' ? 'tile' : 'hand');
+function statsOf(game, uid) {
+  const f = game.find?.(uid);
+  return f?.card ? {...game.stats(f.card, f.p), damage: f.card.damage || 0} : null;
+}
+async function enter3d(before, e, item, game) {
+  const old = before.visual.get(e.uid)?.r,
+    origin = old || (e.zone === 'hand' ? before.decks?.[e.owner] : null) || before.players[e.owner];
+  if (!origin) return;
+  const f = await faces({
+    id: item.el.dataset.card,
+    faction: game.players[e.owner].faction,
+    from: kindOf(e.from),
+    to: kindOf(e.zone),
+    width: item.r.width,
+    height: item.r.height,
+    stats: e.zone === 'field' ? statsOf(game, e.uid) : null,
+  });
+  await stage3d.fly({els: [item.el], from: origin, to: item.r, faces: f, flip: old ? null : 'up'});
+}
 export async function transitions(before, game) {
   if (still()) return;
   const after = snapshot(game),
@@ -283,7 +311,12 @@ export async function transitions(before, game) {
       if (from) jobs.push(depart(from, after.graves[e.owner], e.destroyed));
     } else if (e.type === 'enter') {
       const item = after.visual.get(e.uid);
-      if (item) jobs.push(enter(before, e, item, game));
+      if (item)
+        jobs.push(
+          stage3d.ready()
+            ? fallback(enter3d(before, e, item, game), () => enter(before, e, item, game))
+            : enter(before, e, item, game),
+        );
     }
   }
   await Promise.all(jobs);
