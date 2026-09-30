@@ -164,3 +164,57 @@ export const pickedTargets = chosen =>
     .flatMap(v => (Array.isArray(v) ? v : [v]))
     .map(t => t?.uid)
     .filter(u => u != null);
+
+// When a triggered ability triggers: (event, source card, its controller, ability) → boolean.
+export const ON = {
+  enter: (e, c) => e.type === 'enter' && e.uid === c.uid,
+  defeated: (e, c) => e.type === 'defeated' && e.uid === c.uid,
+  block: (e, c) => e.type === 'block' && e.uid === c.uid,
+  hitsOpponent: (e, c) => e.type === 'combatDamage' && e.uid === c.uid,
+  yourUnitsHit: (e, c, p) => e.type === 'combatDamage' && e.p === p,
+  youRetire: (e, c, p, a) =>
+    e.type === 'retire' &&
+    e.p === p &&
+    (!a.what?.types || a.what.types.includes(e.cardType)) &&
+    (!a.what?.id || e.id === a.what.id),
+  youCastFromGrave: (e, c, p) => e.type === 'cast' && e.p === p && e.fromGrave,
+  opponentSecondCast: (e, c, p) => e.type === 'cast' && e.p !== p && e.count === 2,
+  yourEndStep: (e, c, p) => e.type === 'endStep' && e.p === p,
+};
+
+// Targets a trigger can take without asking: none needed, or exactly one choice for each required target.
+export function autoTargets(g, p, specs) {
+  const targets = {};
+  for (const spec of specs) {
+    const options = candidates(g, p, spec);
+    if (spec.optional || spec.upTo) {
+      if (options.length) return 'choose';
+      if (spec.upTo) targets[spec.key] = [];
+    } else if (!options.length) return 'none';
+    else if (options.length > 1) return 'choose';
+    else targets[spec.key] = options[0];
+  }
+  return targets;
+}
+
+// Applies a selection to the pending choice `c`. Each throws before changing anything if the selection is wrong.
+export const CHOICES = {
+  order(g, c, sel) {
+    const order = sel.order;
+    if (
+      !Array.isArray(order) ||
+      order.length !== c.options.length ||
+      new Set(order).size !== order.length ||
+      !order.every(id => c.options.includes(id))
+    )
+      throw Error('Put every ability in order.');
+    const chosen = order.map(id => ({...g.waiting.find(t => t.id === id), ordered: true}));
+    g.waiting = [...chosen, ...g.waiting.filter(t => !order.includes(t.id))];
+  },
+  targets(g, c, sel) {
+    const t = g.waiting.find(x => x.id === c.data.trigger);
+    const problem = checkTargets(g, t.p, abilityOf(t.ability).targets ?? [], sel.targets ?? {});
+    if (problem) throw Error(problem);
+    t.targets = structuredClone(sel.targets ?? {});
+  },
+};

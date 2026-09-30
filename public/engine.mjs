@@ -1,9 +1,12 @@
 import {BY_ID, DEFAULT_POOL, deck} from './cards.mjs';
 import {seededRandom} from './rng.mjs';
 import {
+  CHOICES,
+  ON,
   OPS,
   abilityOf,
   archiveOptions,
+  autoTargets,
   candidates,
   checkTargets,
   isRule,
@@ -234,6 +237,7 @@ export class Game {
       return [{code: 'finished', message: 'This match has ended. Start a new match to play cards.'}];
     if (!c || !this.players[p].hand.some(x => x.uid === c.uid))
       return [{code: 'not-in-hand', message: 'This card is not in your hand.'}];
+    if (this.pending) return [{code: 'pending', message: 'Finish the pending choice first.'}];
     const d = this.data(c),
       issues = [];
     const add = (code, message) => issues.push({code, message});
@@ -324,6 +328,8 @@ export class Game {
       q.field.push(c);
       q.landPlayed = true;
       this.note(`${this.label(p)} ${this.verb(p, 'play', 'plays')} ${d.name}.`);
+      this.emit({type: 'enter', p, uid: c.uid});
+      this.settle();
       return;
     }
     this.pay(p, this.costOf(d, options));
@@ -331,12 +337,16 @@ export class Game {
     this.stack.push(opts ? {card: c, p, target: null, opts} : {card: c, p, target});
     this.events.push({name: d.name, lesson: d.lesson, faction: d.faction});
     this.passes = 0;
+    this.casts[p]++;
+    this.emit({type: 'cast', p, uid: c.uid, count: this.casts[p], fromGrave: false});
     this.note(
       `${this.label(p)} ${this.verb(p, 'cast', 'casts')} ${d.name}${opts?.overclock ? ', overclocked' : ''}${target ? ` → ${this.targetName(target)}` : ''}.`,
     );
+    this.settle();
   }
   activationIssues(p, uid, abilityId) {
     if (this.winner !== null) return [{code: 'finished', message: 'This match has ended.'}];
+    if (this.pending) return [{code: 'pending', message: 'Finish the pending choice first.'}];
     const src = this.players[p].field.find(c => c.uid === uid);
     const a = src && this.data(src).abilities?.find(x => x.id === abilityId && x.kind === 'activated');
     if (!a) return [{code: 'no-ability', message: 'This card has no such ability.'}];
@@ -382,6 +392,7 @@ export class Game {
     });
     this.passes = 0;
     this.note(`${this.label(p)} ${this.verb(p, 'activate', 'activates')} ${d.name}: ${a.label}.`);
+    this.settle();
   }
   // Checks the chosen cost cards: the one to retire, then the one to archive, in that order.
   checkPicks(p, cost, sourceUid, picks, chosenTargets) {
@@ -431,6 +442,7 @@ export class Game {
     return f ? this.data(f.card).name : 'departed card';
   }
   pass(p) {
+    if (this.pending) throw Error('Finish the pending choice first.');
     if (this.winner !== null || this.priority !== p || ['opening', 'attack', 'block', 'cleanup'].includes(this.phase))
       throw Error('Cannot pass at this step.');
     this.passes++;
@@ -457,6 +469,7 @@ export class Game {
     }
     if (['Unit', 'Tool', 'Control'].includes(d.type)) {
       this.players[p].field.push(card);
+      this.emit({type: 'enter', p, uid: card.uid});
       this.note(`${d.name} enters the battlefield.`);
     } else {
       const f = target?.kind === 'card' ? this.find(target.uid) : null;
@@ -498,7 +511,7 @@ export class Game {
       this.players[p].grave.push(card);
       this.note(`${d.name} resolves.`);
     }
-    this.check();
+    this.settle();
   }
   resolveRule(s) {
     const {targets, fizzled} = recheck(this, s.p, ruleOf(s).targets, s.opts.targets);
@@ -514,7 +527,7 @@ export class Game {
         self: s.card?.uid ?? s.ability.uid,
         source: {id: s.card?.id ?? s.ability.card},
       });
-    this.check();
+    this.settle();
   }
   // Runs an entry's steps from frame.i. A step that needs a choice sets `pending` and the frame waits in it.
   run(frame) {
@@ -550,6 +563,7 @@ export class Game {
       this.players[p].grave.push(c);
       this.note(`${d.name} goes to discard.`);
     }
+    if (d.type === 'Unit') this.emit({type: 'defeated', p, uid: c.uid});
   }
   // Returning to hand makes a new object: nothing that happened on the battlefield follows the card.
   bounce(p, c) {
@@ -563,10 +577,12 @@ export class Game {
     const c = this.card(id);
     this.players[p].field.push(c);
     this.note(`${this.label(p)} ${this.verb(p, 'create', 'creates')} a ${this.data(c).name}.`);
+    this.emit({type: 'enter', p, uid: c.uid});
     return c;
   }
   // Retiring is not destruction: a permanent its controller gives up, as a cost or by choice.
   retire(p, c) {
+    this.emit({type: 'retire', p, uid: c.uid, id: c.id, cardType: this.data(c).type});
     this.remove(p, c);
   }
   // The archive is public and final: nothing brings a card back from it.
@@ -610,6 +626,113 @@ export class Game {
       this.reason = 'Operational capacity reached zero.';
     }
   }
+  emit(e) {
+    this.queue.push(e);
+  }
+  // After every action: defeat units at zero toughness, then put abilities that triggered onto the stack.
+  settle() {
+    this.check();
+    // Nothing triggers once the match is decided; drop it so a finished match saves no expansion state.
+    if (this.winner !== null) {
+      this.queue = [];
+      this.waiting = [];
+      this.pending = null;
+    }
+    if (this.winner !== null || this.pending) return;
+    for (const e of this.queue.splice(0)) this.waiting.push(...this.triggersFor(e));
+    this.place();
+  }
+  triggersFor(e) {
+    const found = [];
+    const consider = (c, p) => {
+      for (const a of this.data(c).abilities ?? []) {
+        if (a.kind !== 'triggered' || !ON[a.on](e, c, p, a)) continue;
+        // Counted when it triggers, even if the trigger is later countered or removed.
+        if (a.once) {
+          if (c.used?.includes(a.id)) continue;
+          (c.used ??= []).push(a.id);
+        }
+        found.push({id: ++this.uid, p, ability: {card: c.id, uid: c.uid, id: a.id}});
+      }
+    };
+    this.players.forEach((q, p) => q.field.forEach(c => consider(c, p)));
+    // A card's own "when this is defeated" ability triggers from the discard it went to.
+    if (e.type === 'defeated') {
+      const f = this.find(e.uid);
+      if (f?.zone === 'grave') consider(f.card, e.p);
+    }
+    return found;
+  }
+  // Puts waiting triggers on the stack: the active player's first (so they resolve last), each player's in the
+  // order they choose. A trigger with no legal target is removed; one with a choice of targets asks.
+  place() {
+    let placed = false;
+    while (this.waiting.length && !this.pending) {
+      const p = this.waiting.some(t => t.p === this.active) ? this.active : 1 - this.active;
+      const mine = this.waiting.filter(t => t.p === p);
+      if (mine.length > 1 && !mine.every(t => t.ordered)) {
+        this.pending = {
+          id: ++this.uid,
+          actor: p,
+          kind: 'order',
+          private: false,
+          prompt: 'Choose the order your abilities go on the stack. The first goes on first and resolves last.',
+          min: mine.length,
+          max: mine.length,
+          options: mine.map(t => t.id),
+        };
+        break;
+      }
+      const t = mine[0],
+        specs = abilityOf(t.ability).targets ?? [];
+      if (!t.targets) {
+        const auto = autoTargets(this, p, specs);
+        if (auto === 'choose') {
+          this.pending = {
+            id: ++this.uid,
+            actor: p,
+            kind: 'targets',
+            private: false,
+            prompt: `Choose targets for ${this.entryName({ability: t.ability})}.`,
+            min: 1,
+            max: 1,
+            options: specs.map(spec => ({
+              key: spec.key,
+              optional: !!spec.optional,
+              upTo: spec.upTo ?? 0,
+              candidates: candidates(this, p, spec),
+            })),
+            data: {trigger: t.id},
+          };
+          break;
+        }
+        this.waiting = this.waiting.filter(x => x !== t);
+        if (auto === 'none') {
+          this.note(`${this.entryName({ability: t.ability})} has no legal target and is removed.`);
+          continue;
+        }
+        t.targets = auto;
+      } else this.waiting = this.waiting.filter(x => x !== t);
+      this.stack.push({ability: t.ability, p, target: null, opts: {targets: t.targets}});
+      this.note(`${this.entryName({ability: t.ability})} triggers.`);
+      placed = true;
+    }
+    if (placed) {
+      this.priority = this.active;
+      this.passes = 0;
+    }
+  }
+  choose(p, selection) {
+    const c = this.pending;
+    if (!c || c.actor !== p) throw Error('There is no choice for you to make.');
+    CHOICES[c.kind](this, c, selection && typeof selection === 'object' ? selection : {});
+    this.pending = null;
+    if (c.frame && this.run(c.frame)) {
+      this.priority = this.active;
+      this.passes = 0;
+    }
+    this.settle();
+  }
   canAttack(p, c) {
     const d = this.data(c);
     return !!(
@@ -621,6 +744,7 @@ export class Game {
     );
   }
   attackers(p, uids) {
+    if (this.pending) throw Error('Finish the pending choice first.');
     if (
       this.phase !== 'attack' ||
       p !== this.active ||
@@ -652,6 +776,7 @@ export class Game {
     );
   }
   blockers(p, assignments) {
+    if (this.pending) throw Error('Finish the pending choice first.');
     if (this.phase !== 'block' || p === this.active) throw Error('Not your blocking step.'); // Keys must be canonical uids: combat looks blocks up by uid, so "05" or "0x5" would silently not block.
     if (
       !assignments ||
@@ -679,6 +804,8 @@ export class Game {
     this.note(
       `${this.label(p)} ${this.verb(p, 'assign', 'assigns')} ${used.length} blocker${used.length === 1 ? '' : 's'}.`,
     );
+    for (const uid of used) this.emit({type: 'block', p, uid});
+    this.settle();
   }
   combat() {
     const pending = [],
@@ -708,11 +835,12 @@ export class Game {
       let n = hit.amount;
       if (hit.target.kind === 'player') n = this.hurt(hit.target.p, n, hit.source, hit.owner);
       else this.find(hit.target.uid).card.damage += n;
+      if (hit.target.kind === 'player' && n > 0) this.emit({type: 'combatDamage', p: hit.owner, uid: hit.source.uid});
       if (this.has(hit.source, 'recharge')) gains[hit.owner] += n;
     }
     gains.forEach((n, p) => (this.players[p].life += n));
     this.note('Combat damage is dealt simultaneously.');
-    this.check();
+    this.settle();
   }
   advance() {
     switch (this.phase) {
@@ -741,6 +869,7 @@ export class Game {
         break;
       case 'main2':
         this.phase = 'end';
+        this.emit({type: 'endStep', p: this.active});
         break;
       case 'end':
         if (this.players[this.active].hand.length > 7) {
@@ -752,8 +881,10 @@ export class Game {
     }
     this.priority = this.active;
     this.passes = 0;
+    this.settle();
   }
   discard(uids) {
+    if (this.pending) throw Error('Finish the pending choice first.');
     const p = this.players[this.active];
     const n = p.hand.length - 7;
     if (
@@ -786,6 +917,7 @@ export class Game {
     this.priority = this.active;
     this.passes = 0;
     this.attacks = [];
+    this.casts = [0, 0];
     this.blocks = {};
     const p = this.players[this.active];
     p.landPlayed = false;
@@ -799,8 +931,10 @@ export class Game {
     this.note(
       `Turn ${this.turn}: ${this.label(this.active)} ${this.verb(this.active, 'untap and start', 'untaps and starts')} the turn.`,
     );
+    this.settle();
   }
   actor() {
+    if (this.pending) return this.pending.actor;
     if (this.phase === 'opening') return this.kept[0] ? 1 : 0;
     if (['attack', 'cleanup'].includes(this.phase)) return this.active;
     if (this.phase === 'block') return 1 - this.active;
@@ -810,6 +944,7 @@ export class Game {
     if (this.winner !== null) throw Error('The match has already ended.');
     this.winner = 1 - p;
     this.reason = `${this.label(p)} left the match.`;
+    this.pending = null;
     this.note(this.reason);
   }
   toJSON() {
