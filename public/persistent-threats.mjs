@@ -277,4 +277,164 @@ export const PERSISTENT_THREATS = [
       ],
     },
   ),
+  blue(
+    'pt-b01',
+    'Forensic Repository',
+    0,
+    'Infrastructure',
+    'Enters tapped. Tap: Add 1 compute. 3 compute, Tap, retire Forensic Repository: Create two Indicators.',
+    {
+      entersTapped: true,
+      abilities: [
+        act('preserve', 'Retire for two Indicators', {compute: 3, tap: true, retire: 'self'}, [token(INDICATOR, 2)]),
+      ],
+    },
+  ),
+  blue(
+    'pt-b02',
+    'Instrumented Datacenter',
+    0,
+    'Infrastructure',
+    'Enters tapped. Tap: Add 1 compute. When this enters, Probe 1.',
+    {entersTapped: true, abilities: [trig('scan', 'Probe 1', 'enter', [probe(1)])]},
+  ),
+  blue('pt-b03', 'Alert Triage Analyst', 1, 'Unit', 'When this enters, Probe 1.', {
+    ...unit('Analyst', 1, 1),
+    abilities: [trig('triage', 'Probe 1', 'enter', [probe(1)])],
+  }),
+  blue('pt-b04', 'Canary Service', 2, 'Unit', 'Firewall. When this is defeated, create two Indicators.', {
+    ...unit('Service', 0, 3),
+    keywords: ['firewall'],
+    abilities: [trig('alarm', 'Create two Indicators', 'defeated', [token(INDICATOR, 2)])],
+  }),
+  blue('pt-b05', 'Telemetry Curator', 2, 'Unit', 'When this enters, create an Indicator.', {
+    ...unit('Analyst', 1, 2),
+    abilities: [trig('collect', 'Create an Indicator', 'enter', [token(INDICATOR)])],
+  }),
+  blue(
+    'pt-b06',
+    'Behavioral Monitor',
+    3,
+    'Unit',
+    'Detection. Whenever this blocks, create an Indicator. This triggers only once each turn.',
+    {
+      ...unit('Service', 1, 4),
+      keywords: ['detection'],
+      abilities: [trig('observe', 'Create an Indicator', 'block', [token(INDICATOR)], {once: true})],
+    },
+  ),
+  blue(
+    'pt-b07',
+    'Case Analyst',
+    3,
+    'Unit',
+    'Whenever you retire an Indicator, this gets +1/+1 until end of turn. This triggers only once each turn.',
+    {
+      ...unit('Analyst', 2, 3),
+      abilities: [
+        trig('analyze', '+1/+1', 'youRetire', [{op: 'buff', to: 'self', power: 1, toughness: 1}], {
+          what: {id: INDICATOR},
+          once: true,
+        }),
+      ],
+    },
+  ),
+  blue(
+    'pt-b08',
+    'Lockdown Coordinator',
+    3,
+    'Unit',
+    'When this enters, tap target opposing unit. That unit doesn’t untap during its controller’s next untap step.',
+    {
+      ...unit('Analyst', 2, 2),
+      abilities: [
+        trig('lockdown', 'Lock down a unit', 'enter', [{op: 'tap', to: 't', lock: true}], {targets: [opposingUnit]}),
+      ],
+    },
+  ),
+  blue(
+    'pt-b09',
+    'Restoration Lead',
+    4,
+    'Unit',
+    'When this enters, return target unit card with printed cost 2 or less from your discard to your hand.',
+    {
+      ...unit('Analyst', 3, 3),
+      abilities: [
+        trig('restore', 'Recover a small unit', 'enter', [{op: 'recover', to: 't', zone: 'hand'}], {
+          targets: [{key: 't', zone: 'grave', side: 'you', types: ['Unit'], maxCost: 2}],
+        }),
+      ],
+    },
+  ),
+  blue('pt-b10', 'Adaptive Perimeter', 4, 'Unit', 'Detection. Has Always-on while you control an Indicator.', {
+    ...unit('Service', 2, 5),
+    keywords: ['detection'],
+    when: [{keyword: 'alwaysOn', if: {control: INDICATOR}}],
+  }),
+  blue(
+    'pt-b11',
+    'Incident Commander',
+    5,
+    'Unit',
+    'Always-on. Whenever you retire an Indicator, untap target unit you control. This triggers only once each turn.',
+    {
+      ...unit('Analyst', 4, 4),
+      keywords: ['alwaysOn'],
+      abilities: [
+        trig('coordinate', 'Untap a unit', 'youRetire', [{op: 'untap', to: 't'}], {
+          what: {id: INDICATOR},
+          once: true,
+          targets: [yourUnit],
+        }),
+      ],
+    },
+  ),
+  blue('pt-b12', 'Resilient Service Mesh', 6, 'Unit', 'Always-on. When this enters, create two Indicators.', {
+    ...unit('Service', 4, 6),
+    keywords: ['alwaysOn'],
+    abilities: [trig('mesh', 'Create two Indicators', 'enter', [token(INDICATOR, 2)])],
+  }),
+  // pt-b13 … pt-b22 (blue Operations and Responses) are added in Task 5, between these units and the Tools.
+  blue(
+    'pt-b23',
+    'Analysis Workbench',
+    2,
+    'Tool',
+    'When this enters, create an Indicator. 2 compute, Tap, retire an Indicator: Draw two cards, then discard a card.',
+    {
+      abilities: [
+        trig('collect', 'Create an Indicator', 'enter', [token(INDICATOR)]),
+        act('study', 'Draw two, then discard one', {compute: 2, tap: true, retire: {id: INDICATOR}}, [
+          {op: 'draw', n: 2},
+          {op: 'discard', n: 1},
+        ]),
+      ],
+    },
+  ),
+  blue(
+    'pt-b24',
+    'Recovery Runbook',
+    3,
+    'Tool',
+    '2 compute, Tap, archive a unit card from your discard: Gain 3 operational capacity.',
+    {
+      abilities: [
+        act('recover', 'Gain 3 capacity', {compute: 2, tap: true, archive: {types: ['Unit']}}, [{op: 'heal', n: 3}]),
+      ],
+    },
+  ),
+  blue(
+    'pt-b25',
+    'Continuous Validation',
+    4,
+    'Control',
+    'Whenever an opponent casts their second card in a turn, create an Indicator. Whenever you retire an Indicator, gain 1 operational capacity. This second ability triggers only once each turn.',
+    {
+      abilities: [
+        trig('signal', 'Create an Indicator', 'opponentSecondCast', [token(INDICATOR)]),
+        trig('verify', 'Gain 1 capacity', 'youRetire', [{op: 'heal', n: 1}], {what: {id: INDICATOR}, once: true}),
+      ],
+    },
+  ),
 ];
