@@ -1,6 +1,7 @@
 import {BY_ID,deck} from './cards.mjs';
 import {seededRandom} from './rng.mjs';
 export const PHASES=['upkeep','draw','main1','beginCombat','attack','afterAttack','block','afterBlock','endCombat','main2','end'];
+export const COMBAT_STEPS=['attack','afterAttack','block','afterBlock','endCombat'];
 export const PHASE_NAMES={opening:'Opening hand',upkeep:'Start of turn',draw:'Draw',main1:'Main I',beginCombat:'Begin combat',attack:'Declare attackers',afterAttack:'Attack responses',block:'Declare blockers',afterBlock:'Combat responses',endCombat:'End combat',main2:'Main II',end:'End step',cleanup:'Discard to seven'};
 export class Game{
  constructor(faction='blue',random=Math.random,{first=0,mode='solo'}={}){this.random=random;this.mode=mode;this.first=first;this.uid=0;this.players=[faction,faction==='blue'?'red':'blue'].map(f=>({faction:f,life:20,deck:this.shuffle(deck(f).map(id=>this.card(id))),hand:[],field:[],grave:[],landPlayed:false}));this.active=first;this.priority=first;this.phase='opening';this.turn=1;this.stack=[];this.log=[];this.events=[];this.passes=0;this.mulls=[0,0];this.kept=[false,mode==='solo'];this.attacks=[];this.blocks={};this.winner=null;this.reason='';this.players.forEach((p,i)=>this.draw(i,7));this.note('Welcome to the arena. Keep your opening hand or take a mulligan.');}

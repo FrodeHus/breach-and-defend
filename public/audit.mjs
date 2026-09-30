@@ -1,4 +1,5 @@
-// dist/audit.mjs
+// @ts-check
+// public/audit.mjs
 import {actionFields, applyAction, bottomCommit, canonical, digest, restoreBottoms, seedHex, sha256Hex, timeoutAction, unflipAction, versusGame, viewFor} from './protocol.mjs';
 
 const PARTS = {you: 'Your cards or capacity', foe: 'Your opponent’s cards or capacity', table: 'The turn, stack or combat state'};

@@ -1,7 +1,7 @@
 // tests/versus-ui.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as ui from '../dist/versus-ui.mjs';
+import * as ui from '../public/versus-ui.mjs';
 
 test('the invite lobby escapes the link, offers share only when supported, and warns without storage', () => {
   const html = ui.lobby({status: 'waiting'}, {url: 'https://x.test/#join=a"b', canShare: false, storageOk: false});

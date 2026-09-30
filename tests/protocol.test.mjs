@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Game} from '../dist/engine.mjs';
-import {CARDS, BY_ID} from '../dist/cards.mjs';
-import {viewFor, flip, flipTarget, unflipAction, applyAction, timeoutAction, canonical, digest, versusGame, seedHex, sha256Hex, randomHex, actionFields, sanitizeView, redactEntry, hostBottoms, restoreBottoms} from '../dist/protocol.mjs';
+import {Game} from '../public/engine.mjs';
+import {CARDS, BY_ID} from '../public/cards.mjs';
+import {viewFor, flip, flipTarget, unflipAction, applyAction, timeoutAction, canonical, digest, versusGame, seedHex, sha256Hex, randomHex, actionFields, sanitizeView, redactEntry, hostBottoms, restoreBottoms} from '../public/protocol.mjs';
 
 const SEED = 'ab'.repeat(32);
 const opened = () => { const g = versusGame(SEED, 'blue'); g.keep([], 0); g.keep([], 1); return g; };
@@ -136,7 +136,7 @@ test('canonical JSON ignores key order; digests pinpoint the changed section', a
 
 // Plays whole matches through the referee, returning every view each player was sent.
 async function views(games = 6) {
-  const {Match} = await import('../dist/match.mjs');
+  const {Match} = await import('../public/match.mjs');
   const {choose} = await import('./helpers/policy.mjs');
   const {fakeTime} = await import('./helpers/versus.mjs');
   const out = [];

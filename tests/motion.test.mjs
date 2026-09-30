@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {within, settle} from '../dist/motion.mjs';
+import {within, settle} from '../public/motion.mjs';
 
 const never = () => new Promise(() => {});
 function manualClock() {

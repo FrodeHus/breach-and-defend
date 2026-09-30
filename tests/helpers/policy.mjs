@@ -1,5 +1,5 @@
-import {BY_ID} from '../../dist/cards.mjs';
-import {seededRandom} from '../../dist/rng.mjs';
+import {BY_ID} from '../../public/cards.mjs';
+import {seededRandom} from '../../public/rng.mjs';
 
 export const seeded = n => seededRandom(Uint8Array.from({length: 16}, (_, i) => (i + 1) * n));
 

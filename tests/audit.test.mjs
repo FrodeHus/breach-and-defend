@@ -1,9 +1,9 @@
 // tests/audit.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {audit} from '../dist/audit.mjs';
-import {Match} from '../dist/match.mjs';
-import {digest, randomHex, sha256Hex, unflipAction, viewFor} from '../dist/protocol.mjs';
+import {audit} from '../public/audit.mjs';
+import {Match} from '../public/match.mjs';
+import {digest, randomHex, sha256Hex, unflipAction, viewFor} from '../public/protocol.mjs';
 import {choose} from './helpers/policy.mjs';
 import {fakeTime} from './helpers/versus.mjs';
 

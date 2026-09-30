@@ -1,4 +1,4 @@
-import {Match} from '../../dist/match.mjs';
+import {Match} from '../../public/match.mjs';
 
 // Deterministic stand-in for Date.now/setTimeout/clearTimeout.
 export function fakeTime() {

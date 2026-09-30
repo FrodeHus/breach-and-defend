@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Game} from '../dist/engine.mjs';
-import {CARDS} from '../dist/cards.mjs';
-import {Tutorial} from '../dist/tutorial.mjs';
+import {Game} from '../public/engine.mjs';
+import {CARDS} from '../public/cards.mjs';
+import {Tutorial} from '../public/tutorial.mjs';
 
 function add(g, p, type, zone = 'hand') {
   const definition = CARDS.find(c => c.faction === g.players[p].faction && c.type === type);

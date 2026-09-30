@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CARDS} from '../dist/cards.mjs';
-import {lorePanel} from '../dist/lore-panel.mjs';
+import {CARDS} from '../public/cards.mjs';
+import {lorePanel} from '../public/lore-panel.mjs';
 
 test('every card has a flavor quote with attribution and a learning text', () => {
   for (const c of CARDS) {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {previewPosition} from '../dist/card-preview.mjs';
+import {previewPosition} from '../public/card-preview.mjs';
 
 test('hand previews lift above the source without covering its hit area', () => {
   const p = previewPosition({left:400,top:560,width:130,height:150}, {width:300,height:420}, {width:1280,height:720});
