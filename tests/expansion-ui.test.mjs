@@ -740,3 +740,30 @@ test('the Field Guide teaches Persistent Threats once it is released', () => {
   assert.doesNotMatch(off, /Persistent Threats/);
   assert.match(off, /There are no exile, token, or sideboard mechanics in this set\./);
 });
+
+import {EXPANSION_POOL} from '../public/cards.mjs';
+import {choiceTip, expansionTip} from '../public/expansion-tips.mjs';
+
+test('expansion tips follow what the player has, and never appear in a First Breach match', () => {
+  const g = table();
+  g.pool = EXPANSION_POOL;
+  const fb = new Game('red', () => 0.5);
+  assert.equal(expansionTip(fb), null);
+  assert.equal(choiceTip(fb), null);
+  g.phase = 'main1';
+  g.players[0].field = g.players[0].field.filter(c => BY_ID[c.id].type !== 'Tool');
+  put(g, 0, 'r7');
+  assert.equal(expansionTip(g), null);
+  g.createToken(0, 'pt-backdoor');
+  assert.match(expansionTip(g), /<strong>Backdoors\.<\/strong>/);
+  assert.match(arena.tutorialText(state(g)), /Backdoors/);
+  g.players[1].archive.push(g.card(pt('Seed Access')));
+  assert.match(expansionTip(g), /Backdoors/, 'your own tokens come before the archive');
+});
+
+test('a pending Probe gets its own tip, ahead of the stack tip', () => {
+  const g = probing();
+  g.pool = EXPANSION_POOL;
+  assert.match(choiceTip(g), /<strong>Probe\.<\/strong>/);
+  assert.match(arena.tutorialText(state(g)), /Probe/);
+});

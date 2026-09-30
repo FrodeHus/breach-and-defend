@@ -8,6 +8,7 @@ import {lorePanel} from './lore-panel.mjs';
 import * as versusUi from './versus-ui.mjs';
 import {esc} from './html.mjs';
 import {card, label, playStatus} from './card-view.mjs';
+import {choiceTip, expansionTip} from './expansion-tips.mjs';
 import {byLook, cardActions, stackItem, tokenGroups} from './expansion-view.mjs';
 
 export const poolEyebrow = game => (POOLS[game.pool]?.name ?? POOLS['first-breach'].name).toUpperCase();
@@ -131,6 +132,8 @@ export function guidedPanel(s) {
 }
 export function tutorialText(s) {
   const {game} = s;
+  const choice = choiceTip(game);
+  if (choice) return choice;
   if (game.phase === 'block')
     return '<strong>Block smart.</strong> A blocker deals its power to its attacker while receiving damage back. A unit survives if damage stays below its toughness. Stealth needs Stealth or Detection to block.';
   if (game.stack.length)
@@ -141,7 +144,10 @@ export function tutorialText(s) {
     return '<strong>First, build your resources.</strong> Play one Infrastructure card for free during your main phase. Each ready infrastructure pays for one compute.';
   if (!game.players[0].field.some(c => BY_ID[c.id].type === 'Unit'))
     return '<strong>Deploy a unit.</strong> The number at top right is its compute cost. Bottom-right numbers are power / toughness. Cards with bright borders can be played now.';
-  return '<strong>Keep a Response ready.</strong> Spending all your compute leaves you unable to respond. Click any card to see its rules and security lesson.';
+  return (
+    expansionTip(game) ??
+    '<strong>Keep a Response ready.</strong> Spending all your compute leaves you unable to respond. Click any card to see its rules and security lesson.'
+  );
 }
 export function battlefield(s) {
   const {game, versus, inspectorOpen, tutorial, guidance} = s;
