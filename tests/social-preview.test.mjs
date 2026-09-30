@@ -20,3 +20,16 @@ test('link previews have a title, description, type and canonical URL', () => {
   assert.equal(meta('property', 'og:title'), 'Breach & Defend — Cybersecurity Card Game');
   assert.equal(meta('property', 'og:description'), meta('name', 'description'));
 });
+
+test('a Content-Security-Policy is declared before any resource loads', () => {
+  const csp = index.match(/<meta http-equiv="Content-Security-Policy" content="([^"]*)">/)?.[1];
+  assert.ok(csp);
+  assert.ok(index.indexOf('Content-Security-Policy') < index.indexOf('<link'));
+  const directives = Object.fromEntries(csp.split(';').map(d => d.trim().split(/\s+/)).map(([k, ...v]) => [k, v]));
+  assert.deepEqual(directives['default-src'], ["'none'"]);
+  assert.deepEqual(directives['object-src'], ["'none'"]);
+  assert.ok(!directives['script-src'].some(s => s.includes('unsafe')), 'no inline or eval scripts');
+  // Every script the game loads must be allowed by script-src.
+  const peer = fs.readFileSync(new URL('../dist/net.mjs', import.meta.url), 'utf8').match(/PEERJS_URL = '([^']+)'/)[1];
+  assert.ok(directives['script-src'].some(s => s.endsWith('/') && peer.startsWith(s)));
+});

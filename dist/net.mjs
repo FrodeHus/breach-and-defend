@@ -22,6 +22,8 @@ export function loadPeer() {
 // the message's JSON cut into pieces of at most FRAME_CHARS UTF-16 units. Each unit is at most 3 bytes of
 // UTF-8, or 2 once JSON-escaped, so a frame stays near 12 KB, well under the limit.
 export const FRAME_CHARS = 4000;
+// A peer chooses `n`, so reassembly is capped (about 4M characters) instead of growing without bound.
+export const MAX_FRAMES = 1000;
 const FRAME = '__frame';
 
 export function toFrames(msg, id, size = FRAME_CHARS) {
@@ -46,6 +48,7 @@ export function fromFrames() {
   let id = null, parts = [];
   return msg => {
     if (msg?.type !== FRAME) return msg;
+    if (!Number.isInteger(msg.n) || msg.n < 1 || msg.n > MAX_FRAMES || typeof msg.part !== 'string' || msg.part.length > FRAME_CHARS) throw RangeError('Invalid frame.');
     if (msg.i === 0) { id = msg.id; parts = []; }
     if (msg.id !== id || msg.i !== parts.length) { id = null; parts = []; return undefined; }
     parts.push(msg.part);
