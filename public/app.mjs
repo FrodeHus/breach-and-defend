@@ -3,6 +3,7 @@
 // versus-ui) into #app, and turns clicks into engine moves. All markup lives in those view modules.
 import {BY_ID, DEFAULT_POOL, POOLS, edition, playablePool, releasedCards} from './cards.mjs';
 import {Game} from './engine.mjs';
+import {createDemo, stepDemo} from './demo.mjs';
 import {Tutorial} from './tutorial.mjs';
 import {installCardPreview} from './card-preview.mjs';
 import {installLoreFlip} from './lore-panel.mjs';
@@ -40,7 +41,8 @@ let game = null,
   animating = false,
   timer = null,
   stepKey = '',
-  resultShown = false;
+  resultShown = false,
+  demoPaused = false;
 let selected = new Set(),
   blocks = {},
   blocker = null;
@@ -85,6 +87,7 @@ const ui = () => ({
   inspectorOpen,
   loreSide,
   pauseAll,
+  demoPaused,
   tutorial,
   guidance,
   filter,
@@ -114,7 +117,8 @@ const cardPreview = installCardPreview({
 const cardDrag = installCardDrag({
   root: app,
   previewSource: node => cardPreview.sourceFor(node),
-  canStart: () => !animating && !modal.open && view === 'arena' && !!game && game.winner === null,
+  canStart: () =>
+    !animating && !modal.open && view === 'arena' && !!game && game.mode !== 'demo' && game.winner === null,
   describe: uid => {
     const c = game.players[0].hand.find(c => c.uid === uid);
     return c ? game.playIssues(0, c).map(i => i.message) : ['This card is no longer in your hand.'];
@@ -419,7 +423,7 @@ $('#modalBody').addEventListener('click', e => {
 });
 function recap() {
   dialog(arena.recapView(ui()));
-  if ($('#rematch')) $('#rematch').onclick = () => start(game.players[0].faction);
+  if ($('#rematch')) $('#rematch').onclick = () => start(game.players[0].faction, false, game.mode === 'demo');
   if ($('#chooseSide'))
     $('#chooseSide').onclick = () => {
       modal.close();
@@ -452,7 +456,7 @@ function confirmLeave() {
   $('#stay').onclick = close;
 }
 
-function start(f, optIn = false) {
+function start(f, optIn = false, demo = false) {
   if (versus) leaveVersus();
   cardPreview.dismiss(true);
   clearTimeout(timer);
@@ -462,7 +466,8 @@ function start(f, optIn = false) {
   stepKey = '';
   const pool = playablePool(poolChoice, {guided: optIn});
   store.set('pref:pool', poolChoice); // Rewritten on each start, so the weekly storage prune keeps it.
-  game = new Game(f, undefined, {pool});
+  game = demo ? createDemo(pool) : new Game(f, undefined, {pool});
+  demoPaused = false;
   forgetChoice();
   view = 'arena';
   selected.clear();
@@ -573,6 +578,7 @@ function render() {
 }
 
 function advance() {
+  if (game?.mode === 'demo') return;
   if (game?.pending?.actor === 0) return openChoice();
   action(() => {
     if (game.phase === 'attack') return game.attackers(0, [...selected]);
@@ -588,6 +594,13 @@ function toggleTips() {
 
 // Buttons in #app, by id or by data attribute.
 const BUTTONS = {
+  watchDemo: () => start('blue', false, true),
+  demoPause: () => {
+    demoPaused = !demoPaused;
+    render();
+    schedule();
+  },
+  demoRestart: () => start('blue', false, true),
   keep: () => action(() => game.keep([...selected])),
   mulligan: () =>
     action(() => {
@@ -697,6 +710,7 @@ document.addEventListener('click', e => {
     showCard(id);
     return;
   }
+  if (game?.mode === 'demo') return showCard(id, uid, zone);
   const toggle = () => {
     selected.has(uid) ? selected.delete(uid) : selected.add(uid);
     render();
@@ -882,6 +896,10 @@ function schedule() {
     game.phase === 'opening'
   )
     return;
+  if (game.mode === 'demo') {
+    if (!demoPaused) timer = setTimeout(() => action(() => stepDemo(game, demoPaused)), 500);
+    return;
+  }
   if (guidance.shouldPause(game)) return;
   // Auto-pass never runs while a choice is yours.
   if (game.pending?.actor === 0) {
