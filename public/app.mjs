@@ -13,6 +13,7 @@ import {snapshot, combat, transitions, arrows, within} from './motion.mjs';
 import {HostSession, GuestSession} from './session.mjs';
 import * as net from './net.mjs';
 import {createStore} from './storage.mjs';
+import {trackGame} from './analytics.mjs';
 import * as versusUi from './versus-ui.mjs';
 import {landing} from './landing.mjs';
 import {about} from './about.mjs';
@@ -477,6 +478,7 @@ function start(f, optIn = false, demo = false) {
   inspect = f === 'blue' ? 'b3' : 'r3';
   modal.close();
   render();
+  if (!demo) trackGame(optIn ? 'guided' : 'solo');
   const initial = snapshot(game);
   initial.cards = new Map();
   initial.visual = new Map();
@@ -847,6 +849,11 @@ function bindVersus(s) {
 function versusStatus() {
   if (!versus) return;
   if (['cancelled', 'error'].includes(versus.status)) game = null;
+  // Counted once per match, by the host alone, so both seats and a reload do not triple it.
+  if (versus.role === 'host' && versus.status === 'playing' && !store.get(`counted:${versus.matchId}`)) {
+    store.set(`counted:${versus.matchId}`, true);
+    trackGame('versus');
+  }
   if (versus.status !== 'pledge' && $('#pledge')) modal.close();
   if (versus.status === 'pledge' && !modal.open) honor();
   if ($('#auditResult')) $('#auditResult').innerHTML = versusUi.auditLine(versus.audit);
