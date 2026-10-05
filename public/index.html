@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net/npm/peerjs@1.5.5/; style-src 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://0.peerjs.com wss://0.peerjs.com; base-uri 'none'; form-action 'none'; object-src 'none'"
+      content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net/npm/peerjs@1.5.5/ https://static.cloudflareinsights.com/beacon.min.js; style-src 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://0.peerjs.com wss://0.peerjs.com https://cloudflareinsights.com; base-uri 'none'; form-action 'none'; object-src 'none'"
     />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Breach & Defend — Cybersecurity Card Game</title>
@@ -72,5 +72,11 @@
     </dialog>
     <div id="toast" role="status" aria-live="polite"></div>
     <script type="module" src="app.mjs"></script>
+    <!-- Cloudflare Web Analytics: cookieless visit counts; games played are reported by analytics.mjs. -->
+    <script
+      type="module"
+      src="https://static.cloudflareinsights.com/beacon.min.js"
+      data-cf-beacon='{"token": "6bd81e192f954af9837be34c2107f8b8"}'
+    ></script>
   </body>
 </html>

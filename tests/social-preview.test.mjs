@@ -40,4 +40,7 @@ test('a Content-Security-Policy is declared before any resource loads', () => {
     .readFileSync(new URL('../public/net.mjs', import.meta.url), 'utf8')
     .match(/PEERJS_URL = '([^']+)'/)[1];
   assert.ok(directives['script-src'].some(s => s.endsWith('/') && peer.startsWith(s)));
+  const beacon = index.match(/<script[^>]*src="(https:[^"]+)"[^>]*data-cf-beacon/s)[1];
+  assert.ok(directives['script-src'].includes(beacon), 'the analytics beacon is allowed');
+  assert.ok(directives['connect-src'].includes('https://cloudflareinsights.com'), 'and may report');
 });
